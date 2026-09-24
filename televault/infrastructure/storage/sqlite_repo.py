@@ -1,9 +1,10 @@
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import shutil
 import sqlite3
-from typing import Any
+from typing import Any, Iterator
 
 from televault.domain.entities import FileRecord, MessageRef
 from televault.domain.ports import VaultRepository
@@ -18,16 +19,21 @@ class SQLiteVaultRepository(VaultRepository):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         """Run initial schema migration if tables don't exist."""
         migration_file = Path(__file__).parent / "migrations" / "001_initial.sql"
         schema_sql = migration_file.read_text(encoding="utf-8")
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.executescript(schema_sql)
 
     def add(self, rec: FileRecord) -> None:
@@ -64,7 +70,7 @@ class SQLiteVaultRepository(VaultRepository):
             updated_at = excluded.updated_at
         """
         now = datetime.now(timezone.utc).isoformat()
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute(
                 sql,
                 (
@@ -91,7 +97,7 @@ class SQLiteVaultRepository(VaultRepository):
 
     def get(self, record_id: str) -> FileRecord:
         sql = "SELECT * FROM file_records WHERE id = ?"
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             row = conn.execute(sql, (record_id,)).fetchone()
             if not row:
                 raise KeyError(f"FileRecord not found with id: {record_id}")
@@ -99,7 +105,7 @@ class SQLiteVaultRepository(VaultRepository):
 
     def find_by_hash(self, sha256: str) -> FileRecord | None:
         sql = "SELECT * FROM file_records WHERE sha256 = ? ORDER BY version DESC LIMIT 1"
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             row = conn.execute(sql, (sha256,)).fetchone()
             if not row:
                 return None
@@ -107,7 +113,7 @@ class SQLiteVaultRepository(VaultRepository):
 
     def list_all(self) -> list[FileRecord]:
         sql = "SELECT * FROM file_records ORDER BY created_at DESC"
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             rows = conn.execute(sql).fetchall()
             return [self._row_to_record(r) for r in rows]
 
@@ -130,7 +136,7 @@ class SQLiteVaultRepository(VaultRepository):
         params.append(id)
         sql = f"UPDATE file_records SET {', '.join(updates)} WHERE id = ?"
 
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             cursor = conn.execute(sql, params)
             if cursor.rowcount == 0:
                 raise KeyError(f"FileRecord not found with id: {id}")
@@ -142,7 +148,7 @@ class SQLiteVaultRepository(VaultRepository):
         WHERE name LIKE ? OR tags LIKE ? OR original_path LIKE ?
         ORDER BY created_at DESC
         """
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             rows = conn.execute(sql, (like_query, like_query, like_query)).fetchall()
             return [self._row_to_record(r) for r in rows]
 
@@ -150,7 +156,7 @@ class SQLiteVaultRepository(VaultRepository):
         """Create a consistent SQLite file snapshot on disk."""
         dest.parent.mkdir(parents=True, exist_ok=True)
         # Using SQLite VACUUM INTO for consistent transaction-safe copy
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             # If destination already exists, remove it first
             if dest.exists():
                 dest.unlink()
