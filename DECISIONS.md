@@ -57,3 +57,21 @@ This document records architectural decisions made throughout the project lifecy
 - **Context:** Rule 0.4 and 0.7 prohibit touching real Telegram accounts without explicit gate approval.
 - **Decision:** CLI operations default to in-memory fake gateway unless `TV_LIVE_TEST=1` is explicitly set in environment after user approval.
 - **Status:** Approved.
+
+## Decision 010: Auto-Closing Connection Manager for SQLite
+- **Date:** Phase 2
+- **Context:** Windows locks open file handles on SQLite database files, causing WinError 32 on unlinking or external backup operations.
+- **Decision:** Wrap all database operations in a context manager (`_connection`) that closes the connection immediately after execution.
+- **Status:** Approved.
+
+## Decision 011: Local Recovery Copy Cache Policy
+- **Date:** Phase 2
+- **Context:** Section 4 allows maintaining a local recovery copy until dual cloud verification is established, retaining it for files under 500 MB.
+- **Decision:** Store recovery files by SHA-256 in `%LOCALAPPDATA%/TeleVault/cache/<sha256>`, capped at 500 MB per file.
+- **Status:** Approved.
+
+## Decision 012: Rebuild Discovers and Re-Indexes Channel Messages
+- **Date:** Phase 2
+- **Context:** If the local database is wiped, `RebuildIndexUseCase` must reconstruct full records from Telegram alone.
+- **Decision:** Iterate Primary and Mirror channels, extract `tv1` JSON metadata, correlate matching file UUIDs, and recreate rows with `LocalFileStatus.MISSING` ("Only in Telegram").
+- **Status:** Approved.
