@@ -39,3 +39,21 @@ This document records architectural decisions made throughout the project lifecy
 - **Context:** If the local SQLite database is deleted or corrupted, the user must be able to restore and reconstruct their vault from Telegram alone.
 - **Decision:** Every document message carries a `tv1 {"id":"...","name":"...","sha256":"...","size":...}` header in its caption.
 - **Status:** Approved.
+
+## Decision 007: Streaming 1 MB Buffer for SHA-256 Hashing
+- **Date:** Phase 1
+- **Context:** Rule 2 requires memory streaming without reading entire multi-gigabyte files into RAM.
+- **Decision:** Chunk file reads in 1 MB blocks with incremental progress reporting.
+- **Status:** Approved.
+
+## Decision 008: ASCII-Compatible Terminal Output for Windows CLI
+- **Date:** Phase 1
+- **Context:** Standard Windows console default code pages (e.g. cp1252) raise `UnicodeEncodeError` when rendering unicode geometric shapes (`\u25cf`).
+- **Decision:** Use high-contrast ASCII bracketed tags (`[HEALTHY]`, `[DEGRADED]`, `[DONE]`) in CLI outputs to ensure reliable execution across all Windows terminal environments.
+- **Status:** Approved.
+
+## Decision 009: In-Memory Fake Gateway Default for CLI Testing
+- **Date:** Phase 1
+- **Context:** Rule 0.4 and 0.7 prohibit touching real Telegram accounts without explicit gate approval.
+- **Decision:** CLI operations default to in-memory fake gateway unless `TV_LIVE_TEST=1` is explicitly set in environment after user approval.
+- **Status:** Approved.
