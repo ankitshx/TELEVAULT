@@ -48,3 +48,17 @@ def test_cli_backup_and_ls(tmp_path: Path, monkeypatch):
     proc_ls = run_cli("ls", "--fake")
     assert proc_ls.returncode == 0
     assert "test_notes.md" in proc_ls.stdout
+
+
+def test_cli_verify_and_rebuild(tmp_path: Path):
+    proc_v = run_cli("verify", "--dry-run", "--fake")
+    assert proc_v.returncode == 0
+    assert "Verification Complete" in proc_v.stdout
+
+    proc_r = run_cli("rebuild", "--dry-run", "--fake")
+    assert proc_r.returncode == 0
+    assert "Rebuild Complete" in proc_r.stdout
+
+    proc_s = run_cli("snapshot", "--dry-run", "--fake")
+    assert proc_s.returncode == 0
+    assert "Snapshot exported" in proc_s.stdout
