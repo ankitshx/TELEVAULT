@@ -1,6 +1,6 @@
 ; Inno Setup Script for TeleVault Windows 11 Installer
 #define MyAppName "TeleVault"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "TeleVault Team"
 #define MyAppURL "https://github.com/televault/televault"
 #define MyAppExeName "televault.exe"

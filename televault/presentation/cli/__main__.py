@@ -372,6 +372,211 @@ async def handle_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+async def handle_doctor(args: argparse.Namespace) -> int:
+    config = TeleVaultConfig()
+    config.ensure_directories()
+    repo = SQLiteVaultRepository(config.db_path)
+    gateway = await get_gateway(use_fake=args.fake, config=config)
+
+    from televault.application.doctor import VaultDoctorUseCase
+    from televault.domain.states import DoctorHealthState
+
+    doctor = VaultDoctorUseCase(
+        gateway=gateway,
+        repo=repo,
+        journal=repo,
+        manifest_repo=repo,
+        audit_ledger=repo,
+    )
+
+    console.print(Panel.fit(
+        "[bold cyan]TeleVault Doctor: Diagnostic Health Scan[/bold cyan]",
+        border_style="cyan",
+        box=box.ASCII,
+    ))
+
+    with console.status("[bold green]Running comprehensive vault diagnostics...[/bold green]"):
+        findings = await doctor.diagnose()
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold cyan")
+    table.add_column("Category", style="bold")
+    table.add_column("Title")
+    table.add_column("State")
+    table.add_column("Details")
+    table.add_column("Recommendation")
+
+    has_critical = False
+    for f in findings:
+        color = "green"
+        if f.state == DoctorHealthState.ATTENTION:
+            color = "yellow"
+        elif f.state == DoctorHealthState.DEGRADED:
+            color = "magenta"
+        elif f.state in (DoctorHealthState.RECOVERABLE, DoctorHealthState.LOST):
+            color = "bold red"
+            has_critical = True
+
+        table.add_row(
+            f.category,
+            f.title,
+            f"[{color}]{f.state.value}[/{color}]",
+            f.what_happened,
+            f.recommended_action or "-",
+        )
+
+    console.print(table)
+
+    if args.repair:
+        console.print("\n[bold yellow]Attempting automated repairs...[/bold yellow]")
+        actions = await doctor.repair()
+        if actions:
+            for action in actions:
+                console.print(f"  [green]✓[/green] {action}")
+        else:
+            console.print("  [dim]No repairs needed.[/dim]")
+
+    return 1 if has_critical else 0
+
+
+async def handle_recovery_test(args: argparse.Namespace) -> int:
+    config = TeleVaultConfig()
+    config.ensure_directories()
+    repo = SQLiteVaultRepository(config.db_path)
+    gateway = await get_gateway(use_fake=args.fake, config=config)
+
+    from televault.application.recovery_drill import RecoveryDrillUseCase
+
+    drill = RecoveryDrillUseCase(
+        gateway=gateway,
+        repo=repo,
+        scratch_dir=config.recovery_dir,
+        audit_ledger=repo,
+    )
+
+    console.print(Panel.fit(
+        "[bold cyan]TeleVault Recovery Drill (Non-Destructive Test)[/bold cyan]\n"
+        "[dim]Downloads a file from Telegram cloud, verifies SHA-256 integrity, cleans up temp files.[/dim]",
+        border_style="cyan",
+        box=box.ASCII,
+    ))
+
+    with console.status("[bold green]Executing non-destructive recovery drill...[/bold green]"):
+        try:
+            report = await drill.execute(record_id=args.id, passphrase=args.passphrase)
+        except Exception as e:
+            console.print(f"[bold red]Drill Failed:[/bold red] {e}")
+            return 1
+
+    status_color = "green" if report.passed else "bold red"
+    status_text = "PASSED" if report.passed else "FAILED"
+
+    summary_text = (
+        f"[bold]Target File:[/bold]        {report.file_name}\n"
+        f"[bold]Target Record ID:[/bold]   {report.record_id}\n"
+        f"[bold]Drill Mode:[/bold]         {report.mode.value}\n"
+        f"[bold]File Size:[/bold]          {report.file_size} bytes\n"
+        f"[bold]Duration:[/bold]           {report.duration_seconds:.2f}s\n"
+        f"[bold]SHA-256 Matched:[/bold]    [{status_color}]{report.sha256_matched}[/{status_color}]\n"
+        f"[bold]Size Matched:[/bold]      [{status_color}]{report.size_matched}[/{status_color}]\n"
+        f"[bold]Scratch Cleaned:[/bold]   [green]{report.scratch_cleaned}[/green]\n"
+        f"[bold]Result:[/bold]             [{status_color}][bold]{status_text}[/bold][/{status_color}]"
+    )
+    console.print(Panel(summary_text, title="Recovery Drill Report", border_style=status_color, box=box.ROUNDED))
+    return 0 if report.passed else 1
+
+
+async def handle_manifest(args: argparse.Namespace) -> int:
+    config = TeleVaultConfig()
+    config.ensure_directories()
+    repo = SQLiteVaultRepository(config.db_path)
+
+    from televault.application.manifest import ManifestService
+
+    service = ManifestService(
+        repo=repo,
+        manifest_repo=repo,
+        vault_id="v_default",
+        audit_ledger=repo,
+    )
+
+    if args.verify:
+        is_valid, msg = service.verify_chain()
+        style = "green" if is_valid else "bold red"
+        console.print(Panel(
+            f"[{style}]{msg}[/{style}]",
+            title="Vault Manifest Chain Verification",
+            border_style=style,
+            box=box.ROUNDED,
+        ))
+        return 0 if is_valid else 1
+
+    latest = service.get_latest()
+    if not args.generate and latest:
+        console.print(Panel(
+            f"[bold]Generation:[/bold]       {latest.generation}\n"
+            f"[bold]Vault ID:[/bold]         {latest.vault_id}\n"
+            f"[bold]Total Files:[/bold]      {latest.total_files}\n"
+            f"[bold]Total Bytes:[/bold]      {latest.total_bytes}\n"
+            f"[bold]Manifest Hash:[/bold]    {latest.manifest_hash}\n"
+            f"[bold]Previous Hash:[/bold]    {latest.previous_hash}\n"
+            f"[bold]Timestamp:[/bold]        {latest.timestamp.isoformat()}",
+            title="Latest Vault Manifest",
+            border_style="cyan",
+            box=box.ROUNDED,
+        ))
+        return 0
+
+    m = service.generate_manifest()
+    console.print(Panel(
+        f"[green]New manifest generation {m.generation} generated successfully.[/green]\n\n"
+        f"[bold]Total Files:[/bold]   {m.total_files}\n"
+        f"[bold]Total Bytes:[/bold]   {m.total_bytes}\n"
+        f"[bold]Manifest Hash:[/bold] {m.manifest_hash}\n"
+        f"[bold]Previous Hash:[/bold] {m.previous_hash}",
+        title="Manifest Generated",
+        border_style="green",
+        box=box.ROUNDED,
+    ))
+    return 0
+
+
+async def handle_audit(args: argparse.Namespace) -> int:
+    config = TeleVaultConfig()
+    config.ensure_directories()
+    repo = SQLiteVaultRepository(config.db_path)
+
+    is_valid, msg = repo.verify_integrity()
+    color = "green" if is_valid else "bold red"
+    console.print(f"[{color}]Audit Ledger Integrity: {msg}[/{color}]\n")
+
+    events = repo.list_events(limit=args.limit)
+    if not events:
+        console.print("[dim]No audit events recorded yet.[/dim]")
+        return 0
+
+    table = Table(title="TeleVault Tamper-Evident Audit Ledger", box=box.ROUNDED)
+    table.add_column("Event ID", style="dim", max_width=12)
+    table.add_column("Timestamp", style="cyan")
+    table.add_column("Action", style="bold")
+    table.add_column("Entity ID", max_width=14)
+    table.add_column("Result")
+    table.add_column("Details")
+
+    for e in reversed(events):
+        res_color = "green" if e.result == "SUCCESS" else "red"
+        table.add_row(
+            e.event_id[:8],
+            e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            e.action,
+            e.entity_id or "-",
+            f"[{res_color}]{e.result}[/{res_color}]",
+            e.details or "-",
+        )
+
+    console.print(table)
+    return 0
+
+
 def handle_web(args: argparse.Namespace) -> int:
     import uvicorn
     url = f"http://{args.host}:{args.port}"
@@ -444,6 +649,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_snapshot.add_argument("--dry-run", action="store_true", help="Export snapshot locally without uploading")
     p_snapshot.add_argument("--fake", action="store_true", help="Force in-memory fake gateway")
 
+    # doctor
+    p_doctor = subparsers.add_parser("doctor", help="Run diagnostic health scan and self-healing")
+    p_doctor.add_argument("--repair", action="store_true", help="Automatically attempt safe repairs")
+    p_doctor.add_argument("--fake", action="store_true", help="Force in-memory fake gateway")
+
+    # recovery-test
+    p_rectest = subparsers.add_parser("recovery-test", help="Execute non-destructive recovery drill")
+    p_rectest.add_argument("--id", help="Optional specific FileRecord ID to drill")
+    p_rectest.add_argument("--passphrase", help="Passphrase if drilling a Private Mode record")
+    p_rectest.add_argument("--fake", action="store_true", help="Force in-memory fake gateway")
+
+    # manifest
+    p_manifest = subparsers.add_parser("manifest", help="Manage vault tamper-evident hash-chained manifests")
+    p_manifest.add_argument("--generate", action="store_true", help="Generate a new manifest generation")
+    p_manifest.add_argument("--verify", action="store_true", help="Verify cryptographic chain integrity")
+
+    # audit
+    p_audit = subparsers.add_parser("audit", help="Inspect tamper-evident append-only audit ledger")
+    p_audit.add_argument("--limit", type=int, default=20, help="Number of recent events to display")
+
     return parser
 
 
@@ -474,6 +699,14 @@ def main() -> None:
         sys.exit(asyncio.run(handle_rebuild(args)))
     elif args.command == "snapshot":
         sys.exit(asyncio.run(handle_snapshot(args)))
+    elif args.command == "doctor":
+        sys.exit(asyncio.run(handle_doctor(args)))
+    elif args.command == "recovery-test":
+        sys.exit(asyncio.run(handle_recovery_test(args)))
+    elif args.command == "manifest":
+        sys.exit(asyncio.run(handle_manifest(args)))
+    elif args.command == "audit":
+        sys.exit(asyncio.run(handle_audit(args)))
     else:
         parser.print_help()
         sys.exit(1)

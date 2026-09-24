@@ -24,69 +24,95 @@ if not "%~1"=="" (
 :menu
 cls
 echo ===============================================================================
-echo                           TELEVAULT CLI LAUNCHER                              
-echo       Resilient, Append-Only Telegram Backup Vault (Windows 11 x64)           
+echo                      TELEVAULT v2.0 - WINDOWS 11 LAUNCHER                      
+echo         A private, append-only, verifiable backup vault via MTProto            
 echo ===============================================================================
 echo.
-echo Available Quick Actions:
-echo   [0] Launch Web Dashboard (Modern Browser App)
-echo   [1] View Rich Color Dashboard & File List (dashboard / ls)
-echo   [2] Log in to Telegram Account via MTProto (login)
-echo   [3] Disconnect Telegram Account (logout)
-echo   [4] Verify Vault Health across Telegram Channels (verify)
-echo   [5] Verify and Auto-Heal Degraded Files (verify --heal)
-echo   [6] Back up a File or Folder (backup)
-echo   [7] Restore a File by ID (restore)
-echo   [8] Rebuild Local Index from Telegram Channels (rebuild)
-echo   [9] Create and Upload SQLite Snapshot (snapshot)
-echo   [10] Show Full Command Line Help (--help)
-echo   [11] Exit
+echo Application Interfaces:
+echo   [0] Launch Windows 11 Fluent GUI (Desktop App)
+echo   [1] Launch Modern Web Dashboard (Browser App)
+echo   [2] View Rich Colored Terminal Dashboard (CLI)
 echo.
-set /p "CHOICE=Enter choice [0-11] or type a command: "
+echo Health, Diagnostics & AI:
+echo   [3] Run Vault Doctor Diagnostics (doctor)
+echo   [4] Run Non-Destructive Recovery Drill (recovery-test)
+echo   [5] Verify Cryptographic Manifest Chain (manifest --verify)
+echo   [6] Inspect Tamper-Evident Audit Ledger (audit)
+echo.
+echo Operations:
+echo   [7] Connect / Login Telegram MTProto Account (login)
+echo   [8] Verify Dual Channel Redundancy & Auto-Heal (verify --heal)
+echo   [9] Back Up a File or Folder (backup)
+echo   [10] Restore a File by Record ID (restore)
+echo   [11] Disaster Recovery Rebuild from Telegram (rebuild)
+echo   [12] Show Command Line Help (--help)
+echo   [13] Exit
+echo.
+set /p "CHOICE=Enter choice [0-13] or custom command: "
 
 if "%CHOICE%"=="0" (
+    echo.
+    echo Launching TeleVault Windows 11 Fluent GUI...
+    python -m televault
+    goto menu
+)
+if "%CHOICE%"=="1" (
     echo.
     echo Launching TeleVault Web Dashboard at http://127.0.0.1:8000 ...
     python -m televault.presentation.cli web
     pause
     goto menu
 )
-if "%CHOICE%"=="1" (
+if "%CHOICE%"=="2" (
     echo.
     python -m televault.presentation.cli dashboard
     echo.
     pause
     goto menu
 )
-if "%CHOICE%"=="2" (
-    echo.
-    python -m televault.presentation.cli login
-    echo.
-    pause
-    goto menu
-)
 if "%CHOICE%"=="3" (
     echo.
-    python -m televault.presentation.cli logout
+    python -m televault.presentation.cli doctor
     echo.
     pause
     goto menu
 )
 if "%CHOICE%"=="4" (
     echo.
-    python -m televault.presentation.cli verify
+    python -m televault.presentation.cli recovery-test
     echo.
     pause
     goto menu
 )
 if "%CHOICE%"=="5" (
     echo.
-    python -m televault.presentation.cli verify --heal
+    python -m televault.presentation.cli manifest --verify
     echo.
     pause
     goto menu
 )
 if "%CHOICE%"=="6" (
+    echo.
+    python -m televault.presentation.cli audit
+    echo.
+    pause
+    goto menu
+)
+if "%CHOICE%"=="7" (
+    echo.
+    python -m televault.presentation.cli login
+    echo.
+    pause
+    goto menu
+)
+if "%CHOICE%"=="8" (
+    echo.
+    python -m televault.presentation.cli verify --heal
+    echo.
+    pause
+    goto menu
+)
+if "%CHOICE%"=="9" (
     echo.
     set /p "TARGET_PATH=Enter full path of file or folder to back up: "
     set /p "IS_PRIV=Enable Private Mode encryption? (y/n): "
@@ -103,7 +129,7 @@ if "%CHOICE%"=="6" (
     pause
     goto menu
 )
-if "%CHOICE%"=="7" (
+if "%CHOICE%"=="10" (
     echo.
     set /p "REC_ID=Enter record ID to restore: "
     set /p "OUT_DIR=Enter destination folder (leave blank for ./restored): "
@@ -120,28 +146,21 @@ if "%CHOICE%"=="7" (
     pause
     goto menu
 )
-if "%CHOICE%"=="8" (
+if "%CHOICE%"=="11" (
     echo.
     python -m televault.presentation.cli rebuild
     echo.
     pause
     goto menu
 )
-if "%CHOICE%"=="9" (
-    echo.
-    python -m televault.presentation.cli snapshot
-    echo.
-    pause
-    goto menu
-)
-if "%CHOICE%"=="10" (
+if "%CHOICE%"=="12" (
     echo.
     python -m televault.presentation.cli --help
     echo.
     pause
     goto menu
 )
-if "%CHOICE%"=="11" (
+if "%CHOICE%"=="13" (
     exit /b 0
 )
 if /i "%CHOICE%"=="exit" (

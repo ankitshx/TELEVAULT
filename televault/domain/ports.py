@@ -3,14 +3,17 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from televault.domain.entities import (
+    AuditEvent,
     ExistsResult,
     FileRecord,
+    ManifestRecord,
     MessageRef,
+    TransactionRecord,
     VaultChannels,
     VaultMessage,
 )
 from televault.domain.events import DomainEvent
-from televault.domain.states import HealthState
+from televault.domain.states import HealthState, TransactionState
 
 # Callback types
 ProgressCallback = Callable[[int, int], None]  # current_bytes, total_bytes
@@ -92,9 +95,70 @@ class VaultRepository(Protocol):
 
 
 @runtime_checkable
+class TransactionJournal(Protocol):
+    """Port for crash-safe persistent backup transactions."""
+
+    def create(self, tx: TransactionRecord) -> None: ...
+
+    def update_transaction_state(self, tx_id: str, state: TransactionState, **kwargs: Any) -> None: ...
+
+    def update_state(self, tx_id: str, state: TransactionState, **kwargs: Any) -> None: ...
+
+    def get_transaction(self, tx_id: str) -> TransactionRecord | None: ...
+
+    def list_pending(self) -> list[TransactionRecord]: ...
+
+    def complete(self, tx_id: str, record_id: str) -> None: ...
+
+    def fail(self, tx_id: str, error: str) -> None: ...
+
+
+@runtime_checkable
+class ManifestRepository(Protocol):
+    """Port for tamper-evident, hash-chained vault manifests."""
+
+    def save_manifest(self, manifest: ManifestRecord) -> None: ...
+
+    def get_latest_manifest(self) -> ManifestRecord | None: ...
+
+    def get_manifest_by_generation(self, generation: int) -> ManifestRecord | None: ...
+
+    def list_manifests(self) -> list[ManifestRecord]: ...
+
+
+@runtime_checkable
+class AuditLedger(Protocol):
+    """Port for append-only hash-chained audit event logs."""
+
+    def append_event(
+        self,
+        operation: str,
+        record_id: str | None,
+        result: str,
+        details: str,
+    ) -> AuditEvent: ...
+
+    def list_events(self, limit: int = 100) -> list[AuditEvent]: ...
+
+    def verify_integrity(self) -> tuple[bool, str]: ...
+
+
+@runtime_checkable
 class EventBus(Protocol):
     """Port for decoupled event publishing and subscription."""
 
     def publish(self, event: DomainEvent) -> None: ...
 
     def subscribe(self, kind: type[DomainEvent], handler: Callable[[Any], None]) -> None: ...
+
+
+@runtime_checkable
+class AIProvider(Protocol):
+    """Port for AI provider abstraction (local heuristics, local LLM, cloud API)."""
+
+    async def analyze(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        context: dict[str, Any],
+    ) -> str: ...

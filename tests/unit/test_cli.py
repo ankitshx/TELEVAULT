@@ -62,3 +62,17 @@ def test_cli_verify_and_rebuild(tmp_path: Path):
     proc_s = run_cli("snapshot", "--dry-run", "--fake")
     assert proc_s.returncode == 0
     assert "Snapshot exported" in proc_s.stdout
+
+
+def test_cli_doctor_manifest_audit():
+    proc_d = run_cli("doctor", "--fake")
+    assert "TeleVault Doctor" in proc_d.stdout
+    assert "AUTHENTICATION" in proc_d.stdout
+
+    proc_m = run_cli("manifest", "--verify")
+    assert proc_m.returncode == 0
+    assert "Vault Manifest Chain Verification" in proc_m.stdout
+
+    proc_a = run_cli("audit")
+    assert proc_a.returncode == 0
+    assert "Audit Ledger Integrity" in proc_a.stdout

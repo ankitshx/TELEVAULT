@@ -377,6 +377,189 @@ async def create_snapshot(force_fake: bool = False):
     return {"status": "complete", "snapshot_file": dest.name}
 
 
+# -------------------------------------------------------------
+# Doctor, Recovery Drill, Manifest, Audit, and AI Endpoints
+# -------------------------------------------------------------
+from televault.ai.orchestrator import AIOrchestrator
+from televault.application.doctor import VaultDoctorUseCase
+from televault.application.manifest import ManifestService
+from televault.application.recovery_drill import RecoveryDrillUseCase
+
+
+class AIQueryRequest(BaseModel):
+    role: str = "doctor"
+    prompt: str = ""
+
+
+class ProposalActionRequest(BaseModel):
+    proposal_id: str
+
+
+@app.get("/api/doctor")
+async def get_doctor_diagnostics(repair: bool = False, force_fake: bool = False):
+    gateway = await resolve_gateway(force_fake=force_fake)
+    doctor = VaultDoctorUseCase(gateway, repo, repo, repo, repo)
+    findings = await doctor.diagnose()
+    repairs = []
+    if repair:
+        repairs = await doctor.repair()
+        add_log("Doctor", f"Repaired {len(repairs)} items automatically.", "success")
+    return {
+        "status": "complete",
+        "findings": [
+            {
+                "category": f.category,
+                "title": f.title,
+                "state": f.state.value,
+                "what_happened": f.what_happened,
+                "why": f.why,
+                "what_is_safe": f.what_is_safe,
+                "recommended_action": f.recommended_action,
+                "action_type": f.action_type,
+            }
+            for f in findings
+        ],
+        "repairs": repairs,
+    }
+
+
+@app.post("/api/recovery-drill")
+async def run_recovery_drill(record_id: str | None = None, passphrase: str | None = None, force_fake: bool = False):
+    gateway = await resolve_gateway(force_fake=force_fake)
+    drill = RecoveryDrillUseCase(gateway, repo, config.recovery_dir, repo)
+    try:
+        report = await drill.execute(record_id=record_id, passphrase=passphrase)
+        add_log("RecoveryDrill", f"Recovery drill completed: {report.message}", "success" if report.passed else "error")
+        return {
+            "status": "complete",
+            "passed": report.passed,
+            "record_id": report.record_id,
+            "file_name": report.file_name,
+            "file_size": report.file_size,
+            "duration_seconds": report.duration_seconds,
+            "sha256_matched": report.sha256_matched,
+            "size_matched": report.size_matched,
+            "scratch_cleaned": report.scratch_cleaned,
+            "message": report.message,
+        }
+    except Exception as e:
+        add_log("RecoveryDrill", f"Drill failed: {e}", "error")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/manifest")
+async def get_manifest():
+    service = ManifestService(repo, repo, vault_id="v_web", audit_ledger=repo)
+    latest = service.get_latest()
+    is_valid, msg = service.verify_chain()
+    return {
+        "is_valid": is_valid,
+        "verification_message": msg,
+        "latest": {
+            "generation": latest.generation,
+            "total_files": latest.total_files,
+            "total_bytes": latest.total_bytes,
+            "manifest_hash": latest.manifest_hash,
+            "previous_hash": latest.previous_hash,
+            "created_at": latest.created_at.isoformat(),
+        } if latest else None,
+    }
+
+
+@app.post("/api/manifest/generate")
+async def generate_manifest():
+    service = ManifestService(repo, repo, vault_id="v_web", audit_ledger=repo)
+    m = service.generate_manifest()
+    add_log("Manifest", f"New manifest generation {m.generation} generated.", "success")
+    return {
+        "status": "complete",
+        "generation": m.generation,
+        "total_files": m.total_files,
+        "total_bytes": m.total_bytes,
+        "manifest_hash": m.manifest_hash,
+    }
+
+
+@app.get("/api/audit")
+async def get_audit_ledger(limit: int = 50):
+    events = repo.list_events(limit=limit)
+    is_valid, msg = repo.verify_integrity()
+    return {
+        "is_valid": is_valid,
+        "integrity_message": msg,
+        "events": [
+            {
+                "event_id": e.event_id,
+                "timestamp": e.timestamp.isoformat(),
+                "action": e.action,
+                "entity_id": e.entity_id,
+                "result": e.result,
+                "details": e.details,
+            }
+            for e in events
+        ],
+    }
+
+
+# Singleton AI Orchestrator instance for web sessions
+web_orchestrator: AIOrchestrator | None = None
+
+
+def get_web_orchestrator() -> AIOrchestrator:
+    global web_orchestrator
+    if web_orchestrator is None:
+        web_orchestrator = AIOrchestrator(
+            repo=repo,
+            gateway=FakeTelegramGateway(),
+            manifest_repo=repo,
+            audit_ledger=repo,
+        )
+    return web_orchestrator
+
+
+@app.post("/api/ai/query")
+async def query_ai(req: AIQueryRequest):
+    orch = get_web_orchestrator()
+    resp = await orch.query_agent(req.role, req.prompt)
+    return {
+        "agent_id": resp.agent_id,
+        "agent_name": resp.agent_name,
+        "message": resp.message,
+        "confidence": resp.confidence,
+        "proposals": [
+            {
+                "proposal_id": p.proposal_id,
+                "agent_name": p.agent_name,
+                "action_title": p.action_title,
+                "why": p.why,
+                "what_will_change": p.what_will_change,
+                "what_will_not_change": p.what_will_not_change,
+                "safe": p.safe,
+                "reversible": p.reversible,
+            }
+            for p in resp.proposals
+        ],
+    }
+
+
+@app.post("/api/ai/proposals/approve")
+async def approve_proposal(req: ProposalActionRequest):
+    orch = get_web_orchestrator()
+    prop = orch.approve_proposal(req.proposal_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="Proposal not found or already executed.")
+    add_log("AI_Approval", f"Approved proposal: {prop.action_title}", "info")
+    return {"status": "approved", "action_title": prop.action_title}
+
+
+@app.post("/api/ai/proposals/reject")
+async def reject_proposal(req: ProposalActionRequest):
+    orch = get_web_orchestrator()
+    orch.reject_proposal(req.proposal_id)
+    return {"status": "rejected"}
+
+
 # Mount static assets
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
