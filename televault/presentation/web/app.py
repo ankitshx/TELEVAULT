@@ -559,6 +559,45 @@ async def reject_proposal(req: ProposalActionRequest):
     return {"status": "rejected"}
 
 
+@app.get("/api/ai/agents")
+async def get_ai_agents():
+    orch = get_web_orchestrator()
+    agents_list = []
+    for key, ag in orch.agents.items():
+        agents_list.append({
+            "key": key,
+            "id": ag.agent_id,
+            "name": ag.agent_name,
+            "role": ag.role,
+        })
+    return {"agents": agents_list}
+
+
+@app.get("/api/versions")
+async def get_versions():
+    records = repo.list_all()
+    grouped: dict[str, list[dict]] = {}
+    for r in records:
+        entry = {
+            "id": r.id,
+            "name": r.name,
+            "version": r.version,
+            "size": r.size,
+            "sha256": r.sha256,
+            "state": r.state.value,
+            "mode": r.mode.value,
+            "local_status": r.local_status.value,
+            "created_at": r.created_at.isoformat() if hasattr(r.created_at, "isoformat") else str(r.created_at),
+        }
+        grouped.setdefault(r.name, []).append(entry)
+
+    # Sort versions descending for each file
+    for name, vlist in grouped.items():
+        vlist.sort(key=lambda x: x["version"], reverse=True)
+
+    return {"versions": grouped}
+
+
 # Mount static assets
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

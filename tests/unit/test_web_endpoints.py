@@ -48,3 +48,17 @@ def test_web_ai_query_endpoint(client: TestClient):
     data = res.json()
     assert data["agent_id"] == "vault_doctor"
     assert "Vault Doctor Diagnosis" in data["message"]
+
+
+def test_web_agents_and_versions_endpoints(client: TestClient):
+    res_agents = client.get("/api/ai/agents")
+    assert res_agents.status_code == 200
+    agents_data = res_agents.json()
+    assert "agents" in agents_data
+    assert len(agents_data["agents"]) == 10
+
+    res_ver = client.get("/api/versions")
+    assert res_ver.status_code == 200
+    ver_data = res_ver.json()
+    assert "versions" in ver_data
+

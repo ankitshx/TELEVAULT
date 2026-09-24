@@ -598,7 +598,10 @@ def build_parser() -> argparse.ArgumentParser:
         prog="televault",
         description="TeleVault: Manual-only, append-only resilient desktop backup vault.",
     )
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # gui
+    subparsers.add_parser("gui", help="Launch the native Windows 11 Desktop GUI Application")
 
     # login
     subparsers.add_parser("login", help="Log in to your Telegram account via MTProto")
@@ -679,7 +682,10 @@ def main() -> None:
     if not args.command:
         sys.exit(asyncio.run(handle_dashboard(args)))
 
-    if args.command == "login":
+    if args.command == "gui":
+        from televault.presentation.gui.app import run_gui
+        sys.exit(run_gui())
+    elif args.command == "login":
         sys.exit(asyncio.run(handle_login(args)))
     elif args.command == "logout":
         sys.exit(asyncio.run(handle_logout(args)))

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TeleVault — Resilient Telegram Backup Vault</title>
+    <title>TeleVault — Resilient Personal Telegram Backup Vault</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -38,7 +38,7 @@
             <div class="stat-card">
                 <div class="stat-label">Total Backed Up <span>📁</span></div>
                 <div id="stat-size" class="stat-value">0 B</div>
-                <div class="stat-sub"><span id="stat-files">0</span> files indexed in local vault</div>
+                <div class="stat-sub"><span id="stat-files">0</span> files indexed in vault</div>
             </div>
 
             <div class="stat-card">
@@ -60,40 +60,110 @@
             </div>
 
             <div class="stat-card">
-                <div class="stat-label">Encryption Standard <span>🔐</span></div>
+                <div class="stat-label">Security Standard <span>🔐</span></div>
                 <div class="stat-value" style="font-size: 1.15rem; color: #c77dff; margin-top: 0.25rem;">
                     AES-256-GCM
                 </div>
-                <div class="stat-sub">Argon2id Key Derivation</div>
+                <div class="stat-sub">Argon2id + Hash Chain</div>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
         <div class="nav-tabs">
-            <button class="nav-tab active" data-tab="tab-vault">
-                📁 Vault Explorer
-            </button>
-            <button class="nav-tab" data-tab="tab-backup">
-                🚀 Backup New File
-            </button>
-            <button class="nav-tab" data-tab="tab-account">
-                👤 Telegram Account
-            </button>
-            <button class="nav-tab" data-tab="tab-logs">
-                🖥️ Event Audit Terminal
-            </button>
+            <button class="nav-tab active" data-tab="tab-overview">📊 Overview</button>
+            <button class="nav-tab" data-tab="tab-files">📁 Files Explorer</button>
+            <button class="nav-tab" data-tab="tab-backup">🚀 Backup File</button>
+            <button class="nav-tab" data-tab="tab-timeline">⏳ Time Machine</button>
+            <button class="nav-tab" data-tab="tab-recovery">🛡️ Recovery Center</button>
+            <button class="nav-tab" data-tab="tab-doctor">🩺 AI Doctor & Team</button>
+            <button class="nav-tab" data-tab="tab-security">🔐 Security & Manifest</button>
+            <button class="nav-tab" data-tab="tab-audit">📜 Audit Ledger</button>
+            <button class="nav-tab" data-tab="tab-account">👤 Telegram Account</button>
         </div>
 
-        <!-- Tab 1: Vault Explorer -->
-        <div id="tab-vault" class="tab-content active">
+        <!-- TAB 1: Overview & Invariants -->
+        <div id="tab-overview" class="tab-content active">
+            <!-- Invariants Banner -->
+            <div class="invariants-banner">
+                <div class="invariant-card">
+                    <div class="invariant-badge-title" style="color: var(--cyan);">
+                        <span>📄</span> Invariant 1: Single Document
+                    </div>
+                    <p>Every file is uploaded as exactly one document. Zero silent chunking, byte tampering, or silent zipping.</p>
+                </div>
+                <div class="invariant-card">
+                    <div class="invariant-badge-title" style="color: var(--crimson);">
+                        <span>🚫</span> Invariant 2: Zero Deletions
+                    </div>
+                    <p>Constitutional rule: zero delete_messages calls. Vault cloud storage is append-only and indestructible.</p>
+                </div>
+                <div class="invariant-card">
+                    <div class="invariant-badge-title" style="color: var(--amber);">
+                        <span>⚙️</span> Invariant 3: Manual Only
+                    </div>
+                    <p>No background daemons or auto-sync surprise uploads. Explicit human control over every cloud write.</p>
+                </div>
+                <div class="invariant-card">
+                    <div class="invariant-badge-title" style="color: var(--emerald);">
+                        <span>🔒</span> Invariant 4: SHA-256 Proven
+                    </div>
+                    <p>Streaming SHA-256 verification before write and during restore. Bit-rot or tampering is rejected instantly.</p>
+                </div>
+            </div>
+
+            <!-- Quick Action Panel -->
+            <div class="action-panel">
+                <div class="action-panel-title">
+                    <span>⚡</span> Vault Quick Actions
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="switchToTab('tab-backup')">📥 Back Up File</button>
+                    <button class="btn" onclick="handleVerify()">🛡️ Verify Redundancy</button>
+                    <button class="btn" onclick="handleAutoHeal()">✨ Auto-Heal Vault</button>
+                    <button class="btn" onclick="runDoctorDiagnostics()">🩺 Run Vault Doctor</button>
+                    <button class="btn" onclick="runRecoveryDrill()">🎯 Recovery Drill</button>
+                    <button class="btn" onclick="handleRebuild()">🔄 Disaster Rebuild</button>
+                </div>
+            </div>
+
+            <!-- Recent Findings / Status Summary -->
             <div class="table-card">
                 <div class="table-header-bar">
-                    <div class="table-title">Indexed Vault Documents</div>
+                    <div class="table-title"><span>🛡️</span> Vault Integrity Status Summary</div>
+                    <button class="btn" onclick="refreshAll()">↻ Refresh State</button>
+                </div>
+                <div style="padding: 1.5rem;" id="overview-integrity-summary">
+                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                        <div>
+                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Primary Channel</div>
+                            <div id="overview-primary-chan" style="font-weight: 600; font-family: var(--font-mono); color: var(--cyan); margin-top: 0.25rem;">Checking...</div>
+                        </div>
+                        <div>
+                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Mirror Channel</div>
+                            <div id="overview-mirror-chan" style="font-weight: 600; font-family: var(--font-mono); color: var(--cyan); margin-top: 0.25rem;">Checking...</div>
+                        </div>
+                        <div>
+                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Manifest Chain</div>
+                            <div id="overview-manifest-state" style="font-weight: 600; color: var(--emerald); margin-top: 0.25rem;">Verified Intact</div>
+                        </div>
+                        <div>
+                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Audit Ledger</div>
+                            <div id="overview-audit-state" style="font-weight: 600; color: var(--emerald); margin-top: 0.25rem;">Cryptographically Sound</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: Files Explorer -->
+        <div id="tab-files" class="tab-content">
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title"><span>📁</span> Indexed Vault Documents</div>
                     <div class="table-actions">
-                        <button class="btn" onclick="handleVerify()">🛡️ Verify Health</button>
-                        <button class="btn" onclick="handleAutoHeal()">✨ Auto-Heal</button>
-                        <button class="btn" onclick="handleRebuild()">🔄 Rebuild Index</button>
-                        <button class="btn" onclick="handleSnapshot()">📸 Snapshot</button>
+                        <input type="text" id="file-search-input" class="input-text" placeholder="Search files or records..." oninput="filterRecordsTable()" style="width: 220px;">
+                        <button class="btn" onclick="handleVerify()">🛡️ Verify</button>
+                        <button class="btn" onclick="handleAutoHeal()">✨ Heal</button>
                         <button class="btn" onclick="refreshRecords()">↻ Refresh</button>
                     </div>
                 </div>
@@ -102,10 +172,11 @@
                     <thead>
                         <tr>
                             <th>File Name</th>
+                            <th>Version</th>
                             <th>Record ID</th>
                             <th>Size</th>
                             <th>Health State</th>
-                            <th>Vault Mode</th>
+                            <th>Mode</th>
                             <th>Local Status</th>
                             <th>Action</th>
                         </tr>
@@ -117,14 +188,14 @@
             </div>
         </div>
 
-        <!-- Tab 2: Backup File -->
+        <!-- TAB 3: Backup File -->
         <div id="tab-backup" class="tab-content">
             <input type="file" id="file-input" style="display: none;">
             
             <div id="dropzone" class="dropzone-container">
                 <div class="dropzone-icon">📥</div>
                 <div class="dropzone-title">Drop your file here to back up</div>
-                <div class="dropzone-desc">Single-document force upload to Primary vault + server forward to Mirror vault</div>
+                <div class="dropzone-desc">Single-document force upload to Primary channel + forward to Mirror channel with streaming SHA-256</div>
                 <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Browse Computer</button>
                 <div id="upload-status-text" style="display: none; margin-top: 1rem; font-weight: 600;"></div>
             </div>
@@ -132,8 +203,12 @@
             <!-- Backup Options & Local Path Backup -->
             <div class="backup-options">
                 <div class="option-group">
-                    <input type="checkbox" id="check-private" style="accent-color: var(--cyan); width: 18px; height: 18px;">
+                    <input type="checkbox" id="check-private" style="accent-color: var(--cyan); width: 18px; height: 18px;" onchange="togglePassphraseInput()">
                     <label for="check-private" style="font-size: 0.85rem; font-weight: 600;">Enable Private Mode (Client-side AES-256-GCM encryption)</label>
+                </div>
+
+                <div id="passphrase-container" style="display: none; align-items: center; gap: 0.5rem;">
+                    <input type="password" id="input-passphrase" class="input-text" placeholder="Enter private passphrase" style="width: 200px;">
                 </div>
 
                 <div style="flex: 1; display: flex; gap: 0.5rem; min-width: 320px;">
@@ -143,17 +218,277 @@
             </div>
         </div>
 
-        <!-- Tab 3: Telegram Account -->
-        <div id="tab-account" class="tab-content">
-            <div id="account-info-container">
-                <!-- Dynamically rendered -->
+        <!-- TAB 4: Time Machine & Version Tree -->
+        <div id="tab-timeline" class="tab-content">
+            <div class="timeline-tree-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #fff;">⏳ Time Machine Visual Version Lineage</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">Append-only version history. Inspect past iterations and restore any previous generation.</div>
+                    </div>
+                    <div>
+                        <select id="timeline-file-selector" class="input-text" onchange="renderSelectedFileVersionTree()" style="min-width: 220px;">
+                            <option value="">Select a file to inspect...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Visual Node Flow -->
+                <div id="timeline-flow" class="tree-flow">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; padding: 1rem;">Select a file above to visualize its version progression (v1 ➔ v2 ➔ v3 [CURRENT]).</div>
+                </div>
+            </div>
+
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title"><span>📜</span> Historical Revisions for Selected File</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Record ID</th>
+                            <th>SHA-256 Fingerprint</th>
+                            <th>Size</th>
+                            <th>Mode</th>
+                            <th>Backup Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timeline-versions-body">
+                        <tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">No file selected.</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
-        <!-- Tab 4: Logs -->
-        <div id="tab-logs" class="tab-content">
-            <div class="terminal-card" id="terminal-logs">
-                <!-- Populated dynamically -->
+        <!-- TAB 5: Recovery Center -->
+        <div id="tab-recovery" class="tab-content">
+            <div class="drill-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🎯</span> Non-Destructive Recovery Drill
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; max-width: 680px;">
+                            Executes an automated dry-run restoration inside a sandboxed scratch environment. Tests Telegram MTProto download, validates SHA-256 checksum byte-by-byte, and securely cleans up scratch storage without touching production or local files.
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="runRecoveryDrill()">🚀 Execute Recovery Drill</button>
+                </div>
+
+                <div style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 240px;">
+                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Target Record (optional)</label>
+                        <select id="drill-record-select" class="input-text" style="width: 100%;">
+                            <option value="">Latest Uploaded File (Auto)</option>
+                        </select>
+                    </div>
+                    <div style="width: 220px;">
+                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Passphrase (for Private Mode)</label>
+                        <input type="password" id="drill-passphrase-input" class="input-text" placeholder="Passphrase if encrypted" style="width: 100%;">
+                    </div>
+                </div>
+
+                <div id="drill-results-panel" class="drill-results" style="display: none;">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Disaster Recovery & Reconstruction -->
+            <div class="action-panel">
+                <div>
+                    <div class="action-panel-title">
+                        <span>🔄</span> Disaster Recovery Index Rebuild
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                        If your local SQLite index is destroyed or lost, TeleVault scans your Telegram channel messages, parses cryptographic tv2 captions, and reconstructs the complete database.
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="handleRebuild()">🔄 Rebuild Index from Telegram</button>
+                    <button class="btn" onclick="handleSnapshot()">📸 Export DB Snapshot</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: AI Doctor & Advisory Team -->
+        <div id="tab-doctor" class="tab-content">
+            <!-- Vault Doctor Diagnostics Panel -->
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title"><span>🩺</span> Vault Doctor Automated Diagnostics</div>
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="runDoctorDiagnostics()">🩺 Run Diagnostics</button>
+                        <button class="btn btn-success" id="btn-doctor-repair" onclick="applyDoctorRepairs()" style="display: none;">✨ 1-Click Auto-Repair</button>
+                    </div>
+                </div>
+                <div style="padding: 1.5rem;" id="doctor-findings-container">
+                    <div style="color: var(--text-dim); font-size: 0.85rem;">Click "Run Diagnostics" to scan for degraded files, channel drift, transaction health, and manifest consistency.</div>
+                </div>
+            </div>
+
+            <!-- 10 Specialized Advisory Agents Console -->
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div>
+                        <div class="table-title"><span>🤖</span> 10 Specialized AI Advisory Agents</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted);">Deterministic Core Supremacy: Agents advise and propose structured Action Proposals. You hold the final approval gate.</div>
+                    </div>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <!-- Agent Selector Tabs -->
+                    <div class="agents-selector" id="ai-agents-pills">
+                        <div class="agent-pill active" data-agent="doctor" onclick="selectAIAgent('doctor')">🩺 Vault Doctor</div>
+                        <div class="agent-pill" data-agent="redundancy" onclick="selectAIAgent('redundancy')">☁️ Redundancy Auditor</div>
+                        <div class="agent-pill" data-agent="recovery" onclick="selectAIAgent('recovery')">🎯 Recovery Drill</div>
+                        <div class="agent-pill" data-agent="versioning" onclick="selectAIAgent('versioning')">⏳ Retention & Versions</div>
+                        <div class="agent-pill" data-agent="forensics" onclick="selectAIAgent('forensics')">🔍 Incident Forensics</div>
+                        <div class="agent-pill" data-agent="channels" onclick="selectAIAgent('channels')">📡 Channel Health</div>
+                        <div class="agent-pill" data-agent="storage" onclick="selectAIAgent('storage')">💾 Storage Optimizer</div>
+                        <div class="agent-pill" data-agent="security" onclick="selectAIAgent('security')">🔐 Security Reviewer</div>
+                        <div class="agent-pill" data-agent="onboarding" onclick="selectAIAgent('onboarding')">🧭 Onboarding Coach</div>
+                        <div class="agent-pill" data-agent="copilot" onclick="selectAIAgent('copilot')">🚨 Disaster Copilot</div>
+                    </div>
+
+                    <!-- Chat / Prompt Box -->
+                    <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                        <input type="text" id="ai-user-prompt" class="input-text" placeholder="Ask your selected advisor a question (e.g. Is my vault fully recoverable right now?)..." style="flex: 1;" onkeydown="if(event.key === 'Enter') submitAIQuery()">
+                        <button class="btn btn-primary" onclick="submitAIQuery()">Consult Agent</button>
+                    </div>
+
+                    <!-- AI Response Area -->
+                    <div id="ai-response-box" style="display: none; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <div id="ai-response-agent-name" style="font-weight: 700; color: var(--cyan); font-size: 0.95rem;"></div>
+                            <div id="ai-response-confidence" class="status-pill status-healthy">Confidence: 100%</div>
+                        </div>
+                        <div id="ai-response-message" style="font-size: 0.88rem; line-height: 1.5; color: #f1f5f9; white-space: pre-wrap;"></div>
+
+                        <!-- Action Proposals Container -->
+                        <div id="ai-proposals-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 7: Security & Manifest Chain -->
+        <div id="tab-security" class="tab-content">
+            <div class="manifest-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #fff;">🔐 Tamper-Evident Cryptographic Manifest Chain</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            Every vault snapshot is committed to an append-only SHA-256 hash chain with previous-block linkage. Tampering with any historical record invalidates the entire chain.
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn" onclick="verifyManifestChain()">🛡️ Verify Chain</button>
+                        <button class="btn btn-primary" onclick="generateNewManifest()">➕ Generate Manifest</button>
+                    </div>
+                </div>
+
+                <div id="manifest-details-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+                    <div class="finding-box">
+                        <div class="finding-box-label">Manifest Generation</div>
+                        <div id="manifest-gen" style="font-size: 1.2rem; font-weight: 700; color: var(--cyan);">Gen 0</div>
+                    </div>
+                    <div class="finding-box">
+                        <div class="finding-box-label">Total Indexed Files</div>
+                        <div id="manifest-files" style="font-size: 1.2rem; font-weight: 700; color: #fff;">0</div>
+                    </div>
+                    <div class="finding-box">
+                        <div class="finding-box-label">Total Vault Payload</div>
+                        <div id="manifest-bytes" style="font-size: 1.2rem; font-weight: 700; color: #fff;">0 B</div>
+                    </div>
+                    <div class="finding-box">
+                        <div class="finding-box-label">Chain Verification</div>
+                        <div id="manifest-status-badge" class="status-pill status-healthy" style="margin-top: 0.25rem;">Verified Valid</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current Root Manifest Hash (SHA-256)</div>
+                    <div id="manifest-root-hash" class="hash-display">Calculating...</div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Previous Block Hash Pointer</div>
+                    <div id="manifest-prev-hash" class="hash-display">Genesis Block (0000000000000000000000000000000000000000000000000000000000000000)</div>
+                </div>
+            </div>
+
+            <!-- Cryptographic Architecture Specifications -->
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title"><span>🛡️</span> Cryptographic Invariants & Standards</div>
+                </div>
+                <div style="padding: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;">
+                    <div class="finding-box">
+                        <div style="font-weight: 700; color: #c77dff; margin-bottom: 0.35rem;">AES-256-GCM Streaming</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">Chunked 64KB authenticated streaming cipher. Complete privacy from cloud hosts with 16-byte authentication tag verification.</div>
+                    </div>
+                    <div class="finding-box">
+                        <div style="font-weight: 700; color: var(--cyan); margin-bottom: 0.35rem;">Argon2id Key Derivation</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">Memory-hard KDF (64MB RAM, 3 iterations, 4 parallelism, 16-byte random salt). Highly resistant to GPU/ASIC cracking.</div>
+                    </div>
+                    <div class="finding-box">
+                        <div style="font-weight: 700; color: var(--emerald); margin-bottom: 0.35rem;">Streaming SHA-256 Hashes</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">Computed on-the-fly during upload and restore with 64KB buffer increments to ensure deterministic byte preservation.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 8: Tamper-Evident Audit Ledger -->
+        <div id="tab-audit" class="tab-content">
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div>
+                        <div class="table-title"><span>📜</span> Tamper-Evident Append-Only Audit Ledger</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted);">Every backup, restore, heal, drill, and diagnostic action is recorded immutably.</div>
+                    </div>
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="verifyAuditLedger()">🛡️ Verify Cryptographic Integrity</button>
+                        <button class="btn" onclick="refreshAuditLedger()">↻ Refresh</button>
+                    </div>
+                </div>
+
+                <div id="audit-integrity-banner" style="background: rgba(16, 185, 129, 0.1); border-bottom: 1px solid rgba(16, 185, 129, 0.2); padding: 0.75rem 1.5rem; font-size: 0.85rem; color: var(--emerald); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>●</span> Audit ledger integrity verified: 0 cryptographic discrepancies detected.
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Entity ID</th>
+                            <th>Result</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-table-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Event Terminal Logs -->
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title"><span>🖥️</span> Live System Event Stream</div>
+                </div>
+                <div class="terminal-card" id="terminal-logs">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 9: Telegram Account & MTProto Connection -->
+        <div id="tab-account" class="tab-content">
+            <div id="account-info-container">
+                <!-- Dynamically rendered -->
             </div>
         </div>
     </main>
@@ -208,6 +543,41 @@
                     <button class="btn" onclick="closeLoginModal()">Cancel</button>
                     <button id="btn-verify-code" class="btn btn-primary" onclick="submitVerifyCode()">Verify & Connect</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Modal -->
+    <div id="restore-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="modal-title">Restore Vault Document</div>
+                <button class="btn" style="padding: 0.2rem 0.5rem;" onclick="closeRestoreModal()">✕</button>
+            </div>
+            <div class="modal-desc">
+                TeleVault downloads the file from Telegram MTProto and verifies its SHA-256 hash before saving.
+            </div>
+
+            <div class="form-group">
+                <label>Record ID</label>
+                <input type="text" id="restore-modal-record-id" class="input-text" readonly style="background: rgba(0,0,0,0.5); color: var(--cyan); font-family: var(--font-mono);">
+            </div>
+            <div class="form-group">
+                <label>File Name</label>
+                <input type="text" id="restore-modal-file-name" class="input-text" readonly style="background: rgba(0,0,0,0.5);">
+            </div>
+            <div class="form-group" id="restore-passphrase-group" style="display: none;">
+                <label>Decryption Passphrase (Private Mode)</label>
+                <input type="password" id="restore-modal-passphrase" class="input-text" placeholder="Enter original passphrase used to encrypt">
+            </div>
+            <div class="form-group">
+                <label>Destination Folder (leave blank for ./restored)</label>
+                <input type="text" id="restore-modal-dest" class="input-text" placeholder="Default: ./restored">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                <button class="btn" onclick="closeRestoreModal()">Cancel</button>
+                <button id="btn-confirm-restore" class="btn btn-primary" onclick="submitRestore()">Restore Document</button>
             </div>
         </div>
     </div>
