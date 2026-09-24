@@ -313,13 +313,14 @@
     <header>
       <div class="brand-group">
         <div class="brand-title">TELEVAULT</div>
-        <div class="badge-healthy" id="global-badge">
+        <div class="badge-healthy" id="global-badge" onclick="openHealthReport()" style="cursor: pointer;" title="Click to view Health Report">
           <span class="dot"></span>
-          <span>ALL FILES SAFE</span>
+          <span id="global-badge-text">ALL FILES SAFE</span>
         </div>
       </div>
       <div class="btn-group">
         <button onclick="triggerVerify()">VERIFY VAULT</button>
+        <button onclick="openHealthReport()">HEALTH REPORT</button>
         <button onclick="openModal('settings-modal')">SETTINGS</button>
       </div>
     </header>
@@ -427,6 +428,46 @@
     </div>
   </div>
 
+  <!-- Health Report Modal -->
+  <div class="modal-overlay" id="health-modal">
+    <div class="modal" style="max-width: 680px;">
+      <div class="modal-header">
+        <span>VAULT HEALTH REPORT &amp; DIAGNOSTICS</span>
+        <button onclick="closeModal('health-modal')">&times;</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">
+        Evaluates message presence in Primary and Mirror channels. Surviving copies can be re-forwarded server-side with zero re-upload bandwidth.
+      </p>
+
+      <div style="background: #0E1116; border: 1px solid var(--border-color); margin-bottom: 20px;">
+        <table style="width: 100%;">
+          <thead>
+            <tr>
+              <th>File Name</th>
+              <th>Status</th>
+              <th>Diagnosis</th>
+            </tr>
+          </thead>
+          <tbody id="health-rows">
+            <tr>
+              <td><strong>budget_q3_forecast.xlsx</strong></td>
+              <td><span class="status-badge status-degraded"><span class="dot"></span> DEGRADED</span></td>
+              <td style="color: var(--text-muted); font-size: 11px;">Primary missing; surviving copy present in Mirror.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11px; color: var(--accent-amber);" id="health-status-hint">1 DEGRADED ITEM FOUND &bull; HEALABLE</span>
+        <div style="display: flex; gap: 10px;">
+          <button onclick="closeModal('health-modal')">CLOSE</button>
+          <button class="primary" id="btn-heal-now" onclick="executeHeal()">HEAL NOW (SERVER FORWARD)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings Modal -->
   <div class="modal-overlay" id="settings-modal">
     <div class="modal">
@@ -458,6 +499,31 @@
     function openRestore(name) {
       document.getElementById('restore-target-name').innerText = 'Target: ' + name;
       openModal('restore-modal');
+    }
+    function openHealthReport() {
+      openModal('health-modal');
+    }
+    function executeHeal() {
+      const btn = document.getElementById('btn-heal-now');
+      btn.innerText = 'HEALING (SERVER-FORWARDING)...';
+      setTimeout(() => {
+        document.getElementById('health-rows').innerHTML = `
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--healthy-green); padding: 20px;">
+              [ALL VAULT ITEMS HEALTHY &bull; REDUNDANCY 100% RESTORED]
+            </td>
+          </tr>
+        `;
+        document.getElementById('health-status-hint').innerText = '0 ISSUES &bull; ALL VAULT COPIES HEALTHY';
+        document.getElementById('health-status-hint').style.color = '#10B981';
+        btn.innerText = 'HEALED';
+        btn.disabled = true;
+
+        const badge = document.getElementById('global-badge');
+        document.getElementById('global-badge-text').innerText = 'ALL FILES SAFE';
+        badge.style.color = '#10B981';
+        alert("Healing complete! Surviving copy re-forwarded into Primary channel without re-uploading bytes.");
+      }, 700);
     }
     function executeRestore() {
       closeModal('restore-modal');
