@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "televault"
+version = "0.1.0"
+description = "Manual-only, append-only resilient desktop backup vault powered by Telegram MTProto user sessions."
+readme = "docs/README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "TeleVault Team"}
+]
+dependencies = [
+    "Telethon>=1.34.0",
+    "cryptography>=42.0.0",
+    "argon2-cffi>=23.1.0",
+    "keyring>=24.0.0",
+    "PyQt6>=6.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pyinstaller>=6.5.0",
+]
+
+[project.scripts]
+televault = "televault.presentation.cli.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["televault*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

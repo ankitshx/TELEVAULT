@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Telethon & Secrets (NEVER commit session or credentials)
+*.session
+*.session-journal
+.env
+*.key
+*.token
+
+# TeleVault Local Data & Cache
+*.db
+*.db-journal
+*.db-wal
+cache/
+logs/
+
+# Testing & Quality
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build & Packaging
+build/
+dist/
+*.spec.bak
+*.egg-info/
+packaging/output/
