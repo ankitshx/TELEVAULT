@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleVault — Resilient Telegram Backup Vault</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand">
+            <div class="brand-icon">⚡</div>
+            <div>
+                <h1>TeleVault</h1>
+                <span>Append-Only Resilient Vault</span>
+            </div>
+        </div>
+
+        <div class="header-status">
+            <div id="header-mode-badge" class="badge badge-simulated">
+                <span class="badge-pulse"></span> Initializing...
+            </div>
+            <button id="header-user-btn" class="btn btn-primary" onclick="openLoginModal()">
+                ⚡ Connect Telegram
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Top Metrics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Backed Up <span>📁</span></div>
+                <div id="stat-size" class="stat-value">0 B</div>
+                <div class="stat-sub"><span id="stat-files">0</span> files indexed in local vault</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Vault Health <span>🛡️</span></div>
+                <div class="stat-value" style="display: flex; gap: 0.75rem; font-size: 1.4rem;">
+                    <span style="color: var(--emerald);">● <span id="stat-healthy">0</span></span>
+                    <span style="color: var(--amber);">▲ <span id="stat-degraded">0</span></span>
+                    <span style="color: var(--crimson);">✖ <span id="stat-lost">0</span></span>
+                </div>
+                <div class="stat-sub">Healthy / Degraded / Lost</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Cloud Redundancy <span>☁️</span></div>
+                <div class="stat-value" style="font-size: 1.15rem; color: var(--cyan); margin-top: 0.25rem;">
+                    Dual-Write Active
+                </div>
+                <div class="stat-sub" id="stat-channels">Primary & Mirror linked</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Encryption Standard <span>🔐</span></div>
+                <div class="stat-value" style="font-size: 1.15rem; color: #c77dff; margin-top: 0.25rem;">
+                    AES-256-GCM
+                </div>
+                <div class="stat-sub">Argon2id Key Derivation</div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="tab-vault">
+                📁 Vault Explorer
+            </button>
+            <button class="nav-tab" data-tab="tab-backup">
+                🚀 Backup New File
+            </button>
+            <button class="nav-tab" data-tab="tab-account">
+                👤 Telegram Account
+            </button>
+            <button class="nav-tab" data-tab="tab-logs">
+                🖥️ Event Audit Terminal
+            </button>
+        </div>
+
+        <!-- Tab 1: Vault Explorer -->
+        <div id="tab-vault" class="tab-content active">
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title">Indexed Vault Documents</div>
+                    <div class="table-actions">
+                        <button class="btn" onclick="handleVerify()">🛡️ Verify Health</button>
+                        <button class="btn" onclick="handleAutoHeal()">✨ Auto-Heal</button>
+                        <button class="btn" onclick="handleRebuild()">🔄 Rebuild Index</button>
+                        <button class="btn" onclick="handleSnapshot()">📸 Snapshot</button>
+                        <button class="btn" onclick="refreshRecords()">↻ Refresh</button>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Record ID</th>
+                            <th>Size</th>
+                            <th>Health State</th>
+                            <th>Vault Mode</th>
+                            <th>Local Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vault-table-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab 2: Backup File -->
+        <div id="tab-backup" class="tab-content">
+            <input type="file" id="file-input" style="display: none;">
+            
+            <div id="dropzone" class="dropzone-container">
+                <div class="dropzone-icon">📥</div>
+                <div class="dropzone-title">Drop your file here to back up</div>
+                <div class="dropzone-desc">Single-document force upload to Primary vault + server forward to Mirror vault</div>
+                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Browse Computer</button>
+                <div id="upload-status-text" style="display: none; margin-top: 1rem; font-weight: 600;"></div>
+            </div>
+
+            <!-- Backup Options & Local Path Backup -->
+            <div class="backup-options">
+                <div class="option-group">
+                    <input type="checkbox" id="check-private" style="accent-color: var(--cyan); width: 18px; height: 18px;">
+                    <label for="check-private" style="font-size: 0.85rem; font-weight: 600;">Enable Private Mode (Client-side AES-256-GCM encryption)</label>
+                </div>
+
+                <div style="flex: 1; display: flex; gap: 0.5rem; min-width: 320px;">
+                    <input type="text" id="input-local-path" class="input-text" placeholder="Or enter local file/folder path (e.g. C:\MyDoc.pdf)" style="flex: 1;">
+                    <button id="btn-path-backup" class="btn btn-primary" onclick="handlePathBackup()">Back Up Local Path</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Telegram Account -->
+        <div id="tab-account" class="tab-content">
+            <div id="account-info-container">
+                <!-- Dynamically rendered -->
+            </div>
+        </div>
+
+        <!-- Tab 4: Logs -->
+        <div id="tab-logs" class="tab-content">
+            <div class="terminal-card" id="terminal-logs">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Telegram Login Modal -->
+    <div id="login-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="modal-title">Connect Telegram Account</div>
+                <button class="btn" style="padding: 0.2rem 0.5rem;" onclick="closeLoginModal()">✕</button>
+            </div>
+            <div class="modal-desc">
+                TeleVault connects as a client session via MTProto (not Bot API). Get your free API credentials at <a href="https://my.telegram.org" target="_blank" style="color: var(--cyan);">my.telegram.org</a>.
+            </div>
+
+            <div id="login-error-msg" style="display: none; color: var(--crimson); background: rgba(239,68,68,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem;"></div>
+
+            <!-- Step 1: Credentials -->
+            <div id="login-step-1">
+                <div class="form-group">
+                    <label>Telegram API ID</label>
+                    <input type="text" id="login-api-id" class="input-text" placeholder="e.g. 29384751">
+                </div>
+                <div class="form-group">
+                    <label>Telegram API Hash</label>
+                    <input type="text" id="login-api-hash" class="input-text" placeholder="e.g. a8b4c5d6e7f8... (32 chars)">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number (International format)</label>
+                    <input type="text" id="login-phone" class="input-text" placeholder="+1234567890">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button class="btn" onclick="closeLoginModal()">Cancel</button>
+                    <button id="btn-send-code" class="btn btn-primary" onclick="submitSendCode()">Send Verification Code</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Verification Code -->
+            <div id="login-step-2" style="display: none;">
+                <div style="margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+                    Telegram sent a confirmation code to <span id="step-2-phone-label" style="color: #fff; font-weight: 600;"></span>.
+                </div>
+                <div class="form-group">
+                    <label>Telegram Confirmation Code</label>
+                    <input type="text" id="login-code" class="input-text" placeholder="Enter code received in Telegram app">
+                </div>
+                <div class="form-group" id="group-2fa" style="display: none;">
+                    <label>Two-Step Verification Password (Cloud 2FA)</label>
+                    <input type="password" id="login-password" class="input-text" placeholder="Enter your 2FA password">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button class="btn" onclick="closeLoginModal()">Cancel</button>
+                    <button id="btn-verify-code" class="btn btn-primary" onclick="submitVerifyCode()">Verify & Connect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
