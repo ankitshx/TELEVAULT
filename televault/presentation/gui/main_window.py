@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 import sys
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QCloseEvent, QIcon
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QFileDialog,
@@ -57,6 +57,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("TeleVault — Resilient Telegram Desktop Backup")
         self.setMinimumSize(1080, 720)
         self.setStyleSheet(THEME_STYLESHEET)
+
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            base_dir = Path(sys._MEIPASS)
+        else:
+            base_dir = Path(__file__).resolve().parents[3]
+        icon_path = base_dir / "assets" / "icons" / "televault.ico"
+        if not icon_path.exists():
+            icon_path = base_dir / "assets" / "icons" / "televault.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         self.config = config or TeleVaultConfig()
         self.config.ensure_directories()
@@ -266,7 +276,7 @@ class MainWindow(QMainWindow):
                 return gw, user
             return None, None
 
-        worker = AsyncBridge(_check)
+        self._auth_worker = AsyncBridge(_check)
 
         def _done(result):
             gw, user = result
@@ -275,9 +285,9 @@ class MainWindow(QMainWindow):
             else:
                 self._update_auth_ui(False, None)
 
-        worker.task_completed.connect(_done)
-        worker.task_failed.connect(lambda _: self._update_auth_ui(False, None))
-        worker.start()
+        self._auth_worker.task_completed.connect(_done)
+        self._auth_worker.task_failed.connect(lambda _: self._update_auth_ui(False, None))
+        self._auth_worker.start()
 
     def _open_login_dialog(self):
         dlg = TelegramLoginDialog(self.auth_service, parent=self)

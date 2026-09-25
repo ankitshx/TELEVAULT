@@ -1,8 +1,8 @@
 ; Inno Setup Script for TeleVault Windows 11 Installer
 #define MyAppName "TeleVault"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.1.0"
 #define MyAppPublisher "TeleVault Team"
-#define MyAppURL "https://github.com/televault/televault"
+#define MyAppURL "https://github.com/ankitshx/TELEVAULT"
 #define MyAppExeName "televault.exe"
 
 [Setup]
@@ -20,6 +20,7 @@ OutputBaseFilename=TeleVault_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\icons\televault.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

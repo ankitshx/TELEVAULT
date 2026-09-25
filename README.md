@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/televault_banner.jpg" alt="TeleVault Banner" width="100%" />
+</p>
+
 # TeleVault: Resilient, Append-Only Telegram Desktop & Web Backup Vault
 
 > **A manual-only, append-only personal backup vault for Windows 11 leveraging Telegram MTProto cloud storage with dual-write redundancy, client-side AES-256-GCM encryption, automatic health self-healing, and disaster recovery.**
@@ -6,7 +10,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg)]()
 [![Invariants](https://img.shields.io/badge/constitution%20invariants-4%2F4%20enforced-success.svg)]()
-[![Test Suite](https://img.shields.io/badge/tests-68%2F68%20passing-brightgreen.svg)]()
+[![Test Suite](https://img.shields.io/badge/tests-69%2F69%20passing-brightgreen.svg)]()
 [![Desktop Download](https://img.shields.io/badge/Download-TeleVault%20Desktop%20.exe-blueviolet?style=for-the-badge&logo=windows)](https://github.com/ankitshx/TELEVAULT/releases/latest)
 
 ---

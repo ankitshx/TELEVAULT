@@ -8,6 +8,8 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 class AsyncBridge(QThread):
     """Bridges asyncio operations to the Qt GUI thread safely via signals."""
 
+    _active_instances: set["AsyncBridge"] = set()
+
     task_started = pyqtSignal(str)
     progress_updated = pyqtSignal(int, int)  # current, total
     task_completed = pyqtSignal(object)
@@ -18,6 +20,11 @@ class AsyncBridge(QThread):
         self.coro_func = coro_func
         self.args = args
         self.kwargs = kwargs
+
+    def start(self, priority: QThread.Priority = QThread.Priority.InheritPriority) -> None:
+        AsyncBridge._active_instances.add(self)
+        self.finished.connect(lambda: AsyncBridge._active_instances.discard(self))
+        super().start(priority)
 
     def run(self) -> None:
         loop = asyncio.new_event_loop()

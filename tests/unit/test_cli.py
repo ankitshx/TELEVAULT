@@ -10,6 +10,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "-m", "televault", *args]
     return subprocess.run(
         cmd,
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         cwd=str(Path(__file__).resolve().parent.parent.parent),
