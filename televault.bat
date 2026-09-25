@@ -53,7 +53,11 @@ set /p "CHOICE=Enter choice [0-13] or custom command: "
 if "%CHOICE%"=="0" (
     echo.
     echo Launching TeleVault Windows 11 Fluent GUI...
-    start "" python -m televault.presentation.gui.app
+    if exist "%REPO_ROOT%dist\televault.exe" (
+        start "" "%REPO_ROOT%dist\televault.exe"
+    ) else (
+        start "" python -m televault.presentation.gui.app
+    )
     goto menu
 )
 if "%CHOICE%"=="1" (

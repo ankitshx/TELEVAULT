@@ -79,13 +79,21 @@ class VaultTableWidget(QFrame):
         self.table.setRowCount(len(filtered))
         for row, rec in enumerate(filtered):
             # Name
-            item_name = QTableWidgetItem(rec.name)
+            display_name = f"{rec.name}  [🧩 {len(rec.parts)} Chunks]" if rec.is_multipart else rec.name
+            item_name = QTableWidgetItem(display_name)
             item_name.setToolTip(f"ID: {rec.id}\nSHA-256: {rec.sha256}\nOriginal Path: {rec.original_path}")
             self.table.setItem(row, 0, item_name)
 
             # Size
+            size_gb = rec.size / (1024 * 1024 * 1024)
             size_mb = rec.size / (1024 * 1024)
-            size_str = f"{size_mb:.2f} MB" if size_mb >= 1.0 else f"{rec.size / 1024:.1f} KB"
+            if size_gb >= 1.0:
+                size_str = f"{size_gb:.2f} GB"
+            elif size_mb >= 1.0:
+                size_str = f"{size_mb:.2f} MB"
+            else:
+                size_str = f"{rec.size / 1024:.1f} KB"
+
             item_size = QTableWidgetItem(size_str)
             item_size.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, 1, item_size)

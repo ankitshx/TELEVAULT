@@ -38,6 +38,26 @@ class TelegramGateway(Protocol):
         """Ensure TeleVault Primary and TeleVault Mirror private channels exist."""
         ...
 
+    async def send_message(
+        self,
+        text: str,
+        channel_id: int | None = None,
+        reply_to_msg_id: int | None = None,
+    ) -> MessageRef:
+        """Post a text card or master announcement message (optionally to a specific channel or reply)."""
+        ...
+
+    async def upload_document(
+        self,
+        path: Path,
+        caption: str,
+        channel_id: int | None = None,
+        reply_to_msg_id: int | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> MessageRef:
+        """Upload a file as a Telegram document (optionally in a reply thread)."""
+        ...
+
     async def upload_single(
         self,
         path: Path,

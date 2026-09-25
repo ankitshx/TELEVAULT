@@ -109,17 +109,46 @@ class TelethonGateway(TelegramGateway):
 
         return VaultChannels(primary_id=found_primary, mirror_id=found_mirror)
 
-    async def upload_single(
+    async def send_message(
         self,
-        path: Path,
-        caption: str,
-        on_progress: ProgressCallback | None = None,
+        text: str,
+        channel_id: int | None = None,
+        reply_to_msg_id: int | None = None,
     ) -> MessageRef:
-        """Upload a file as exactly one document (force_document=True) to the Primary vault."""
+        """Post a text card or master announcement message (optionally to a specific channel or reply)."""
         if not self.primary_channel_id:
             await self.ensure_vaults()
 
-        target_entity = await self.client.get_input_entity(self.primary_channel_id)
+        target_channel = channel_id or self.primary_channel_id
+        target_entity = await self.client.get_input_entity(target_channel)
+
+        async def _send() -> Any:
+            return await self.client.send_message(
+                entity=target_entity,
+                message=text,
+                reply_to=reply_to_msg_id,
+            )
+
+        sent_msg = await with_flood_wait_retry(_send)
+        return MessageRef(
+            channel_id=target_channel,
+            message_id=sent_msg.id,
+        )
+
+    async def upload_document(
+        self,
+        path: Path,
+        caption: str,
+        channel_id: int | None = None,
+        reply_to_msg_id: int | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> MessageRef:
+        """Upload a file as a document (force_document=True) to specified channel (optionally replying)."""
+        if not self.primary_channel_id:
+            await self.ensure_vaults()
+
+        target_channel = channel_id or self.primary_channel_id
+        target_entity = await self.client.get_input_entity(target_channel)
 
         def _telethon_progress(current: int, total: int) -> None:
             if on_progress:
@@ -130,6 +159,7 @@ class TelethonGateway(TelegramGateway):
                 entity=target_entity,
                 file=str(path),
                 caption=caption,
+                reply_to=reply_to_msg_id,
                 force_document=True,
                 progress_callback=_telethon_progress,
             )
@@ -138,9 +168,23 @@ class TelethonGateway(TelegramGateway):
         doc_id = sent_msg.document.id if sent_msg.document else None
 
         return MessageRef(
-            channel_id=self.primary_channel_id,  # type: ignore
+            channel_id=target_channel,
             message_id=sent_msg.id,
             document_id=doc_id,
+        )
+
+    async def upload_single(
+        self,
+        path: Path,
+        caption: str,
+        on_progress: ProgressCallback | None = None,
+    ) -> MessageRef:
+        """Upload a file as exactly one document (force_document=True) to the Primary vault."""
+        return await self.upload_document(
+            path=path,
+            caption=caption,
+            channel_id=self.primary_channel_id,
+            on_progress=on_progress,
         )
 
     async def forward(self, ref: MessageRef, to_channel: int) -> MessageRef:

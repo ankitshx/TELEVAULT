@@ -62,3 +62,15 @@ def test_web_agents_and_versions_endpoints(client: TestClient):
     ver_data = res_ver.json()
     assert "versions" in ver_data
 
+
+def test_web_records_and_preview_endpoints(client: TestClient, tmp_path):
+    res_rec = client.get("/api/records")
+    assert res_rec.status_code == 200
+    data = res_rec.json()
+    assert "records" in data
+
+    # Test preview on non-existent record returns 404
+    res_prev = client.get("/api/files/non_existent_id_123/preview")
+    assert res_prev.status_code == 404
+
+

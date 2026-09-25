@@ -69,8 +69,11 @@ async def resolve_gateway(force_fake: bool = False) -> TelegramGateway:
         active_gateway = live
         return live
 
-    # If not logged in, return FakeTelegramGateway for simulation mode
-    return FakeTelegramGateway()
+    # Real project enforcement: real Telegram account is required
+    raise HTTPException(
+        status_code=400,
+        detail="Telegram MTProto account not connected! Please connect your Telegram account in Settings to perform live cloud vault operations.",
+    )
 
 
 @asynccontextmanager
@@ -133,7 +136,7 @@ async def get_status():
     degraded_cnt = sum(1 for r in records if r.state == HealthState.DEGRADED)
     lost_cnt = sum(1 for r in records if r.state == HealthState.LOST)
 
-    mode_label = "Live MTProto" if is_auth else "Simulation (Fake Gateway)"
+    mode_label = "Live MTProto" if is_auth else "Disconnected (Setup Required)"
 
     return {
         "authenticated": is_auth,
@@ -154,11 +157,29 @@ async def get_status():
     }
 
 
+def categorize_file(name: str) -> tuple[str, str]:
+    ext = Path(name).suffix.lower()
+    if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".bmp", ".ico", ".tiff"]:
+        return "media", ext
+    if ext in [".mp4", ".mkv", ".mov", ".avi", ".webm"]:
+        return "video", ext
+    if ext in [".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac"]:
+        return "audio", ext
+    if ext in [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".txt", ".rtf", ".odt", ".csv"]:
+        return "document", ext
+    if ext in [".zip", ".tar", ".gz", ".7z", ".rar", ".bz2", ".xz", ".iso"]:
+        return "archive", ext
+    if ext in [".py", ".js", ".ts", ".html", ".css", ".json", ".rs", ".go", ".c", ".cpp", ".sql", ".sh", ".bat", ".md", ".yaml", ".yml", ".toml"]:
+        return "code", ext
+    return "other", ext
+
+
 @app.get("/api/records")
 async def get_records():
     records = repo.list_all()
     out = []
     for r in records:
+        cat, ext = categorize_file(r.name)
         out.append({
             "id": r.id,
             "name": r.name,
@@ -168,8 +189,12 @@ async def get_records():
             "local_status": r.local_status.value,
             "mode": r.mode.value,
             "version": r.version,
+            "category": cat,
+            "ext": ext,
             "primary_msg_id": r.primary_ref.message_id if r.primary_ref else None,
             "mirror_msg_id": r.mirror_ref.message_id if r.mirror_ref else None,
+            "is_multipart": r.is_multipart,
+            "parts_count": len(r.parts),
             "created_at": r.created_at.isoformat() if hasattr(r.created_at, "isoformat") else str(r.created_at),
         })
     return {"records": out}
@@ -215,7 +240,7 @@ async def logout():
     global active_gateway
     auth_service.clear_credentials()
     active_gateway = None
-    add_log("Telegram", "User logged out. Returned to simulation mode.", "info")
+    add_log("Telegram", "User logged out. MTProto session cleared.", "info")
     return {"status": "logged_out"}
 
 
@@ -313,6 +338,92 @@ async def restore_file(record_id: str, dest_folder: str | None = None, force_fak
             raise HTTPException(status_code=400, detail=result.message)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Record {record_id} not found in index.")
+
+
+@app.get("/api/files/{record_id}/download")
+async def download_file_endpoint(record_id: str, force_fake: bool = False):
+    """Direct stream download for Telegram Drive files."""
+    try:
+        record = repo.get(record_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="File record not found.")
+
+    # 1. Check recovery cache
+    cached = recovery_cache.get(record.sha256)
+    if cached and cached.is_file():
+        return FileResponse(
+            path=cached,
+            filename=record.name,
+            media_type="application/octet-stream",
+            content_disposition_type="attachment",
+        )
+
+    # 2. Check original path if matches hash
+    if record.original_path and Path(record.original_path).is_file():
+        from televault.application.hashing import calculate_sha256
+        h, _ = calculate_sha256(Path(record.original_path))
+        if h.lower() == record.sha256.lower():
+            return FileResponse(
+                path=Path(record.original_path),
+                filename=record.name,
+                media_type="application/octet-stream",
+                content_disposition_type="attachment",
+            )
+
+    # 3. Restore from Telegram
+    gateway = await resolve_gateway(force_fake=force_fake)
+    use_case = RestoreFileUseCase(gateway=gateway, repo=repo, event_bus=event_bus)
+    dest_dir = config.app_dir / "downloads"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    res = await use_case.execute(record_id=record.id, dest_dir=dest_dir)
+    if not res.success or not res.restored_path:
+        raise HTTPException(status_code=400, detail=res.message)
+
+    return FileResponse(
+        path=res.restored_path,
+        filename=record.name,
+        media_type="application/octet-stream",
+        content_disposition_type="attachment",
+    )
+
+
+@app.get("/api/files/{record_id}/preview")
+async def preview_file_endpoint(record_id: str, force_fake: bool = False):
+    """Inline preview endpoint for images, audio, documents, and code."""
+    import mimetypes
+    try:
+        record = repo.get(record_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="File record not found.")
+
+    file_path = None
+    cached = recovery_cache.get(record.sha256)
+    if cached and cached.is_file():
+        file_path = cached
+    elif record.original_path and Path(record.original_path).is_file():
+        from televault.application.hashing import calculate_sha256
+        h, _ = calculate_sha256(Path(record.original_path))
+        if h.lower() == record.sha256.lower():
+            file_path = Path(record.original_path)
+
+    if not file_path:
+        gateway = await resolve_gateway(force_fake=force_fake)
+        use_case = RestoreFileUseCase(gateway=gateway, repo=repo, event_bus=event_bus)
+        preview_dir = config.app_dir / "preview_cache"
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        res = await use_case.execute(record_id=record.id, dest_dir=preview_dir)
+        if not res.success or not res.restored_path:
+            raise HTTPException(status_code=400, detail=res.message)
+        file_path = res.restored_path
+
+    mime, _ = mimetypes.guess_type(record.name)
+    mime = mime or "application/octet-stream"
+
+    return FileResponse(
+        path=file_path,
+        media_type=mime,
+        content_disposition_type="inline",
+    )
 
 
 @app.post("/api/verify")

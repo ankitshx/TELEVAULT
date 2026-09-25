@@ -79,13 +79,42 @@ class FakeTelegramGateway:
             self.channels[self.mirror_id] = {}
         return VaultChannels(primary_id=self.primary_id, mirror_id=self.mirror_id)
 
-    async def upload_single(
+    async def send_message(
+        self,
+        text: str,
+        channel_id: int | None = None,
+        reply_to_msg_id: int | None = None,
+    ) -> MessageRef:
+        target_channel = channel_id or self.primary_id
+        if target_channel not in self.channels:
+            self.channels[target_channel] = {}
+
+        self._next_msg_id += 1
+        msg_id = self._next_msg_id
+
+        stored = StoredMessage(
+            channel_id=target_channel,
+            message_id=msg_id,
+            data=b"",
+            caption=text,
+            document_name="",
+            document_size=0,
+            sha256="",
+            is_document=False,
+        )
+        self.channels[target_channel][msg_id] = stored
+        return MessageRef(channel_id=target_channel, message_id=msg_id)
+
+    async def upload_document(
         self,
         path: Path,
         caption: str,
+        channel_id: int | None = None,
+        reply_to_msg_id: int | None = None,
         on_progress: ProgressCallback | None = None,
     ) -> MessageRef:
-        """Upload a file as exactly one document to the primary channel."""
+        """Upload a file as exactly one document to the specified channel (optionally replying)."""
+        target_channel = channel_id or self.primary_id
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
@@ -105,7 +134,7 @@ class FakeTelegramGateway:
         msg_id = self._next_msg_id
 
         stored = StoredMessage(
-            channel_id=self.primary_id,
+            channel_id=target_channel,
             message_id=msg_id,
             data=file_bytes,
             caption=caption,
@@ -115,16 +144,33 @@ class FakeTelegramGateway:
             is_document=True,
         )
 
-        self.channels[self.primary_id][msg_id] = stored
+        if target_channel not in self.channels:
+            self.channels[target_channel] = {}
+        self.channels[target_channel][msg_id] = stored
         self.upload_calls.append({
             "path": str(path),
             "size": file_size,
             "force_document": True,
-            "channel_id": self.primary_id,
+            "channel_id": target_channel,
             "message_id": msg_id,
+            "reply_to": reply_to_msg_id,
         })
 
-        return MessageRef(channel_id=self.primary_id, message_id=msg_id)
+        return MessageRef(channel_id=target_channel, message_id=msg_id)
+
+    async def upload_single(
+        self,
+        path: Path,
+        caption: str,
+        on_progress: ProgressCallback | None = None,
+    ) -> MessageRef:
+        """Upload a file as exactly one document to the primary channel."""
+        return await self.upload_document(
+            path=path,
+            caption=caption,
+            channel_id=self.primary_id,
+            on_progress=on_progress,
+        )
 
     async def forward(self, ref: MessageRef, to_channel: int) -> MessageRef:
         """Emulate server-side message forward without re-upload."""

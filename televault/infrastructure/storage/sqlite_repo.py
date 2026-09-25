@@ -10,6 +10,7 @@ from typing import Any, Iterator
 from televault.domain.entities import (
     AuditEvent,
     BackupReceipt,
+    FilePart,
     FileRecord,
     ManifestRecord,
     MessageRef,
@@ -60,12 +61,16 @@ class SQLiteVaultRepository(
             conn.close()
 
     def _init_db(self) -> None:
-        """Run schema migrations in sorted order."""
+        """Run schema migrations in sorted order and ensure backwards compatibility."""
         migrations_dir = Path(__file__).parent / "migrations"
         migration_files = sorted(migrations_dir.glob("*.sql"))
         with self._connection() as conn:
             for mf in migration_files:
                 conn.executescript(mf.read_text(encoding="utf-8"))
+            # Ensure parts column exists for existing databases
+            cols = [row[1] for row in conn.execute("PRAGMA table_info(file_records)").fetchall()]
+            if "parts" not in cols:
+                conn.execute("ALTER TABLE file_records ADD COLUMN parts TEXT NOT NULL DEFAULT '[]'")
 
     # ---------------------------------------------------------
     # VaultRepository Implementation
@@ -76,13 +81,13 @@ class SQLiteVaultRepository(
             id, name, original_path, sha256, size, mtime, state,
             primary_channel_id, primary_message_id,
             mirror_channel_id, mirror_message_id,
-            local_status, version, mode, tags, recovery_path,
+            local_status, version, mode, tags, recovery_path, parts,
             created_at, updated_at
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?,
             ?, ?,
             ?, ?,
-            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
             ?, ?
         )
         ON CONFLICT(id) DO UPDATE SET
@@ -101,9 +106,23 @@ class SQLiteVaultRepository(
             mode = excluded.mode,
             tags = excluded.tags,
             recovery_path = excluded.recovery_path,
+            parts = excluded.parts,
             updated_at = excluded.updated_at
         """
         now = datetime.now(timezone.utc).isoformat()
+        serialized_parts = json.dumps([
+            {
+                "part_number": p.part_number,
+                "total_parts": p.total_parts,
+                "size": p.size,
+                "sha256": p.sha256,
+                "primary_channel_id": p.primary_ref.channel_id if p.primary_ref else None,
+                "primary_message_id": p.primary_ref.message_id if p.primary_ref else None,
+                "mirror_channel_id": p.mirror_ref.channel_id if p.mirror_ref else None,
+                "mirror_message_id": p.mirror_ref.message_id if p.mirror_ref else None,
+            }
+            for p in rec.parts
+        ])
         with self._connection() as conn:
             conn.execute(
                 sql,
@@ -124,6 +143,7 @@ class SQLiteVaultRepository(
                     rec.mode.value,
                     json.dumps(rec.tags),
                     rec.recovery_path,
+                    serialized_parts,
                     rec.created_at.isoformat() if rec.created_at else now,
                     now,
                 ),
@@ -156,7 +176,24 @@ class SQLiteVaultRepository(
 
         p_ref = refs.get("primary_ref")
         m_ref = refs.get("mirror_ref")
+        parts = refs.get("parts")
         now = datetime.now(timezone.utc).isoformat()
+
+        serialized_parts = None
+        if parts is not None:
+            serialized_parts = json.dumps([
+                {
+                    "part_number": p.part_number,
+                    "total_parts": p.total_parts,
+                    "size": p.size,
+                    "sha256": p.sha256,
+                    "primary_channel_id": p.primary_ref.channel_id if p.primary_ref else None,
+                    "primary_message_id": p.primary_ref.message_id if p.primary_ref else None,
+                    "mirror_channel_id": p.mirror_ref.channel_id if p.mirror_ref else None,
+                    "mirror_message_id": p.mirror_ref.message_id if p.mirror_ref else None,
+                }
+                for p in parts
+            ])
 
         sql = """
         UPDATE file_records
@@ -165,6 +202,7 @@ class SQLiteVaultRepository(
             primary_message_id = COALESCE(?, primary_message_id),
             mirror_channel_id = COALESCE(?, mirror_channel_id),
             mirror_message_id = COALESCE(?, mirror_message_id),
+            parts = COALESCE(?, parts),
             updated_at = ?
         WHERE id = ?
         """
@@ -177,6 +215,7 @@ class SQLiteVaultRepository(
                     p_ref.message_id if p_ref else None,
                     m_ref.channel_id if m_ref else None,
                     m_ref.message_id if m_ref else None,
+                    serialized_parts,
                     now,
                     entity_id,
                 ),
@@ -206,6 +245,34 @@ class SQLiteVaultRepository(
         if r["mirror_channel_id"] and r["mirror_message_id"]:
             m_ref = MessageRef(channel_id=r["mirror_channel_id"], message_id=r["mirror_message_id"])
 
+        parts_list: list[FilePart] = []
+        if "parts" in r.keys() and r["parts"]:
+            try:
+                raw_parts = json.loads(r["parts"])
+                for item in raw_parts:
+                    part_p_ref = (
+                        MessageRef(channel_id=item["primary_channel_id"], message_id=item["primary_message_id"])
+                        if item.get("primary_message_id")
+                        else None
+                    )
+                    part_m_ref = (
+                        MessageRef(channel_id=item["mirror_channel_id"], message_id=item["mirror_message_id"])
+                        if item.get("mirror_message_id")
+                        else None
+                    )
+                    parts_list.append(
+                        FilePart(
+                            part_number=item["part_number"],
+                            total_parts=item["total_parts"],
+                            size=item["size"],
+                            sha256=item["sha256"],
+                            primary_ref=part_p_ref,
+                            mirror_ref=part_m_ref,
+                        )
+                    )
+            except Exception:
+                pass
+
         return FileRecord(
             id=r["id"],
             name=r["name"],
@@ -221,6 +288,7 @@ class SQLiteVaultRepository(
             mode=VaultMode(r["mode"]),
             tags=json.loads(r["tags"]) if r["tags"] else [],
             recovery_path=r["recovery_path"],
+            parts=parts_list,
             created_at=datetime.fromisoformat(r["created_at"]),
             updated_at=datetime.fromisoformat(r["updated_at"]),
         )

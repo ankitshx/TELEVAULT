@@ -3,167 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TeleVault — Resilient Personal Telegram Backup Vault</title>
+    <title>TeleVault — Resilient MTProto Cloud Backup Vault</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-    <!-- Header -->
+    <!-- Header HUD -->
+    <!-- Header HUD -->
     <header>
-        <div class="brand">
+        <div class="brand" onclick="switchToTab('tab-files'); setDriveCategory('all');">
             <div class="brand-icon">⚡</div>
             <div>
-                <h1>TeleVault</h1>
-                <span>Append-Only Resilient Vault</span>
+                <h1>TeleVault Drive</h1>
+                <span>Telegram Cloud Drive & Resilient Vault</span>
             </div>
         </div>
 
+        <div style="flex: 1; max-width: 480px; margin: 0 1.5rem;">
+            <input type="text" id="header-search-input" class="input-text" placeholder="🔍 Search drive files, types, tags, SHA-256..." oninput="handleDriveSearch()" style="width: 100%; border-radius: 9999px; padding: 0.5rem 1.25rem;">
+        </div>
+
         <div class="header-status">
-            <div id="header-mode-badge" class="badge badge-simulated">
-                <span class="badge-pulse"></span> Initializing...
+            <div id="header-mode-badge" class="badge badge-disconnected">
+                <span class="badge-pulse"></span> Connecting MTProto...
             </div>
-            <button id="header-user-btn" class="btn btn-primary" onclick="openLoginModal()">
+            <button class="btn btn-primary" onclick="triggerFileUpload()">
+                ⬆ Upload File
+            </button>
+            <button id="header-user-btn" class="btn" onclick="openLoginModal()">
                 ⚡ Connect Telegram
             </button>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main>
-        <!-- Top Metrics Cards -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Backed Up <span>📁</span></div>
-                <div id="stat-size" class="stat-value">0 B</div>
-                <div class="stat-sub"><span id="stat-files">0</span> files indexed in vault</div>
-            </div>
+    <!-- App Layout Container (Telegram Drive Workspace) -->
+    <div class="app-layout">
+        <!-- Drive Left Sidebar -->
+        <aside class="drive-sidebar">
+            <button class="sidebar-upload-btn" onclick="triggerFileUpload()">
+                <span>+</span> New Upload
+            </button>
+            <input type="file" id="drive-direct-file-input" multiple style="display: none;" onchange="handleDirectFileSelect(event)">
 
-            <div class="stat-card">
-                <div class="stat-label">Vault Health <span>🛡️</span></div>
-                <div class="stat-value" style="display: flex; gap: 0.75rem; font-size: 1.4rem;">
-                    <span style="color: var(--emerald);">● <span id="stat-healthy">0</span></span>
-                    <span style="color: var(--amber);">▲ <span id="stat-degraded">0</span></span>
-                    <span style="color: var(--crimson);">✖ <span id="stat-lost">0</span></span>
+            <!-- Drive Locations -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Drive Storage</div>
+                <div class="drive-nav-item active" data-drive-category="all" onclick="setDriveCategory('all')">
+                    <span class="nav-icon">📁</span>
+                    <span>My Drive</span>
+                    <span class="nav-count" id="count-all">0</span>
                 </div>
-                <div class="stat-sub">Healthy / Degraded / Lost</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Cloud Redundancy <span>☁️</span></div>
-                <div class="stat-value" style="font-size: 1.15rem; color: var(--cyan); margin-top: 0.25rem;">
-                    Dual-Write Active
+                <div class="drive-nav-item" data-drive-category="media" onclick="setDriveCategory('media')">
+                    <span class="nav-icon">🖼️</span>
+                    <span>Photos & Media</span>
+                    <span class="nav-count" id="count-media">0</span>
                 </div>
-                <div class="stat-sub" id="stat-channels">Primary & Mirror linked</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Security Standard <span>🔐</span></div>
-                <div class="stat-value" style="font-size: 1.15rem; color: #c77dff; margin-top: 0.25rem;">
-                    AES-256-GCM
+                <div class="drive-nav-item" data-drive-category="document" onclick="setDriveCategory('document')">
+                    <span class="nav-icon">📄</span>
+                    <span>Documents</span>
+                    <span class="nav-count" id="count-document">0</span>
                 </div>
-                <div class="stat-sub">Argon2id + Hash Chain</div>
+                <div class="drive-nav-item" data-drive-category="archive" onclick="setDriveCategory('archive')">
+                    <span class="nav-icon">🗜️</span>
+                    <span>Archives</span>
+                    <span class="nav-count" id="count-archive">0</span>
+                </div>
+                <div class="drive-nav-item" data-drive-category="encrypted" onclick="setDriveCategory('encrypted')">
+                    <span class="nav-icon">🔐</span>
+                    <span>Encrypted Vault</span>
+                    <span class="nav-count" id="count-encrypted">0</span>
+                </div>
             </div>
-        </div>
 
-        <!-- Navigation Tabs -->
-        <div class="nav-tabs">
-            <button class="nav-tab active" data-tab="tab-overview">📊 Overview</button>
-            <button class="nav-tab" data-tab="tab-files">📁 Files Explorer</button>
-            <button class="nav-tab" data-tab="tab-backup">🚀 Backup File</button>
-            <button class="nav-tab" data-tab="tab-timeline">⏳ Time Machine</button>
-            <button class="nav-tab" data-tab="tab-recovery">🛡️ Recovery Center</button>
-            <button class="nav-tab" data-tab="tab-doctor">🩺 AI Doctor & Team</button>
-            <button class="nav-tab" data-tab="tab-security">🔐 Security & Manifest</button>
-            <button class="nav-tab" data-tab="tab-audit">📜 Audit Ledger</button>
-            <button class="nav-tab" data-tab="tab-account">👤 Telegram Account</button>
-        </div>
+            <!-- Vault System & Intelligence -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Vault Tools & Intelligence</div>
+                <div class="drive-nav-item" data-tab-link="tab-overview" onclick="switchToTab('tab-overview')">
+                    <span class="nav-icon">📊</span>
+                    <span>Executive HUD</span>
+                </div>
+                <div class="drive-nav-item" data-tab-link="tab-backup" onclick="switchToTab('tab-backup')">
+                    <span class="nav-icon">⚡</span>
+                    <span>Fast Ingest</span>
+                </div>
+                <div class="drive-nav-item" data-tab-link="tab-timeline" onclick="switchToTab('tab-timeline')">
+                    <span class="nav-icon">⏳</span>
+                    <span>Time Machine</span>
+                </div>
+                <div class="drive-nav-item" data-tab-link="tab-resilience" onclick="switchToTab('tab-resilience')">
+                    <span class="nav-icon">🛡️</span>
+                    <span>Resilience & Heal</span>
+                </div>
+                <div class="drive-nav-item" data-tab-link="tab-doctor" onclick="switchToTab('tab-doctor')">
+                    <span class="nav-icon">🤖</span>
+                    <span>AI Doctor</span>
+                </div>
+                <div class="drive-nav-item" data-tab-link="tab-telegram" onclick="switchToTab('tab-telegram')">
+                    <span class="nav-icon">📡</span>
+                    <span>Telegram Session</span>
+                </div>
+            </div>
 
-        <!-- TAB 1: Overview & Invariants -->
+            <!-- Storage Quota Widget -->
+            <div class="sidebar-storage-card">
+                <div class="storage-cloud-badge">
+                    <span>☁️ Telegram Cloud</span>
+                    <span style="color: var(--emerald);">Unlimited</span>
+                </div>
+                <div class="storage-progress-bar">
+                    <div class="storage-progress-fill"></div>
+                </div>
+                <div class="storage-meta">
+                    <span id="sidebar-storage-bytes">0 B tracked</span>
+                    <span id="sidebar-storage-count">0 files</span>
+                </div>
+                <div style="font-size: 0.68rem; color: var(--emerald); font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                    <span>●</span> Dual-Channel 100% Synced
+                </div>
+            </div>
+        </aside>
+
+        <!-- Drive Main Content Workspace -->
+        <main class="drive-main">
+
+        <!-- ======================================================== -->
+        <!-- TAB 1: EXECUTIVE HUD (OVERVIEW)                          -->
+        <!-- ======================================================== -->
         <div id="tab-overview" class="tab-content active">
-            <!-- Invariants Banner -->
-            <div class="invariants-banner">
-                <div class="invariant-card">
-                    <div class="invariant-badge-title" style="color: var(--cyan);">
-                        <span>📄</span> Invariant 1: Single Document
+
+            <!-- Live Cloud Topology Graph -->
+            <div class="topology-panel">
+                <div class="topology-header">
+                    <div class="topology-title">
+                        <span>🌐</span> Live Cloud & Client Node Topology
                     </div>
-                    <p>Every file is uploaded as exactly one document. Zero silent chunking, byte tampering, or silent zipping.</p>
+                    <button class="btn" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="refreshAll()">
+                        ↻ Sync Telemetry
+                    </button>
                 </div>
-                <div class="invariant-card">
-                    <div class="invariant-badge-title" style="color: var(--crimson);">
-                        <span>🚫</span> Invariant 2: Zero Deletions
+
+                <div class="nodes-container">
+                    <!-- Local Vault DB -->
+                    <div class="node-card">
+                        <div class="node-badge" style="color: var(--cyan);">● Client DB Node</div>
+                        <div class="node-name" id="node-db-name">SQLite Vault</div>
+                        <div class="node-meta" id="node-db-records">Loading records...</div>
                     </div>
-                    <p>Constitutional rule: zero delete_messages calls. Vault cloud storage is append-only and indestructible.</p>
-                </div>
-                <div class="invariant-card">
-                    <div class="invariant-badge-title" style="color: var(--amber);">
-                        <span>⚙️</span> Invariant 3: Manual Only
+
+                    <div class="node-connector">➔</div>
+
+                    <!-- MTProto Gateway -->
+                    <div class="node-card">
+                        <div class="node-badge" id="node-gw-badge" style="color: var(--amber);">● Gateway Session</div>
+                        <div class="node-name" id="node-gw-name">MTProto Link</div>
+                        <div class="node-meta" id="node-gw-user">Checking connection...</div>
                     </div>
-                    <p>No background daemons or auto-sync surprise uploads. Explicit human control over every cloud write.</p>
-                </div>
-                <div class="invariant-card">
-                    <div class="invariant-badge-title" style="color: var(--emerald);">
-                        <span>🔒</span> Invariant 4: SHA-256 Proven
+
+                    <div class="node-connector">➔</div>
+
+                    <!-- Primary Channel -->
+                    <div class="node-card">
+                        <div class="node-badge" style="color: var(--emerald);">● Primary Storage</div>
+                        <div class="node-name" id="node-primary-id">Channel ID</div>
+                        <div class="node-meta">Encrypted MTProto Master</div>
                     </div>
-                    <p>Streaming SHA-256 verification before write and during restore. Bit-rot or tampering is rejected instantly.</p>
+
+                    <div class="node-connector">⇄</div>
+
+                    <!-- Mirror Channel -->
+                    <div class="node-card">
+                        <div class="node-badge" style="color: var(--purple);">● Hot Standby Mirror</div>
+                        <div class="node-name" id="node-mirror-id">Channel ID</div>
+                        <div class="node-meta">Real-time Parity Sync</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Quick Action Panel -->
-            <div class="action-panel">
-                <div class="action-panel-title">
-                    <span>⚡</span> Vault Quick Actions
+            <!-- Metrics Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Backed Up <span>📁</span></div>
+                    <div id="stat-size" class="stat-value">0 B</div>
+                    <div class="stat-sub"><span id="stat-files">0</span> indexed records</div>
                 </div>
-                <div class="action-buttons">
-                    <button class="btn btn-primary" onclick="switchToTab('tab-backup')">📥 Back Up File</button>
-                    <button class="btn" onclick="handleVerify()">🛡️ Verify Redundancy</button>
-                    <button class="btn" onclick="handleAutoHeal()">✨ Auto-Heal Vault</button>
-                    <button class="btn" onclick="runDoctorDiagnostics()">🩺 Run Vault Doctor</button>
-                    <button class="btn" onclick="runRecoveryDrill()">🎯 Recovery Drill</button>
-                    <button class="btn" onclick="handleRebuild()">🔄 Disaster Rebuild</button>
+
+                <div class="stat-card">
+                    <div class="stat-label">Vault Parity Health <span>🛡️</span></div>
+                    <div class="stat-value" style="display: flex; gap: 0.75rem; font-size: 1.5rem;">
+                        <span style="color: var(--emerald);">● <span id="stat-healthy">0</span></span>
+                        <span style="color: var(--amber);">▲ <span id="stat-degraded">0</span></span>
+                        <span style="color: var(--crimson);">✖ <span id="stat-lost">0</span></span>
+                    </div>
+                    <div class="stat-sub">Healthy / Degraded / Lost</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Redundancy Status <span>☁️</span></div>
+                    <div class="stat-value" style="font-size: 1.25rem; color: var(--cyan); margin-top: 0.2rem;">
+                        Dual-Channel MTProto
+                    </div>
+                    <div class="stat-sub" id="stat-channels">Checking channel links...</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Cryptographic Armor <span>🔐</span></div>
+                    <div class="stat-value" style="font-size: 1.25rem; color: var(--purple); margin-top: 0.2rem;">
+                        AES-256-GCM + Argon2id
+                    </div>
+                    <div class="stat-sub">Streaming SHA-256 Bitrot Proof</div>
                 </div>
             </div>
 
-            <!-- Recent Findings / Status Summary -->
-            <div class="table-card">
-                <div class="table-header-bar">
-                    <div class="table-title"><span>🛡️</span> Vault Integrity Status Summary</div>
-                    <button class="btn" onclick="refreshAll()">↻ Refresh State</button>
-                </div>
-                <div style="padding: 1.5rem;" id="overview-integrity-summary">
-                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
-                        <div>
-                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Primary Channel</div>
-                            <div id="overview-primary-chan" style="font-weight: 600; font-family: var(--font-mono); color: var(--cyan); margin-top: 0.25rem;">Checking...</div>
+            <!-- Split HUD: Visual Storage Donut Ring + Quick Ingest Dock -->
+            <div class="hud-split-row">
+                <!-- Visual Storage Ring -->
+                <div class="ring-card">
+                    <div style="font-weight: 700; color: #fff; font-size: 0.95rem;">Storage & Parity Ratio</div>
+                    <div class="ring-wrapper">
+                        <svg width="170" height="170" viewBox="0 0 170 170">
+                            <circle cx="85" cy="85" r="70" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12"></circle>
+                            <circle id="ring-healthy" cx="85" cy="85" r="70" fill="none" stroke="var(--emerald)" stroke-width="12"
+                                stroke-dasharray="440" stroke-dashoffset="440" stroke-linecap="round"
+                                transform="rotate(-90 85 85)" style="transition: stroke-dashoffset 1s ease;"></circle>
+                            <circle id="ring-encrypted" cx="85" cy="85" r="54" fill="none" stroke="var(--purple)" stroke-width="8"
+                                stroke-dasharray="340" stroke-dashoffset="340" stroke-linecap="round"
+                                transform="rotate(-90 85 85)" style="transition: stroke-dashoffset 1s ease;"></circle>
+                        </svg>
+                        <div class="ring-center-text">
+                            <div class="ring-center-value" id="ring-pct">100%</div>
+                            <div class="ring-center-label">Healthy</div>
                         </div>
-                        <div>
-                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Mirror Channel</div>
-                            <div id="overview-mirror-chan" style="font-weight: 600; font-family: var(--font-mono); color: var(--cyan); margin-top: 0.25rem;">Checking...</div>
+                    </div>
+                    <div class="ring-legend">
+                        <div class="ring-legend-item">
+                            <span class="ring-legend-dot" style="background: var(--emerald);"></span>
+                            <span>Parity Intact</span>
                         </div>
-                        <div>
-                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Manifest Chain</div>
-                            <div id="overview-manifest-state" style="font-weight: 600; color: var(--emerald); margin-top: 0.25rem;">Verified Intact</div>
-                        </div>
-                        <div>
-                            <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Audit Ledger</div>
-                            <div id="overview-audit-state" style="font-weight: 600; color: var(--emerald); margin-top: 0.25rem;">Cryptographically Sound</div>
+                        <div class="ring-legend-item">
+                            <span class="ring-legend-dot" style="background: var(--purple);"></span>
+                            <span id="ring-encrypted-label">Zero-Knowledge</span>
                         </div>
                     </div>
                 </div>
+
+                <!-- Quick Ingest & Actions Dock -->
+                <div class="quick-dock-card">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <div style="font-weight: 700; color: #fff; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>⚡</span> Quick Ingest Launchpad
+                            </div>
+                            <span style="font-size: 0.75rem; color: var(--cyan); font-family: var(--font-mono);">SINGLE-DOCUMENT FORCE</span>
+                        </div>
+
+                        <!-- Dropzone inside Overview -->
+                        <div class="quick-drop-area" id="overview-dropzone" onclick="document.getElementById('overview-file-input').click()">
+                            <input type="file" id="overview-file-input" style="display: none;" onchange="handleOverviewFileSelect(event)">
+                            <div class="quick-drop-icon">📥</div>
+                            <div style="font-weight: 700; color: #fff; font-size: 1.05rem;">Drag & drop any file here to back up</div>
+                            <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">
+                                Instant streaming SHA-256 upload to Primary Channel + automated forward to Mirror Standby
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Resilience Action Buttons -->
+                    <div class="action-strip">
+                        <button class="btn btn-primary" onclick="switchToTab('tab-backup')">🚀 Advanced Backup</button>
+                        <button class="btn" onclick="handleVerify()">🛡️ Verify Parity</button>
+                        <button class="btn btn-success" onclick="handleAutoHeal()">✨ Auto-Heal</button>
+                        <button class="btn" onclick="runRecoveryDrill()">🎯 Recovery Drill</button>
+                        <button class="btn" onclick="handleRebuild()">🔄 Disaster Rebuild</button>
+                    </div>
+                </div>
             </div>
+
+            <!-- Real-Time Activity & Telemetry Terminal -->
+            <div class="terminal-card">
+                <div class="terminal-header">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="terminal-dots">
+                            <span class="terminal-dot" style="background: #f43f5e;"></span>
+                            <span class="terminal-dot" style="background: #fbbf24;"></span>
+                            <span class="terminal-dot" style="background: #00f5a0;"></span>
+                        </div>
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+                            Live System Event Stream & Audit Log
+                        </span>
+                    </div>
+                    <button class="btn" style="padding: 0.25rem 0.65rem; font-size: 0.72rem;" onclick="refreshStatus()">
+                        ↻ Clear/Refresh
+                    </button>
+                </div>
+                <div class="terminal-stream" id="terminal-logs">
+                    <div class="log-entry">
+                        <span class="log-time">[Init]</span>
+                        <span class="log-cat">[System]</span>
+                        <span class="log-msg-info">TeleVault HUD operational. Awaiting live commands...</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
-        <!-- TAB 2: Files Explorer -->
+        <!-- ======================================================== -->
+        <!-- TAB 2: VAULT EXPLORER                                    -->
+        <!-- ======================================================== -->
         <div id="tab-files" class="tab-content">
             <div class="table-card">
                 <div class="table-header-bar">
                     <div class="table-title"><span>📁</span> Indexed Vault Documents</div>
                     <div class="table-actions">
-                        <input type="text" id="file-search-input" class="input-text" placeholder="Search files or records..." oninput="filterRecordsTable()" style="width: 220px;">
-                        <button class="btn" onclick="handleVerify()">🛡️ Verify</button>
-                        <button class="btn" onclick="handleAutoHeal()">✨ Heal</button>
+                        <input type="text" id="file-search-input" class="input-text" placeholder="Search by name, ID or SHA-256..." oninput="filterRecordsTable()" style="width: 260px;">
+                        <button class="btn" onclick="handleVerify()">🛡️ Verify Parity</button>
+                        <button class="btn btn-success" onclick="handleAutoHeal()">✨ Heal Degraded</button>
                         <button class="btn" onclick="refreshRecords()">↻ Refresh</button>
                     </div>
                 </div>
@@ -175,8 +331,8 @@
                             <th>Version</th>
                             <th>Record ID</th>
                             <th>Size</th>
-                            <th>Health State</th>
-                            <th>Mode</th>
+                            <th>Parity Health</th>
+                            <th>Security Mode</th>
                             <th>Local Status</th>
                             <th>Action</th>
                         </tr>
@@ -188,46 +344,93 @@
             </div>
         </div>
 
-        <!-- TAB 3: Backup File -->
+        <!-- ======================================================== -->
+        <!-- TAB 3: FAST INGEST & BACKUP                              -->
+        <!-- ======================================================== -->
         <div id="tab-backup" class="tab-content">
             <input type="file" id="file-input" style="display: none;">
             
-            <div id="dropzone" class="dropzone-container">
-                <div class="dropzone-icon">📥</div>
-                <div class="dropzone-title">Drop your file here to back up</div>
-                <div class="dropzone-desc">Single-document force upload to Primary channel + forward to Mirror channel with streaming SHA-256</div>
-                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Browse Computer</button>
-                <div id="upload-status-text" style="display: none; margin-top: 1rem; font-weight: 600;"></div>
+            <div id="dropzone" class="quick-drop-area" style="padding: 3.5rem 2rem; margin-bottom: 1.5rem;" onclick="document.getElementById('file-input').click()">
+                <div class="quick-drop-icon" style="font-size: 3rem; color: var(--cyan);">📥</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #fff; margin-bottom: 0.4rem;">Drop your file here to back up</div>
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
+                    Single-document force upload to Primary MTProto channel + automated forward to Mirror channel
+                </div>
+                <button class="btn btn-primary" onclick="event.stopPropagation(); document.getElementById('file-input').click()">Browse Computer</button>
+                <div id="upload-status-text" style="display: none; margin-top: 1rem; font-weight: 700; color: var(--cyan);"></div>
             </div>
 
-            <!-- Backup Options & Local Path Backup -->
-            <div class="backup-options">
-                <div class="option-group">
-                    <input type="checkbox" id="check-private" style="accent-color: var(--cyan); width: 18px; height: 18px;" onchange="togglePassphraseInput()">
-                    <label for="check-private" style="font-size: 0.85rem; font-weight: 600;">Enable Private Mode (Client-side AES-256-GCM encryption)</label>
+            <!-- Ingest Security & Local Path Dock -->
+            <div class="table-card" style="padding: 1.5rem;">
+                <div style="font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🔐</span> Ingestion Security & Local Directory Mode
                 </div>
 
-                <div id="passphrase-container" style="display: none; align-items: center; gap: 0.5rem;">
-                    <input type="password" id="input-passphrase" class="input-text" placeholder="Enter private passphrase" style="width: 200px;">
-                </div>
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <!-- Private Mode Toggle -->
+                    <div style="background: rgba(18, 27, 46, 0.6); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border-subtle);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <input type="checkbox" id="check-private" style="accent-color: var(--cyan); width: 20px; height: 20px; cursor: pointer;" onchange="togglePassphraseInput()">
+                                <div>
+                                    <label for="check-private" style="font-size: 0.95rem; font-weight: 700; color: #fff; cursor: pointer;">
+                                        Enable Zero-Knowledge Private Mode
+                                    </label>
+                                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
+                                        Encrypts client-side using military-grade AES-256-GCM + Argon2id key derivation before cloud transmission.
+                                    </div>
+                                </div>
+                            </div>
 
-                <div style="flex: 1; display: flex; gap: 0.5rem; min-width: 320px;">
-                    <input type="text" id="input-local-path" class="input-text" placeholder="Or enter local file/folder path (e.g. C:\MyDoc.pdf)" style="flex: 1;">
-                    <button id="btn-path-backup" class="btn btn-primary" onclick="handlePathBackup()">Back Up Local Path</button>
+                            <button id="btn-gen-pass" class="btn" style="display: none; font-size: 0.75rem;" onclick="generateSecurePassphrase()">
+                                🎲 Generate Secure Key
+                            </button>
+                        </div>
+
+                        <!-- Passphrase Container -->
+                        <div id="passphrase-container" style="display: none; margin-top: 1rem;">
+                            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                                <input type="password" id="input-passphrase" class="input-text" placeholder="Enter private encryption passphrase" style="flex: 1; min-width: 250px;" oninput="updatePassphraseStrength()">
+                                <button class="btn" type="button" onclick="togglePassphraseVisibility()">👁️ Show/Hide</button>
+                            </div>
+                            <div id="passphrase-strength" style="font-size: 0.75rem; margin-top: 0.4rem; color: var(--text-dim);">
+                                Passphrase strength: <span id="strength-label">Waiting for input...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Local Path Direct Ingest -->
+                    <div style="background: rgba(18, 27, 46, 0.6); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border-subtle);">
+                        <div style="font-weight: 700; color: #fff; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                            Direct Local PC File / Folder Ingest
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                            <input type="text" id="input-local-path" class="input-text" placeholder="Enter full path (e.g. C:\Documents\Tax2026 or X:\Project\Data)" style="flex: 1; min-width: 300px;">
+                            <button id="btn-path-backup" class="btn btn-primary" onclick="handlePathBackup()">
+                                🚀 Back Up Path to Telegram
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- TAB 4: Time Machine & Version Tree -->
+        <!-- ======================================================== -->
+        <!-- TAB 4: TIME MACHINE (VERSION TREE)                       -->
+        <!-- ======================================================== -->
         <div id="tab-timeline" class="tab-content">
             <div class="timeline-tree-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
                     <div>
-                        <div style="font-size: 1.15rem; font-weight: 700; color: #fff;">⏳ Time Machine Visual Version Lineage</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">Append-only version history. Inspect past iterations and restore any previous generation.</div>
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>⏳</span> Time Machine Visual Version Lineage
+                        </div>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">
+                            Immutable append-only history. Inspect previous generations and roll back anytime.
+                        </div>
                     </div>
                     <div>
-                        <select id="timeline-file-selector" class="input-text" onchange="renderSelectedFileVersionTree()" style="min-width: 220px;">
+                        <select id="timeline-file-selector" class="input-text" onchange="renderSelectedFileVersionTree()" style="min-width: 250px;">
                             <option value="">Select a file to inspect...</option>
                         </select>
                     </div>
@@ -235,7 +438,7 @@
 
                 <!-- Visual Node Flow -->
                 <div id="timeline-flow" class="tree-flow">
-                    <div style="color: var(--text-dim); font-size: 0.85rem; padding: 1rem;">Select a file above to visualize its version progression (v1 ➔ v2 ➔ v3 [CURRENT]).</div>
+                    <div style="color: var(--text-dim); font-size: 0.85rem; padding: 1rem;">Select a file above to visualize its version lineage.</div>
                 </div>
             </div>
 
@@ -262,325 +465,223 @@
             </div>
         </div>
 
-        <!-- TAB 5: Recovery Center -->
-        <div id="tab-recovery" class="tab-content">
-            <div class="drill-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+        <!-- ======================================================== -->
+        <!-- TAB 5: RESILIENCE & AUTO-HEAL                            -->
+        <!-- ======================================================== -->
+        <div id="tab-resilience" class="tab-content">
+            <!-- Sandbox Recovery Drill -->
+            <div class="topology-panel" style="margin-bottom: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
                     <div>
-                        <div style="font-size: 1.15rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
                             <span>🎯</span> Non-Destructive Recovery Drill
                         </div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; max-width: 680px;">
-                            Executes an automated dry-run restoration inside a sandboxed scratch environment. Tests Telegram MTProto download, validates SHA-256 checksum byte-by-byte, and securely cleans up scratch storage without touching production or local files.
+                        <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem; max-width: 720px;">
+                            Executes an automated dry-run restoration inside a sandboxed scratch environment. Tests Telegram MTProto download, validates SHA-256 checksum byte-by-byte, and securely cleans up scratch storage without touching local files.
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="runRecoveryDrill()">🚀 Execute Recovery Drill</button>
                 </div>
 
-                <div style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 240px;">
-                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Target Record (optional)</label>
+                <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+                    <div style="flex: 1; min-width: 250px;">
+                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Target Record (optional)</label>
                         <select id="drill-record-select" class="input-text" style="width: 100%;">
                             <option value="">Latest Uploaded File (Auto)</option>
                         </select>
                     </div>
-                    <div style="width: 220px;">
-                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Passphrase (for Private Mode)</label>
-                        <input type="password" id="drill-passphrase-input" class="input-text" placeholder="Passphrase if encrypted" style="width: 100%;">
+                    <div style="width: 240px;">
+                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Passphrase (if Private Mode)</label>
+                        <input type="password" id="drill-passphrase-input" class="input-text" placeholder="Passphrase" style="width: 100%;">
                     </div>
                 </div>
 
-                <div id="drill-results-panel" class="drill-results" style="display: none;">
+                <div id="drill-results-panel" style="display: none; background: rgba(8, 12, 22, 0.8); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.25rem;">
                     <!-- Populated dynamically -->
                 </div>
             </div>
 
-            <!-- Disaster Recovery & Reconstruction -->
-            <div class="action-panel">
-                <div>
-                    <div class="action-panel-title">
-                        <span>🔄</span> Disaster Recovery Index Rebuild
+            <!-- Parity Healing & Disaster Rebuild Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+                <div class="table-card" style="padding: 1.5rem; margin-bottom: 0;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>✨</span> Dual-Channel Auto-Healing
                     </div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
-                        If your local SQLite index is destroyed or lost, TeleVault scans your Telegram channel messages, parses cryptographic tv2 captions, and reconstructs the complete database.
-                    </div>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn btn-primary" onclick="handleRebuild()">🔄 Rebuild Index from Telegram</button>
-                    <button class="btn" onclick="handleSnapshot()">📸 Export DB Snapshot</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 6: AI Doctor & Advisory Team -->
-        <div id="tab-doctor" class="tab-content">
-            <!-- Vault Doctor Diagnostics Panel -->
-            <div class="table-card">
-                <div class="table-header-bar">
-                    <div class="table-title"><span>🩺</span> Vault Doctor Automated Diagnostics</div>
-                    <div class="table-actions">
-                        <button class="btn btn-primary" onclick="runDoctorDiagnostics()">🩺 Run Diagnostics</button>
-                        <button class="btn btn-success" id="btn-doctor-repair" onclick="applyDoctorRepairs()" style="display: none;">✨ 1-Click Auto-Repair</button>
-                    </div>
-                </div>
-                <div style="padding: 1.5rem;" id="doctor-findings-container">
-                    <div style="color: var(--text-dim); font-size: 0.85rem;">Click "Run Diagnostics" to scan for degraded files, channel drift, transaction health, and manifest consistency.</div>
-                </div>
-            </div>
-
-            <!-- 10 Specialized Advisory Agents Console -->
-            <div class="table-card">
-                <div class="table-header-bar">
-                    <div>
-                        <div class="table-title"><span>🤖</span> 10 Specialized AI Advisory Agents</div>
-                        <div style="font-size: 0.78rem; color: var(--text-muted);">Deterministic Core Supremacy: Agents advise and propose structured Action Proposals. You hold the final approval gate.</div>
-                    </div>
-                </div>
-                <div style="padding: 1.5rem;">
-                    <!-- Agent Selector Tabs -->
-                    <div class="agents-selector" id="ai-agents-pills">
-                        <div class="agent-pill active" data-agent="doctor" onclick="selectAIAgent('doctor')">🩺 Vault Doctor</div>
-                        <div class="agent-pill" data-agent="redundancy" onclick="selectAIAgent('redundancy')">☁️ Redundancy Auditor</div>
-                        <div class="agent-pill" data-agent="recovery" onclick="selectAIAgent('recovery')">🎯 Recovery Drill</div>
-                        <div class="agent-pill" data-agent="versioning" onclick="selectAIAgent('versioning')">⏳ Retention & Versions</div>
-                        <div class="agent-pill" data-agent="forensics" onclick="selectAIAgent('forensics')">🔍 Incident Forensics</div>
-                        <div class="agent-pill" data-agent="channels" onclick="selectAIAgent('channels')">📡 Channel Health</div>
-                        <div class="agent-pill" data-agent="storage" onclick="selectAIAgent('storage')">💾 Storage Optimizer</div>
-                        <div class="agent-pill" data-agent="security" onclick="selectAIAgent('security')">🔐 Security Reviewer</div>
-                        <div class="agent-pill" data-agent="onboarding" onclick="selectAIAgent('onboarding')">🧭 Onboarding Coach</div>
-                        <div class="agent-pill" data-agent="copilot" onclick="selectAIAgent('copilot')">🚨 Disaster Copilot</div>
-                    </div>
-
-                    <!-- Chat / Prompt Box -->
-                    <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
-                        <input type="text" id="ai-user-prompt" class="input-text" placeholder="Ask your selected advisor a question (e.g. Is my vault fully recoverable right now?)..." style="flex: 1;" onkeydown="if(event.key === 'Enter') submitAIQuery()">
-                        <button class="btn btn-primary" onclick="submitAIQuery()">Consult Agent</button>
-                    </div>
-
-                    <!-- AI Response Area -->
-                    <div id="ai-response-box" style="display: none; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.25rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <div id="ai-response-agent-name" style="font-weight: 700; color: var(--cyan); font-size: 0.95rem;"></div>
-                            <div id="ai-response-confidence" class="status-pill status-healthy">Confidence: 100%</div>
-                        </div>
-                        <div id="ai-response-message" style="font-size: 0.88rem; line-height: 1.5; color: #f1f5f9; white-space: pre-wrap;"></div>
-
-                        <!-- Action Proposals Container -->
-                        <div id="ai-proposals-container"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 7: Security & Manifest Chain -->
-        <div id="tab-security" class="tab-content">
-            <div class="manifest-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
-                    <div>
-                        <div style="font-size: 1.15rem; font-weight: 700; color: #fff;">🔐 Tamper-Evident Cryptographic Manifest Chain</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
-                            Every vault snapshot is committed to an append-only SHA-256 hash chain with previous-block linkage. Tampering with any historical record invalidates the entire chain.
-                        </div>
-                    </div>
+                    <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem;">
+                        Audits message existence in Primary and Mirror channels. If a mirror message was purged or corrupted, TeleVault automatically re-replicates the healthy primary copy.
+                    </p>
                     <div style="display: flex; gap: 0.75rem;">
-                        <button class="btn" onclick="verifyManifestChain()">🛡️ Verify Chain</button>
-                        <button class="btn btn-primary" onclick="generateNewManifest()">➕ Generate Manifest</button>
+                        <button class="btn" onclick="handleVerify()">🛡️ Audit Parity</button>
+                        <button class="btn btn-success" onclick="handleAutoHeal()">✨ Auto-Heal Now</button>
                     </div>
                 </div>
 
-                <div id="manifest-details-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
-                    <div class="finding-box">
-                        <div class="finding-box-label">Manifest Generation</div>
-                        <div id="manifest-gen" style="font-size: 1.2rem; font-weight: 700; color: var(--cyan);">Gen 0</div>
+                <div class="table-card" style="padding: 1.5rem; margin-bottom: 0;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>🔄</span> Disaster Recovery Rebuild
                     </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Total Indexed Files</div>
-                        <div id="manifest-files" style="font-size: 1.2rem; font-weight: 700; color: #fff;">0</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Total Vault Payload</div>
-                        <div id="manifest-bytes" style="font-size: 1.2rem; font-weight: 700; color: #fff;">0 B</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Chain Verification</div>
-                        <div id="manifest-status-badge" class="status-pill status-healthy" style="margin-top: 0.25rem;">Verified Valid</div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 1rem;">
-                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current Root Manifest Hash (SHA-256)</div>
-                    <div id="manifest-root-hash" class="hash-display">Calculating...</div>
-                </div>
-
-                <div>
-                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Previous Block Hash Pointer</div>
-                    <div id="manifest-prev-hash" class="hash-display">Genesis Block (0000000000000000000000000000000000000000000000000000000000000000)</div>
-                </div>
-            </div>
-
-            <!-- Cryptographic Architecture Specifications -->
-            <div class="table-card">
-                <div class="table-header-bar">
-                    <div class="table-title"><span>🛡️</span> Cryptographic Invariants & Standards</div>
-                </div>
-                <div style="padding: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;">
-                    <div class="finding-box">
-                        <div style="font-weight: 700; color: #c77dff; margin-bottom: 0.35rem;">AES-256-GCM Streaming</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">Chunked 64KB authenticated streaming cipher. Complete privacy from cloud hosts with 16-byte authentication tag verification.</div>
-                    </div>
-                    <div class="finding-box">
-                        <div style="font-weight: 700; color: var(--cyan); margin-bottom: 0.35rem;">Argon2id Key Derivation</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">Memory-hard KDF (64MB RAM, 3 iterations, 4 parallelism, 16-byte random salt). Highly resistant to GPU/ASIC cracking.</div>
-                    </div>
-                    <div class="finding-box">
-                        <div style="font-weight: 700; color: var(--emerald); margin-bottom: 0.35rem;">Streaming SHA-256 Hashes</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">Computed on-the-fly during upload and restore with 64KB buffer increments to ensure deterministic byte preservation.</div>
-                    </div>
+                    <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem;">
+                        If your local drive crashes or SQLite database is lost, TeleVault scans your Telegram channel history and parses cryptographic captions to reconstruct your entire index.
+                    </p>
+                    <button class="btn btn-primary" onclick="handleRebuild()">🔄 Scan & Rebuild Vault</button>
                 </div>
             </div>
         </div>
 
-        <!-- TAB 8: Tamper-Evident Audit Ledger -->
-        <div id="tab-audit" class="tab-content">
-            <div class="table-card">
-                <div class="table-header-bar">
+        <!-- ======================================================== -->
+        <!-- TAB 6: TELEGRAM GATEWAY SETTINGS                         -->
+        <!-- ======================================================== -->
+        <div id="tab-telegram" class="tab-content">
+            <div class="table-card" style="padding: 1.75rem; max-width: 800px; margin: 0 auto;">
+                <div style="font-size: 1.25rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>📡</span> Telegram MTProto Gateway Configuration
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+                    TeleVault connects directly to Telegram servers using the MTProto protocol. Your personal session stays stored on your computer in Windows secure storage.
+                </p>
+
+                <div id="account-status-card" style="background: rgba(18, 27, 46, 0.7); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Connection State</div>
+                            <div id="account-status-label" style="font-size: 1.1rem; font-weight: 700; color: var(--amber); margin-top: 0.25rem;">
+                                Disconnected
+                            </div>
+                            <div id="account-user-details" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                No active MTProto session detected.
+                            </div>
+                        </div>
+                        <div id="account-actions">
+                            <button class="btn btn-primary" onclick="openLoginModal()">⚡ Connect Telegram</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">
+                    Channel Redundancy IDs
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                     <div>
-                        <div class="table-title"><span>📜</span> Tamper-Evident Append-Only Audit Ledger</div>
-                        <div style="font-size: 0.78rem; color: var(--text-muted);">Every backup, restore, heal, drill, and diagnostic action is recorded immutably.</div>
+                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Primary Channel ID</label>
+                        <input type="text" id="input-primary-channel" class="input-text" style="width: 100%;" placeholder="-100xxxxxxxxx" readonly>
                     </div>
-                    <div class="table-actions">
-                        <button class="btn btn-primary" onclick="verifyAuditLedger()">🛡️ Verify Cryptographic Integrity</button>
-                        <button class="btn" onclick="refreshAuditLedger()">↻ Refresh</button>
+                    <div>
+                        <label style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Mirror Channel ID</label>
+                        <input type="text" id="input-mirror-channel" class="input-text" style="width: 100%;" placeholder="-100xxxxxxxxx" readonly>
                     </div>
                 </div>
-
-                <div id="audit-integrity-banner" style="background: rgba(16, 185, 129, 0.1); border-bottom: 1px solid rgba(16, 185, 129, 0.2); padding: 0.75rem 1.5rem; font-size: 0.85rem; color: var(--emerald); display: flex; align-items: center; gap: 0.5rem;">
-                    <span>●</span> Audit ledger integrity verified: 0 cryptographic discrepancies detected.
-                </div>
-
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Action</th>
-                            <th>Entity ID</th>
-                            <th>Result</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody id="audit-table-body">
-                        <!-- Populated by JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Event Terminal Logs -->
-            <div class="table-card">
-                <div class="table-header-bar">
-                    <div class="table-title"><span>🖥️</span> Live System Event Stream</div>
-                </div>
-                <div class="terminal-card" id="terminal-logs">
-                    <!-- Populated dynamically -->
+                <div style="font-size: 0.78rem; color: var(--text-dim);">
+                    Tip: Channel IDs are configured in your <code style="color: var(--cyan);">.env</code> or via CLI <code style="color: var(--cyan);">televault login</code>.
                 </div>
             </div>
         </div>
 
-        <!-- TAB 9: Telegram Account & MTProto Connection -->
-        <div id="tab-account" class="tab-content">
-            <div id="account-info-container">
-                <!-- Dynamically rendered -->
-            </div>
-        </div>
     </main>
 
-    <!-- Telegram Login Modal -->
-    <div id="login-modal" class="modal-overlay">
-        <div class="modal-box">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div class="modal-title">Connect Telegram Account</div>
-                <button class="btn" style="padding: 0.2rem 0.5rem;" onclick="closeLoginModal()">✕</button>
-            </div>
-            <div class="modal-desc">
-                TeleVault connects as a client session via MTProto (not Bot API). Get your free API credentials at <a href="https://my.telegram.org" target="_blank" style="color: var(--cyan);">my.telegram.org</a>.
-            </div>
-
-            <div id="login-error-msg" style="display: none; color: var(--crimson); background: rgba(239,68,68,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem;"></div>
-
-            <!-- Step 1: Credentials -->
-            <div id="login-step-1">
-                <div class="form-group">
-                    <label>Telegram API ID</label>
-                    <input type="text" id="login-api-id" class="input-text" placeholder="e.g. 29384751">
-                </div>
-                <div class="form-group">
-                    <label>Telegram API Hash</label>
-                    <input type="text" id="login-api-hash" class="input-text" placeholder="e.g. a8b4c5d6e7f8... (32 chars)">
-                </div>
-                <div class="form-group">
-                    <label>Phone Number (International format)</label>
-                    <input type="text" id="login-phone" class="input-text" placeholder="+1234567890">
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
-                    <button class="btn" onclick="closeLoginModal()">Cancel</button>
-                    <button id="btn-send-code" class="btn btn-primary" onclick="submitSendCode()">Send Verification Code</button>
-                </div>
-            </div>
-
-            <!-- Step 2: Verification Code -->
-            <div id="login-step-2" style="display: none;">
-                <div style="margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-muted);">
-                    Telegram sent a confirmation code to <span id="step-2-phone-label" style="color: #fff; font-weight: 600;"></span>.
-                </div>
-                <div class="form-group">
-                    <label>Telegram Confirmation Code</label>
-                    <input type="text" id="login-code" class="input-text" placeholder="Enter code received in Telegram app">
-                </div>
-                <div class="form-group" id="group-2fa" style="display: none;">
-                    <label>Two-Step Verification Password (Cloud 2FA)</label>
-                    <input type="password" id="login-password" class="input-text" placeholder="Enter your 2FA password">
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
-                    <button class="btn" onclick="closeLoginModal()">Cancel</button>
-                    <button id="btn-verify-code" class="btn btn-primary" onclick="submitVerifyCode()">Verify & Connect</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- ======================================================== -->
+    <!-- MODALS & DIALOGS                                         -->
+    <!-- ======================================================== -->
 
     <!-- Restore Modal -->
     <div id="restore-modal" class="modal-overlay">
-        <div class="modal-box">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div class="modal-title">Restore Vault Document</div>
-                <button class="btn" style="padding: 0.2rem 0.5rem;" onclick="closeRestoreModal()">✕</button>
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">📥 Restore Vault Document</div>
+                <button class="modal-close" onclick="closeRestoreModal()">&times;</button>
             </div>
-            <div class="modal-desc">
-                TeleVault downloads the file from Telegram MTProto and verifies its SHA-256 hash before saving.
-            </div>
+            <div class="modal-body">
+                <div>
+                    <label style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Target File</label>
+                    <div id="restore-file-name" style="font-weight: 700; color: #fff; font-size: 1.05rem;"></div>
+                    <div id="restore-record-id" class="code-cell" style="margin-top: 0.25rem;"></div>
+                </div>
 
-            <div class="form-group">
-                <label>Record ID</label>
-                <input type="text" id="restore-modal-record-id" class="input-text" readonly style="background: rgba(0,0,0,0.5); color: var(--cyan); font-family: var(--font-mono);">
-            </div>
-            <div class="form-group">
-                <label>File Name</label>
-                <input type="text" id="restore-modal-file-name" class="input-text" readonly style="background: rgba(0,0,0,0.5);">
-            </div>
-            <div class="form-group" id="restore-passphrase-group" style="display: none;">
-                <label>Decryption Passphrase (Private Mode)</label>
-                <input type="password" id="restore-modal-passphrase" class="input-text" placeholder="Enter original passphrase used to encrypt">
-            </div>
-            <div class="form-group">
-                <label>Destination Folder (leave blank for ./restored)</label>
-                <input type="text" id="restore-modal-dest" class="input-text" placeholder="Default: ./restored">
-            </div>
+                <div>
+                    <label style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Destination Folder</label>
+                    <input type="text" id="restore-dest-input" class="input-text" placeholder="./restored (leave blank for default)" style="width: 100%;">
+                </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
-                <button class="btn" onclick="closeRestoreModal()">Cancel</button>
-                <button id="btn-confirm-restore" class="btn btn-primary" onclick="submitRestore()">Restore Document</button>
+                <div id="restore-passphrase-row" style="display: none;">
+                    <label style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.35rem;">Decryption Passphrase</label>
+                    <input type="password" id="restore-passphrase-input" class="input-text" placeholder="Passphrase for AES-256-GCM" style="width: 100%;">
+                </div>
+
+                <div id="restore-status" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem;"></div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                    <button class="btn" onclick="closeRestoreModal()">Cancel</button>
+                    <button id="btn-execute-restore" class="btn btn-primary" onclick="executeRestore()">Download & Verify Hash</button>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Telegram Login Modal -->
+    <div id="login-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">⚡ Connect Telegram MTProto Session</div>
+                <button class="modal-close" onclick="closeLoginModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Credentials -->
+                <div id="login-step-1">
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+                        Enter your Telegram API credentials from <a href="https://my.telegram.org" target="_blank" style="color: var(--cyan); text-decoration: underline;">my.telegram.org</a>:
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <input type="text" id="login-api-id" class="input-text" placeholder="API ID (e.g. 12345678)">
+                        <input type="text" id="login-api-hash" class="input-text" placeholder="API Hash (e.g. 0123456789abcdef...)">
+                        <input type="text" id="login-phone" class="input-text" placeholder="Phone Number (e.g. +919876543210)">
+                        <button class="btn btn-primary" onclick="handleSendLoginCode()" style="margin-top: 0.5rem;">
+                            Send Telegram Verification Code
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Code & 2FA -->
+                <div id="login-step-2" style="display: none;">
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+                        Enter the verification code sent to your Telegram app:
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <input type="text" id="login-code" class="input-text" placeholder="Telegram Code (e.g. 12345)">
+                        <input type="password" id="login-password" class="input-text" placeholder="2FA Password (if enabled on your account)">
+                        <button class="btn btn-primary" onclick="handleVerifyLoginCode()" style="margin-top: 0.5rem;">
+                            Verify & Activate Live Vault
+                        </button>
+                    </div>
+                </div>
+
+                <div id="login-feedback" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.82rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media & Document Preview Modal -->
+    <div id="preview-modal" class="modal-overlay">
+        <div class="modal-card preview-modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title" id="preview-modal-title">👁️ Preview: Document</div>
+                <button class="modal-close" onclick="closePreviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="preview-container" class="preview-media-container">
+                    <div style="color: var(--text-dim); font-size: 0.9rem;">Loading stream from Telegram...</div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+                    <div id="preview-meta-info" style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);"></div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <a id="preview-direct-link" href="#" target="_blank" class="btn" style="font-size: 0.8rem;">Open in New Tab ↗</a>
+                        <button class="btn btn-primary" onclick="closePreviewModal()" style="font-size: 0.8rem;">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
 
     <script src="/static/js/app.js"></script>
 </body>

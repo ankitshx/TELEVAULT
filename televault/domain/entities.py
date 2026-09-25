@@ -50,6 +50,17 @@ class VaultMessage:
 
 
 @dataclass
+class FilePart:
+    """Metadata for an individual chunk part of a large multi-part file (> 2 GB)."""
+    part_number: int  # 1-indexed (e.g., 1, 2, 3...)
+    total_parts: int
+    size: int
+    sha256: str
+    primary_ref: MessageRef | None = None
+    mirror_ref: MessageRef | None = None
+
+
+@dataclass
 class FileRecord:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""
@@ -65,6 +76,7 @@ class FileRecord:
     mode: VaultMode = VaultMode.ORIGINAL
     tags: list[str] = field(default_factory=list)
     recovery_path: str | None = None
+    parts: list[FilePart] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -79,6 +91,10 @@ class FileRecord:
     @property
     def is_lost(self) -> bool:
         return self.state == HealthState.LOST
+
+    @property
+    def is_multipart(self) -> bool:
+        return len(self.parts) > 1
 
 
 @dataclass

@@ -4,14 +4,18 @@ from pathlib import Path
 
 block_cipher = None
 
+# Resolve repository root from spec file location
+SPEC_DIR = Path(SPECPATH).resolve() if "SPECPATH" in globals() else Path(__file__).resolve().parent
+REPO_ROOT = SPEC_DIR.parent if SPEC_DIR.name == "packaging" else SPEC_DIR
+
 a = Analysis(
-    ['../televault/__main__.py'],
-    pathex=['..'],
+    [str(REPO_ROOT / 'televault' / '__main__.py')],
+    pathex=[str(REPO_ROOT)],
     binaries=[],
     datas=[
-        ('../televault/infrastructure/storage/migrations/*.sql', 'televault/infrastructure/storage/migrations'),
-        ('../televault/presentation/web/static', 'televault/presentation/web/static'),
-        ('../assets', 'assets'),
+        (str(REPO_ROOT / 'televault' / 'infrastructure' / 'storage' / 'migrations' / '*.sql'), 'televault/infrastructure/storage/migrations'),
+        (str(REPO_ROOT / 'televault' / 'presentation' / 'web' / 'static'), 'televault/presentation/web/static'),
+        (str(REPO_ROOT / 'assets'), 'assets'),
     ],
     hiddenimports=[
         'televault.infrastructure.telegram.telethon_gateway',
@@ -72,6 +76,5 @@ exe = EXE(
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file=None,
-    icon='../assets/icons/televault.ico' if Path('../assets/icons/televault.ico').exists() else None,
+    icon=str(REPO_ROOT / 'assets' / 'icons' / 'televault.ico') if (REPO_ROOT / 'assets' / 'icons' / 'televault.ico').exists() else None,
 )

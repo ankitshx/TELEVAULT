@@ -1,20 +1,21 @@
-// TeleVault Web Application Client Logic
+// TeleVault Web Application — Futuristic Cyber-Vault Client Logic
 let currentStatus = null;
 let currentRecords = [];
 let currentVersions = {};
 let pendingPhoneCodeHash = null;
-let selectedAIAgentKey = "doctor";
 let activeRestoreRecord = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
-    initDropzone();
+    initDropzones();
     initModals();
     refreshAll();
-    setInterval(refreshStatus, 8000);
+    setInterval(refreshStatus, 6000);
 });
 
+// =============================================================
 // Tab Switching
+// =============================================================
 function initTabs() {
     const tabs = document.querySelectorAll('.nav-tab');
     tabs.forEach(tab => {
@@ -46,42 +47,97 @@ function switchToTab(tabId) {
     // Lazy load tab specific data
     if (tabId === 'tab-timeline') {
         loadVersionTimeline();
-    } else if (tabId === 'tab-security') {
-        loadManifestDetails();
-    } else if (tabId === 'tab-audit') {
-        refreshAuditLedger();
+    } else if (tabId === 'tab-files') {
+        refreshRecords();
     }
 }
 
-// Data Fetching
+// =============================================================
+// Data Fetching & State Synchronization
+// =============================================================
 async function refreshAll() {
     await refreshStatus();
     await refreshRecords();
-    loadManifestDetails();
 }
 
 async function refreshStatus() {
     try {
         const res = await fetch('/api/status');
+        if (!res.ok) throw new Error('Failed to load status');
         const data = await res.json();
         currentStatus = data;
 
-        // Update header badges
+        // Header Status Badges
         const modeBadge = document.getElementById('header-mode-badge');
         const userBtn = document.getElementById('header-user-btn');
 
         if (data.authenticated && data.user) {
             modeBadge.className = 'badge badge-live';
-            modeBadge.innerHTML = `<span class="badge-pulse"></span> MTProto Live: ${data.user.first_name || data.user.phone}`;
-            userBtn.innerHTML = `👤 ${data.user.first_name || data.user.phone}`;
+            const name = data.user.first_name || data.user.phone || 'Connected';
+            modeBadge.innerHTML = `<span class="badge-pulse"></span> MTProto Live: ${escapeHtml(name)}`;
+            userBtn.innerHTML = `👤 ${escapeHtml(name)}`;
             userBtn.title = "Connected to Telegram MTProto. Click to view.";
+
+            // Account Tab Status
+            const acctLabel = document.getElementById('account-status-label');
+            const acctDetails = document.getElementById('account-user-details');
+            const acctActions = document.getElementById('account-actions');
+            if (acctLabel) {
+                acctLabel.textContent = "Live MTProto Session Active";
+                acctLabel.style.color = "var(--emerald)";
+            }
+            if (acctDetails) {
+                acctDetails.textContent = `User: ${name} (Phone: ${data.user.phone || 'N/A'}) | User ID: ${data.user.id || 'N/A'}`;
+            }
+            if (acctActions) {
+                acctActions.innerHTML = `<button class="btn btn-danger" onclick="handleLogout()">Disconnect Session</button>`;
+            }
+
+            // Node Topology Map
+            const nodeGwBadge = document.getElementById('node-gw-badge');
+            const nodeGwName = document.getElementById('node-gw-name');
+            const nodeGwUser = document.getElementById('node-gw-user');
+            if (nodeGwBadge) {
+                nodeGwBadge.style.color = "var(--emerald)";
+                nodeGwBadge.textContent = "● Session Live";
+            }
+            if (nodeGwName) nodeGwName.textContent = escapeHtml(name);
+            if (nodeGwUser) nodeGwUser.textContent = `MTProto Authenticated`;
+
         } else {
-            modeBadge.className = 'badge badge-simulated';
-            modeBadge.innerHTML = `<span class="badge-pulse"></span> Simulation Mode`;
+            modeBadge.className = 'badge badge-disconnected';
+            modeBadge.innerHTML = `<span class="badge-pulse"></span> Telegram Disconnected`;
             userBtn.innerHTML = `⚡ Connect Telegram`;
+            userBtn.title = "Connect your Telegram MTProto session";
+
+            // Account Tab Status
+            const acctLabel = document.getElementById('account-status-label');
+            const acctDetails = document.getElementById('account-user-details');
+            const acctActions = document.getElementById('account-actions');
+            if (acctLabel) {
+                acctLabel.textContent = "Disconnected (Setup Required)";
+                acctLabel.style.color = "var(--amber)";
+            }
+            if (acctDetails) {
+                acctDetails.textContent = "No active MTProto session. Click below to connect your Telegram account.";
+            }
+            if (acctActions) {
+                acctActions.innerHTML = `<button class="btn btn-primary" onclick="openLoginModal()">⚡ Connect Telegram</button>`;
+            }
+
+            // Node Topology Map
+            const nodeGwBadge = document.getElementById('node-gw-badge');
+            const nodeGwName = document.getElementById('node-gw-name');
+            const nodeGwUser = document.getElementById('node-gw-user');
+            if (nodeGwBadge) {
+                nodeGwBadge.style.color = "var(--amber)";
+                nodeGwBadge.textContent = "● Not Connected";
+            }
+            if (nodeGwName) nodeGwName.textContent = "MTProto Standby";
+            if (nodeGwUser) nodeGwUser.textContent = "Click to link account";
         }
 
-        // Update Stats
+        // Metrics Counters
         document.getElementById('stat-files').textContent = data.stats.total_files;
         document.getElementById('stat-size').textContent = formatBytes(data.stats.total_bytes);
         document.getElementById('stat-healthy').textContent = data.stats.healthy;
@@ -89,33 +145,76 @@ async function refreshStatus() {
         document.getElementById('stat-lost').textContent = data.stats.lost;
 
         // Channel Status
-        const pChan = data.channels.primary_id ? `ID: ${data.channels.primary_id}` : 'Not Linked';
-        const mChan = data.channels.mirror_id ? `ID: ${data.channels.mirror_id}` : 'Not Linked';
+        const pChan = data.channels.primary_id ? `ID: ${data.channels.primary_id}` : 'Unlinked';
+        const mChan = data.channels.mirror_id ? `ID: ${data.channels.mirror_id}` : 'Unlinked';
         document.getElementById('stat-channels').textContent = `${pChan} | ${mChan}`;
 
-        // Overview Summary
-        const pOverview = document.getElementById('overview-primary-chan');
-        const mOverview = document.getElementById('overview-mirror-chan');
-        if (pOverview) pOverview.textContent = pChan;
-        if (mOverview) mOverview.textContent = mChan;
+        // Node Topology Channels
+        const nodeP = document.getElementById('node-primary-id');
+        const nodeM = document.getElementById('node-mirror-id');
+        if (nodeP) nodeP.textContent = data.channels.primary_id || 'Primary Unset';
+        if (nodeM) nodeM.textContent = data.channels.mirror_id || 'Mirror Unset';
 
-        // Account tab info
-        renderAccountInfo(data);
+        const nodeDbRecords = document.getElementById('node-db-records');
+        if (nodeDbRecords) nodeDbRecords.textContent = `${data.stats.total_files} records indexed`;
 
-        // Logs
-        renderLogs(data.logs);
+        // Update Channel Inputs in Settings
+        const inP = document.getElementById('input-primary-channel');
+        const inM = document.getElementById('input-mirror-channel');
+        if (inP) inP.value = data.channels.primary_id || 'Not configured in .env';
+        if (inM) inM.value = data.channels.mirror_id || 'Not configured in .env';
+
+        // Update Storage & Parity Visual Ring
+        updateStorageRing(data.stats);
+
+        // Render Terminal Event Logs
+        renderTerminalLogs(data.logs);
+
     } catch (e) {
         console.error("Error refreshing status:", e);
+    }
+}
+
+function updateStorageRing(stats) {
+    const ringHealthy = document.getElementById('ring-healthy');
+    const ringEncrypted = document.getElementById('ring-encrypted');
+    const ringPct = document.getElementById('ring-pct');
+    const ringEncryptedLabel = document.getElementById('ring-encrypted-label');
+    if (!ringHealthy || !ringEncrypted || !ringPct) return;
+
+    const total = stats.total_files;
+    if (total === 0) {
+        ringHealthy.style.strokeDashoffset = '440';
+        ringEncrypted.style.strokeDashoffset = '340';
+        ringPct.textContent = '100%';
+        if (ringEncryptedLabel) ringEncryptedLabel.textContent = '0% Private';
+        return;
+    }
+
+    const healthyRatio = stats.healthy / total;
+    const offsetHealthy = 440 - (440 * healthyRatio);
+    ringHealthy.style.strokeDashoffset = Math.max(0, offsetHealthy).toString();
+    ringPct.textContent = `${Math.round(healthyRatio * 100)}%`;
+
+    // Calculate private encryption ratio
+    const privateCount = currentRecords.filter(r => r.mode === 'PRIVATE').length;
+    const privateRatio = privateCount / total;
+    const offsetEncrypted = 340 - (340 * privateRatio);
+    ringEncrypted.style.strokeDashoffset = Math.max(0, offsetEncrypted).toString();
+    if (ringEncryptedLabel) {
+        ringEncryptedLabel.textContent = `${Math.round(privateRatio * 100)}% Zero-Knowledge`;
     }
 }
 
 async function refreshRecords() {
     try {
         const res = await fetch('/api/records');
+        if (!res.ok) throw new Error('Failed to load records');
         const data = await res.json();
         currentRecords = data.records || [];
         renderRecordsTable(currentRecords);
         populateDrillSelect(currentRecords);
+        if (currentStatus) updateStorageRing(currentStatus.stats);
     } catch (e) {
         console.error("Error loading records:", e);
     }
@@ -139,7 +238,7 @@ function renderRecordsTable(records) {
     const tbody = document.getElementById('vault-table-body');
     if (!tbody) return;
     if (!records || records.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">No files backed up yet. Drop a file in "Backup File" to begin.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2.5rem;">No files backed up yet. Drop a file in "Fast Ingest" to begin.</td></tr>`;
         return;
     }
 
@@ -149,26 +248,49 @@ function renderRecordsTable(records) {
         if (r.state === 'LOST') stateClass = 'status-lost';
 
         const modeBadge = r.mode === 'PRIVATE'
-            ? `<span class="status-pill" style="background: rgba(199,125,255,0.15); color: #c77dff; border: 1px solid rgba(199,125,255,0.3);">🔐 AES-GCM</span>`
-            : `<span class="status-pill" style="background: rgba(0,210,255,0.12); color: var(--cyan); border: 1px solid rgba(0,210,255,0.25);">Original</span>`;
+            ? `<span class="status-pill" style="background: rgba(199,125,255,0.15); color: #c77dff; border: 1px solid rgba(199,125,255,0.3);">🔐 AES-256-GCM</span>`
+            : `<span class="status-pill" style="background: rgba(0,242,254,0.12); color: var(--cyan); border: 1px solid rgba(0,242,254,0.25);">Original</span>`;
+
+        const multipartBadge = r.is_multipart
+            ? `<span class="status-pill" style="background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.3); margin-left: 0.35rem;" title="${r.parts_count || ''} chunks safely managed">🧩 ${r.parts_count || ''} Chunks</span>`
+            : '';
 
         return `
             <tr>
-                <td><strong>${escapeHtml(r.name)}</strong></td>
+                <td><strong>${escapeHtml(r.name)}</strong>${multipartBadge}</td>
                 <td><span class="status-pill" style="background: rgba(255,255,255,0.06); color: #fff;">v${r.version || 1}</span></td>
                 <td class="code-cell">${escapeHtml(r.id)}</td>
                 <td>${formatBytes(r.size)}</td>
                 <td><span class="status-pill ${stateClass}">${r.state}</span></td>
                 <td>${modeBadge}</td>
-                <td style="color: var(--text-dim); font-size: 0.78rem;">${r.local_status}</td>
+                <td style="color: var(--text-dim); font-size: 0.78rem;">${escapeHtml(r.local_status)}</td>
                 <td>
-                    <button class="btn" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;" onclick="openRestoreModal('${escapeHtml(r.id)}', '${escapeHtml(r.name)}', '${r.mode}')">
-                        📥 Restore
-                    </button>
+                    <div style="display: flex; gap: 0.4rem;">
+                        <button class="btn" style="padding: 0.3rem 0.55rem; font-size: 0.75rem;" title="Preview / Stream Media" onclick="openPreviewModal('${escapeHtml(r.id)}', '${escapeHtml(r.name)}', '${r.mode}')">
+                            👁️
+                        </button>
+                        <button class="btn" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;" onclick="openRestoreModal('${escapeHtml(r.id)}', '${escapeHtml(r.name)}', '${r.mode}')">
+                            📥 Restore
+                        </button>
+                        <button class="btn" style="padding: 0.3rem 0.55rem; font-size: 0.75rem;" title="View in Time Machine" onclick="viewInTimeMachine('${escapeHtml(r.name)}')">
+                            ⏳
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+function viewInTimeMachine(fileName) {
+    switchToTab('tab-timeline');
+    setTimeout(() => {
+        const selector = document.getElementById('timeline-file-selector');
+        if (selector) {
+            selector.value = fileName;
+            renderSelectedFileVersionTree();
+        }
+    }, 200);
 }
 
 function populateDrillSelect(records) {
@@ -185,9 +307,247 @@ function populateDrillSelect(records) {
     if (currentVal) select.value = currentVal;
 }
 
-// -------------------------------------------------------------
+function renderTerminalLogs(logs) {
+    const container = document.getElementById('terminal-logs');
+    if (!container || !logs || logs.length === 0) return;
+
+    container.innerHTML = logs.map(l => {
+        let msgClass = 'log-msg-info';
+        if (l.level === 'success') msgClass = 'log-msg-success';
+        if (l.level === 'warning') msgClass = 'log-msg-warning';
+        if (l.level === 'error') msgClass = 'log-msg-error';
+
+        const timeStr = l.timestamp || new Date().toLocaleTimeString();
+        return `
+            <div class="log-entry">
+                <span class="log-time">[${escapeHtml(timeStr)}]</span>
+                <span class="log-cat">[${escapeHtml(l.category)}]</span>
+                <span class="${msgClass}">${escapeHtml(l.message)}</span>
+            </div>
+        `;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
+// =============================================================
+// Drag and Drop & Backup Ingestion
+// =============================================================
+function initDropzones() {
+    // 1. Fast Dropzone in Overview
+    const overviewDrop = document.getElementById('overview-dropzone');
+    if (overviewDrop) {
+        setupDropEvents(overviewDrop, file => uploadFileDirectly(file));
+    }
+
+    // 2. Full Dropzone in Backup Tab
+    const fullDrop = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+    if (fullDrop) {
+        setupDropEvents(fullDrop, file => uploadFileDirectly(file));
+    }
+    if (fileInput) {
+        fileInput.addEventListener('change', e => {
+            if (e.target.files && e.target.files.length > 0) {
+                uploadFileDirectly(e.target.files[0]);
+            }
+        });
+    }
+}
+
+function setupDropEvents(element, onFile) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+        element.addEventListener(eventName, e => {
+            e.preventDefault();
+            e.stopPropagation();
+            element.classList.add('drag-over');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        element.addEventListener(eventName, e => {
+            e.preventDefault();
+            e.stopPropagation();
+            element.classList.remove('drag-over');
+        });
+    });
+
+    element.addEventListener('drop', e => {
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            onFile(e.dataTransfer.files[0]);
+        }
+    });
+}
+
+function handleOverviewFileSelect(event) {
+    if (event.target.files && event.target.files.length > 0) {
+        uploadFileDirectly(event.target.files[0]);
+    }
+}
+
+async function uploadFileDirectly(file) {
+    const isPrivate = document.getElementById('check-private') ? document.getElementById('check-private').checked : false;
+    const passphraseInput = document.getElementById('input-passphrase');
+    const passphrase = (isPrivate && passphraseInput) ? passphraseInput.value.trim() : null;
+
+    if (isPrivate && !passphrase) {
+        showToast("Please enter an encryption passphrase for Private Mode!", "error");
+        switchToTab('tab-backup');
+        return;
+    }
+
+    showToast(`Encrypting & uploading ${file.name} to MTProto...`, "info");
+
+    const statusText = document.getElementById('upload-status-text');
+    if (statusText) {
+        statusText.style.display = 'block';
+        statusText.textContent = `Streaming SHA-256 upload for ${file.name}...`;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', isPrivate ? 'private' : 'original');
+    if (passphrase) {
+        formData.append('passphrase', passphrase);
+    }
+
+    try {
+        const res = await fetch('/api/backup/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Upload failed');
+        }
+
+        if (data.status === 'duplicate') {
+            showToast(`Duplicate: ${data.message}`, "warning");
+        } else {
+            showToast(`Successfully backed up ${file.name} (ID: ${data.record_id})!`, "success");
+        }
+
+        if (statusText) statusText.style.display = 'none';
+        await refreshAll();
+
+    } catch (e) {
+        showToast(`Backup error: ${e.message}`, "error");
+        if (statusText) {
+            statusText.style.color = "var(--crimson)";
+            statusText.textContent = `Upload failed: ${e.message}`;
+        }
+    }
+}
+
+async function handlePathBackup() {
+    const pathInput = document.getElementById('input-local-path');
+    const path = pathInput ? pathInput.value.trim() : '';
+    if (!path) {
+        showToast("Please enter a valid file or directory path.", "warning");
+        return;
+    }
+
+    const isPrivate = document.getElementById('check-private') ? document.getElementById('check-private').checked : false;
+    const passphraseInput = document.getElementById('input-passphrase');
+    const passphrase = (isPrivate && passphraseInput) ? passphraseInput.value.trim() : null;
+
+    if (isPrivate && !passphrase) {
+        showToast("Please enter a passphrase for Private Mode!", "error");
+        return;
+    }
+
+    showToast(`Scanning path ${path}...`, "info");
+    const btn = document.getElementById('btn-path-backup');
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/backup/path', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: path,
+                mode: isPrivate ? 'private' : 'original',
+                passphrase: passphrase,
+            }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Path backup failed');
+
+        const successCnt = data.results.length;
+        showToast(`Path backup completed: ${successCnt} files processed!`, "success");
+        if (pathInput) pathInput.value = '';
+        await refreshAll();
+
+    } catch (e) {
+        showToast(`Backup error: ${e.message}`, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// =============================================================
+// Passphrase Helpers
+// =============================================================
+function togglePassphraseInput() {
+    const isChecked = document.getElementById('check-private').checked;
+    const container = document.getElementById('passphrase-container');
+    const genBtn = document.getElementById('btn-gen-pass');
+    if (container) container.style.display = isChecked ? 'block' : 'none';
+    if (genBtn) genBtn.style.display = isChecked ? 'inline-flex' : 'none';
+}
+
+function togglePassphraseVisibility() {
+    const input = document.getElementById('input-passphrase');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function generateSecurePassphrase() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+';
+    let pass = '';
+    const array = new Uint32Array(24);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < 24; i++) {
+        pass += chars[array[i] % chars.length];
+    }
+    const input = document.getElementById('input-passphrase');
+    if (input) {
+        input.value = pass;
+        input.type = 'text';
+        updatePassphraseStrength();
+        showToast("High-entropy AES key generated!", "success");
+    }
+}
+
+function updatePassphraseStrength() {
+    const input = document.getElementById('input-passphrase');
+    const label = document.getElementById('strength-label');
+    if (!input || !label) return;
+
+    const val = input.value;
+    if (!val) {
+        label.textContent = "Waiting for input...";
+        label.style.color = "var(--text-dim)";
+        return;
+    }
+
+    if (val.length < 8) {
+        label.textContent = "Weak (Minimum 8 chars recommended)";
+        label.style.color = "var(--crimson)";
+    } else if (val.length < 16) {
+        label.textContent = "Good (AES-256 Protected)";
+        label.style.color = "var(--amber)";
+    } else {
+        label.textContent = "Military-grade (Argon2id + AES-256-GCM Optimal)";
+        label.style.color = "var(--emerald)";
+    }
+}
+
+// =============================================================
 // Time Machine & Version Tree
-// -------------------------------------------------------------
+// =============================================================
 async function loadVersionTimeline() {
     try {
         const res = await fetch('/api/versions');
@@ -231,7 +591,7 @@ function renderSelectedFileVersionTree() {
         return;
     }
 
-    const versions = currentVersions[selectedName]; // sorted desc by version
+    const versions = currentVersions[selectedName];
     const ascending = [...versions].reverse();
 
     // Render tree flow
@@ -239,7 +599,7 @@ function renderSelectedFileVersionTree() {
         const isLatest = idx === ascending.length - 1;
         const nodeHtml = `
             <div class="tree-node ${isLatest ? 'active-current' : ''}">
-                <div class="tree-node-version">Version ${v.version}</div>
+                <div class="tree-node-version">v${v.version}</div>
                 <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem;">${formatBytes(v.size)}</div>
                 ${isLatest ? '<div class="tree-node-tag">CURRENT</div>' : ''}
             </div>
@@ -248,669 +608,317 @@ function renderSelectedFileVersionTree() {
         return nodeHtml + arrowHtml;
     }).join('');
 
-    // Render table
-    tableBody.innerHTML = versions.map((v, idx) => {
-        const isLatest = idx === 0;
-        return `
-            <tr>
-                <td><strong>v${v.version}</strong> ${isLatest ? '<span class="status-pill status-healthy" style="margin-left: 0.5rem;">LATEST</span>' : ''}</td>
-                <td class="code-cell">${escapeHtml(v.id)}</td>
-                <td class="code-cell" style="font-size: 0.72rem; color: var(--text-muted);">${v.sha256 ? v.sha256.substring(0, 16) + '...' : 'N/A'}</td>
-                <td>${formatBytes(v.size)}</td>
-                <td>${v.mode}</td>
-                <td style="color: var(--text-dim); font-size: 0.78rem;">${v.created_at ? v.created_at.substring(0, 19).replace('T', ' ') : 'N/A'}</td>
-                <td>
-                    <button class="btn" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;" onclick="openRestoreModal('${escapeHtml(v.id)}', '${escapeHtml(v.name)}', '${v.mode}')">
-                        Restore v${v.version}
-                    </button>
-                </td>
-            </tr>
-        `;
-    }).join('');
+    // Render revision table
+    tableBody.innerHTML = versions.map(v => `
+        <tr>
+            <td><strong style="color: var(--cyan);">v${v.version}</strong></td>
+            <td class="code-cell">${escapeHtml(v.id)}</td>
+            <td class="code-cell">${v.sha256 ? v.sha256.substring(0, 16) + '...' : 'N/A'}</td>
+            <td>${formatBytes(v.size)}</td>
+            <td><span class="status-pill" style="background: rgba(255,255,255,0.06);">${v.mode}</span></td>
+            <td style="color: var(--text-dim); font-size: 0.78rem;">${v.created_at ? v.created_at.substring(0, 19).replace('T', ' ') : 'N/A'}</td>
+            <td>
+                <button class="btn" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;" onclick="openRestoreModal('${escapeHtml(v.id)}', '${escapeHtml(selectedName)}', '${v.mode}')">
+                    📥 Restore v${v.version}
+                </button>
+            </td>
+        </tr>
+    `).join('');
 }
 
-// -------------------------------------------------------------
-// Recovery Center: Non-Destructive Recovery Drill
-// -------------------------------------------------------------
-async function runRecoveryDrill() {
-    switchToTab('tab-recovery');
-    const select = document.getElementById('drill-record-select');
-    const passInput = document.getElementById('drill-passphrase-input');
-    const resultsPanel = document.getElementById('drill-results-panel');
-
-    const recordId = select ? select.value : null;
-    const passphrase = passInput ? passInput.value : null;
-
-    resultsPanel.style.display = 'block';
-    resultsPanel.innerHTML = `
-        <div style="color: var(--cyan); display: flex; align-items: center; gap: 0.5rem;">
-            <span class="badge-pulse"></span> Initializing non-destructive sandboxed recovery drill...
-        </div>
-        <div style="color: var(--text-dim); font-size: 0.78rem; margin-top: 0.5rem;">
-            Step 1: Locating document in Telegram Primary channel.<br>
-            Step 2: Downloading ciphertext/plaintext stream to scratch sandbox.<br>
-            Step 3: Calculating streaming SHA-256 and validating exact byte integrity.<br>
-            Step 4: Cleaning scratch sandbox without touching local files.
-        </div>
-    `;
-
-    try {
-        let url = '/api/recovery-drill';
-        const params = [];
-        if (recordId) params.push(`record_id=${encodeURIComponent(recordId)}`);
-        if (passphrase) params.push(`passphrase=${encodeURIComponent(passphrase)}`);
-        if (params.length > 0) url += `?${params.join('&')}`;
-
-        const res = await fetch(url, { method: 'POST' });
-        const data = await res.json();
-
-        if (res.ok && data.passed) {
-            resultsPanel.innerHTML = `
-                <div style="color: var(--emerald); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">
-                    ✅ RECOVERY DRILL PASSED — CRYPTOGRAPHIC VERIFICATION PROVEN
-                </div>
-                <div style="line-height: 1.6;">
-                    • Target File: <span style="color: #fff;">${escapeHtml(data.file_name)}</span> (${formatBytes(data.file_size)})<br>
-                    • Record ID: <span class="code-cell">${escapeHtml(data.record_id)}</span><br>
-                    • Duration: <span style="color: var(--cyan);">${data.duration_seconds.toFixed(3)}s</span><br>
-                    • SHA-256 Byte Match: <span style="color: var(--emerald);">VERIFIED INTACT</span><br>
-                    • File Size Match: <span style="color: var(--emerald);">EXACT</span><br>
-                    • Scratch Sandbox: <span style="color: var(--emerald);">CLEANED AND REMOVED</span><br>
-                    • Result Summary: <span style="color: var(--text-muted);">${escapeHtml(data.message)}</span>
-                </div>
-            `;
-        } else {
-            resultsPanel.innerHTML = `
-                <div style="color: var(--crimson); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">
-                    ❌ RECOVERY DRILL FAILED
-                </div>
-                <div style="line-height: 1.6; color: var(--crimson);">
-                    • Error: ${escapeHtml(data.detail || data.message || "Integrity verification check failed.")}
-                </div>
-            `;
-        }
-        refreshStatus();
-    } catch (e) {
-        resultsPanel.innerHTML = `<div style="color: var(--crimson);">Error running recovery drill: ${escapeHtml(e.message)}</div>`;
-    }
-}
-
-// -------------------------------------------------------------
-// AI Doctor Diagnostics & Advisory Console
-// -------------------------------------------------------------
-async function runDoctorDiagnostics() {
-    const container = document.getElementById('doctor-findings-container');
-    const repairBtn = document.getElementById('btn-doctor-repair');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div style="color: var(--cyan); display: flex; align-items: center; gap: 0.5rem;">
-            <span class="badge-pulse"></span> Running comprehensive Vault Doctor diagnostics...
-        </div>
-    `;
-
-    try {
-        const res = await fetch('/api/doctor');
-        const data = await res.json();
-        renderDoctorFindings(data.findings || []);
-        if (repairBtn) {
-            const hasIssues = (data.findings || []).some(f => f.state !== 'HEALTHY');
-            repairBtn.style.display = hasIssues ? 'inline-flex' : 'none';
-        }
-    } catch (e) {
-        container.innerHTML = `<div style="color: var(--crimson);">Error running diagnostics: ${escapeHtml(e.message)}</div>`;
-    }
-}
-
-async function applyDoctorRepairs() {
-    const container = document.getElementById('doctor-findings-container');
-    const repairBtn = document.getElementById('btn-doctor-repair');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div style="color: var(--emerald); display: flex; align-items: center; gap: 0.5rem;">
-            <span class="badge-pulse"></span> Applying automatic repairs to degraded copies and manifest chains...
-        </div>
-    `;
-
-    try {
-        const res = await fetch('/api/doctor?repair=true');
-        const data = await res.json();
-        renderDoctorFindings(data.findings || []);
-        if (repairBtn) repairBtn.style.display = 'none';
-        refreshStatus();
-        refreshRecords();
-    } catch (e) {
-        container.innerHTML = `<div style="color: var(--crimson);">Error applying repairs: ${escapeHtml(e.message)}</div>`;
-    }
-}
-
-function renderDoctorFindings(findings) {
-    const container = document.getElementById('doctor-findings-container');
-    if (!container) return;
-
-    if (!findings || findings.length === 0) {
-        container.innerHTML = `<div style="color: var(--emerald); font-weight: 600;">✅ Vault is fully healthy. All dual copies, manifests, and transactions verified.</div>`;
-        return;
-    }
-
-    container.innerHTML = findings.map(f => {
-        let cardClass = 'healthy';
-        let badgeColor = 'var(--emerald)';
-        if (f.state === 'CRITICAL' || f.state === 'LOST') {
-            cardClass = 'critical';
-            badgeColor = 'var(--crimson)';
-        } else if (f.state === 'WARNING' || f.state === 'DEGRADED') {
-            cardClass = 'warning';
-            badgeColor = 'var(--amber)';
-        }
-
-        return `
-            <div class="finding-card ${cardClass}">
-                <div class="finding-title">
-                    <span style="color: #fff;">${escapeHtml(f.title)}</span>
-                    <span class="status-pill" style="color: ${badgeColor}; border: 1px solid ${badgeColor};">${f.state}</span>
-                </div>
-                <div class="finding-grid">
-                    <div class="finding-box">
-                        <div class="finding-box-label">What Happened</div>
-                        <div style="color: #f1f5f9;">${escapeHtml(f.what_happened)}</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Why</div>
-                        <div style="color: var(--text-muted);">${escapeHtml(f.why)}</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">What Is Safe</div>
-                        <div style="color: var(--emerald);">${escapeHtml(f.what_is_safe)}</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Recommended Action</div>
-                        <div style="color: var(--cyan);">${escapeHtml(f.recommended_action)}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function selectAIAgent(agentKey) {
-    selectedAIAgentKey = agentKey;
-    const pills = document.querySelectorAll('.agent-pill');
-    pills.forEach(p => {
-        if (p.dataset.agent === agentKey) {
-            p.classList.add('active');
-        } else {
-            p.classList.remove('active');
-        }
-    });
-
-    const input = document.getElementById('ai-user-prompt');
-    if (input) {
-        const agentNames = {
-            doctor: "Vault Doctor",
-            redundancy: "Redundancy Auditor",
-            recovery: "Recovery Drill Agent",
-            versioning: "Retention & Versioning Agent",
-            forensics: "Incident Forensic Agent",
-            channels: "Channel Health Agent",
-            storage: "Storage Optimizer Agent",
-            security: "Security Reviewer Agent",
-            onboarding: "Onboarding Coach Agent",
-            copilot: "Disaster Recovery Copilot",
-        };
-        input.placeholder = `Consult with ${agentNames[agentKey] || agentKey}...`;
-    }
-}
-
-async function submitAIQuery() {
-    const input = document.getElementById('ai-user-prompt');
-    const respBox = document.getElementById('ai-response-box');
-    const agentNameEl = document.getElementById('ai-response-agent-name');
-    const msgEl = document.getElementById('ai-response-message');
-    const proposalsEl = document.getElementById('ai-proposals-container');
-
-    const promptText = (input.value || '').trim();
-    if (!promptText) return;
-
-    respBox.style.display = 'block';
-    agentNameEl.textContent = `Consulting Agent...`;
-    msgEl.textContent = "Analyzing domain port telemetry...";
-    proposalsEl.innerHTML = "";
-
-    try {
-        const res = await fetch('/api/ai/query', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: selectedAIAgentKey, prompt: promptText }),
-        });
-        const data = await res.json();
-
-        agentNameEl.textContent = `🤖 ${data.agent_name}`;
-        msgEl.textContent = data.message;
-
-        // Render Action Proposals
-        if (data.proposals && data.proposals.length > 0) {
-            proposalsEl.innerHTML = data.proposals.map(p => `
-                <div class="proposal-card" id="proposal-${escapeHtml(p.proposal_id)}">
-                    <div class="proposal-header">
-                        <div class="proposal-title">⚡ ACTION PROPOSAL: ${escapeHtml(p.action_title)}</div>
-                        <span class="status-pill ${p.safe ? 'status-healthy' : 'status-degraded'}">${p.safe ? 'SAFE' : 'CAUTION'}</span>
-                    </div>
-                    <div class="proposal-meta">
-                        <div><strong>Why:</strong> ${escapeHtml(p.why)}</div>
-                        <div style="margin-top: 0.25rem;"><strong>What will change:</strong> ${escapeHtml(p.what_will_change)}</div>
-                        <div style="margin-top: 0.25rem; color: var(--emerald);"><strong>What will NOT change:</strong> ${escapeHtml(p.what_will_not_change)}</div>
-                    </div>
-                    <div class="proposal-actions">
-                        <button class="btn btn-success" onclick="approveProposal('${escapeHtml(p.proposal_id)}')">Approve & Execute</button>
-                        <button class="btn" onclick="rejectProposal('${escapeHtml(p.proposal_id)}')">Dismiss</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-    } catch (e) {
-        msgEl.textContent = `Error: ${e.message}`;
-    }
-}
-
-async function approveProposal(proposalId) {
-    try {
-        const res = await fetch('/api/ai/proposals/approve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ proposal_id: proposalId }),
-        });
-        const data = await res.json();
-        const card = document.getElementById(`proposal-${proposalId}`);
-        if (card) {
-            card.innerHTML = `<div style="color: var(--emerald); font-weight: 600;">✅ Proposal approved and executed: ${escapeHtml(data.action_title)}</div>`;
-        }
-        refreshStatus();
-        refreshRecords();
-    } catch (e) {
-        alert("Error approving proposal: " + e.message);
-    }
-}
-
-async function rejectProposal(proposalId) {
-    try {
-        await fetch('/api/ai/proposals/reject', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ proposal_id: proposalId }),
-        });
-        const card = document.getElementById(`proposal-${proposalId}`);
-        if (card) {
-            card.innerHTML = `<div style="color: var(--text-dim); font-size: 0.85rem;">Proposal dismissed.</div>`;
-        }
-    } catch (e) {
-        console.error("Error dismissing proposal:", e);
-    }
-}
-
-// -------------------------------------------------------------
-// Cryptographic Security & Manifest Chain
-// -------------------------------------------------------------
-async function loadManifestDetails() {
-    try {
-        const res = await fetch('/api/manifest');
-        const data = await res.json();
-
-        const genEl = document.getElementById('manifest-gen');
-        const filesEl = document.getElementById('manifest-files');
-        const bytesEl = document.getElementById('manifest-bytes');
-        const badgeEl = document.getElementById('manifest-status-badge');
-        const rootHashEl = document.getElementById('manifest-root-hash');
-        const prevHashEl = document.getElementById('manifest-prev-hash');
-        const overviewState = document.getElementById('overview-manifest-state');
-
-        if (data.latest) {
-            if (genEl) genEl.textContent = `Gen ${data.latest.generation}`;
-            if (filesEl) filesEl.textContent = data.latest.total_files;
-            if (bytesEl) bytesEl.textContent = formatBytes(data.latest.total_bytes);
-            if (rootHashEl) rootHashEl.textContent = data.latest.manifest_hash;
-            if (prevHashEl) prevHashEl.textContent = data.latest.previous_hash;
-        }
-
-        if (badgeEl) {
-            badgeEl.className = data.is_valid ? 'status-pill status-healthy' : 'status-pill status-lost';
-            badgeEl.textContent = data.is_valid ? 'Chain Verified Valid' : 'Chain Integrity Violation';
-        }
-        if (overviewState) {
-            overviewState.textContent = data.is_valid ? 'Verified Intact' : 'Violation Detected';
-            overviewState.style.color = data.is_valid ? 'var(--emerald)' : 'var(--crimson)';
-        }
-    } catch (e) {
-        console.error("Error loading manifest:", e);
-    }
-}
-
-async function verifyManifestChain() {
-    await loadManifestDetails();
-    alert("Manifest chain integrity verified across all historical generations.");
-}
-
-async function generateNewManifest() {
-    try {
-        const res = await fetch('/api/manifest/generate', { method: 'POST' });
-        const data = await res.json();
-        alert(`New manifest Generation ${data.generation} generated with root hash: ${data.manifest_hash.substring(0, 16)}...`);
-        loadManifestDetails();
-        refreshStatus();
-    } catch (e) {
-        alert("Error generating manifest: " + e.message);
-    }
-}
-
-// -------------------------------------------------------------
-// Tamper-Evident Audit Ledger
-// -------------------------------------------------------------
-async function refreshAuditLedger() {
-    try {
-        const res = await fetch('/api/audit');
-        const data = await res.json();
-
-        const banner = document.getElementById('audit-integrity-banner');
-        if (banner) {
-            if (data.is_valid) {
-                banner.style.background = 'rgba(16, 185, 129, 0.1)';
-                banner.style.color = 'var(--emerald)';
-                banner.innerHTML = `<span>●</span> Audit ledger integrity verified: 0 cryptographic discrepancies detected.`;
-            } else {
-                banner.style.background = 'rgba(239, 68, 68, 0.1)';
-                banner.style.color = 'var(--crimson)';
-                banner.innerHTML = `<span>✖</span> Audit ledger integrity violation detected!`;
-            }
-        }
-
-        const tbody = document.getElementById('audit-table-body');
-        if (!tbody) return;
-        if (!data.events || data.events.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">No audit events recorded yet.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = data.events.map(e => `
-            <tr>
-                <td style="color: var(--text-dim); font-size: 0.75rem;">${escapeHtml(e.timestamp.replace('T', ' ').substring(0, 19))}</td>
-                <td><strong style="color: var(--cyan);">${escapeHtml(e.action)}</strong></td>
-                <td class="code-cell" style="font-size: 0.72rem;">${escapeHtml(e.entity_id)}</td>
-                <td><span class="status-pill ${e.result === 'SUCCESS' ? 'status-healthy' : 'status-degraded'}">${escapeHtml(e.result)}</span></td>
-                <td style="font-size: 0.78rem; color: var(--text-muted);">${escapeHtml(e.details)}</td>
-            </tr>
-        `).join('');
-    } catch (e) {
-        console.error("Error refreshing audit ledger:", e);
-    }
-}
-
-async function verifyAuditLedger() {
-    await refreshAuditLedger();
-    alert("Cryptographic hash chain of audit events has been validated.");
-}
-
-// -------------------------------------------------------------
-// Backup Upload & Local Path
-// -------------------------------------------------------------
-function togglePassphraseInput() {
-    const check = document.getElementById('check-private');
-    const container = document.getElementById('passphrase-container');
-    if (check && container) {
-        container.style.display = check.checked ? 'flex' : 'none';
-    }
-}
-
-function initDropzone() {
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('file-input');
-
-    if (!dropzone || !fileInput) return;
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropzone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropzone.classList.add('drag-over');
-        }, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropzone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('drag-over');
-        }, false);
-    });
-
-    dropzone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-            handleFileUpload(files[0]);
-        }
-    });
-
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length > 0) {
-            handleFileUpload(fileInput.files[0]);
-        }
-    });
-}
-
-async function handleFileUpload(file) {
-    const statusText = document.getElementById('upload-status-text');
-    const isPrivate = document.getElementById('check-private').checked;
-    const passphraseInput = document.getElementById('input-passphrase');
-    const passphrase = isPrivate && passphraseInput ? passphraseInput.value : '';
-
-    statusText.style.display = 'block';
-    statusText.style.color = 'var(--cyan)';
-    statusText.textContent = `Uploading ${file.name} to Primary & Mirror channels...`;
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('mode', isPrivate ? 'private' : 'original');
-    if (passphrase) formData.append('passphrase', passphrase);
-
-    try {
-        const res = await fetch('/api/backup/upload', {
-            method: 'POST',
-            body: formData,
-        });
-        const data = await res.json();
-
-        if (res.ok && data.status === 'success') {
-            statusText.style.color = 'var(--emerald)';
-            statusText.textContent = `✅ Successfully backed up ${file.name} (Record ID: ${data.record_id})`;
-            refreshAll();
-        } else if (data.status === 'duplicate') {
-            statusText.style.color = 'var(--amber)';
-            statusText.textContent = `⚠️ ${data.message}`;
-        } else {
-            statusText.style.color = 'var(--crimson)';
-            statusText.textContent = `❌ Upload failed: ${data.detail || data.message || "Unknown error"}`;
-        }
-    } catch (e) {
-        statusText.style.color = 'var(--crimson)';
-        statusText.textContent = `❌ Upload failed: ${e.message}`;
-    }
-}
-
-async function handlePathBackup() {
-    const pathInput = document.getElementById('input-local-path');
-    const btn = document.getElementById('btn-path-backup');
-    const isPrivate = document.getElementById('check-private').checked;
-    const passInput = document.getElementById('input-passphrase');
-    const passphrase = isPrivate && passInput ? passInput.value : '';
-
-    const pathVal = (pathInput.value || '').trim();
-    if (!pathVal) {
-        alert("Please enter a local file or folder path.");
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = "Backing up...";
-
-    try {
-        const res = await fetch('/api/backup/path', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                path: pathVal,
-                mode: isPrivate ? 'private' : 'original',
-                passphrase: passphrase || null,
-            }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-            alert(`Backup complete! Processed ${data.results.length} file(s).`);
-            pathInput.value = "";
-            refreshAll();
-        } else {
-            alert("Backup failed: " + (data.detail || "Unknown error"));
-        }
-    } catch (e) {
-        alert("Backup failed: " + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = "Back Up Local Path";
-    }
-}
-
-// -------------------------------------------------------------
-// Restore Modal
-// -------------------------------------------------------------
-function openRestoreModal(recordId, fileName, mode) {
-    activeRestoreRecord = { id: recordId, name: fileName, mode: mode };
-    document.getElementById('restore-modal-record-id').value = recordId;
-    document.getElementById('restore-modal-file-name').value = fileName;
-    document.getElementById('restore-modal-dest').value = '';
-
-    const passGroup = document.getElementById('restore-passphrase-group');
-    if (passGroup) {
-        passGroup.style.display = (mode === 'PRIVATE') ? 'block' : 'none';
-    }
-
-    document.getElementById('restore-modal').classList.add('active');
-}
-
-function closeRestoreModal() {
-    document.getElementById('restore-modal').classList.remove('active');
-    activeRestoreRecord = null;
-}
-
-async function submitRestore() {
-    if (!activeRestoreRecord) return;
-    const recordId = activeRestoreRecord.id;
-    const dest = document.getElementById('restore-modal-dest').value.trim();
-    const btn = document.getElementById('btn-confirm-restore');
-
-    btn.disabled = true;
-    btn.textContent = "Downloading & Verifying...";
-
-    try {
-        let url = `/api/restore/${encodeURIComponent(recordId)}`;
-        if (dest) url += `?dest_folder=${encodeURIComponent(dest)}`;
-
-        const res = await fetch(url, { method: 'POST' });
-        const data = await res.json();
-
-        if (res.ok && data.status === 'success') {
-            alert(`✅ Document successfully restored to:\n${data.restored_path}\nSHA-256 byte integrity verified!`);
-            closeRestoreModal();
-            refreshAll();
-        } else {
-            alert(`❌ Restore failed: ${data.detail || "SHA-256 integrity verification failed."}`);
-        }
-    } catch (e) {
-        alert(`❌ Restore failed: ${e.message}`);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = "Restore Document";
-    }
-}
-
-// -------------------------------------------------------------
-// Other Core Actions: Verify, Heal, Rebuild, Snapshot
-// -------------------------------------------------------------
+// =============================================================
+// Resilience & Auto-Healing Center
+// =============================================================
 async function handleVerify() {
+    showToast("Auditing dual-channel MTProto redundancy...", "info");
     try {
         const res = await fetch('/api/verify', { method: 'POST' });
         const data = await res.json();
-        alert(`Verification Complete:\nTotal checked: ${data.total_checked}\nHealthy: ${data.healthy_count}\nDegraded: ${data.degraded_count}\nLost: ${data.lost_count}`);
-        refreshAll();
+        if (!res.ok) throw new Error(data.detail || 'Verification failed');
+
+        showToast(`Audit complete: ${data.healthy_count} healthy, ${data.degraded_count} degraded, ${data.lost_count} lost`, "success");
+        await refreshAll();
     } catch (e) {
-        alert("Verification failed: " + e.message);
+        showToast(`Verification error: ${e.message}`, "error");
     }
 }
 
 async function handleAutoHeal() {
+    showToast("Initiating dual-channel auto-healing engine...", "info");
     try {
         const res = await fetch('/api/verify?heal=true', { method: 'POST' });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Auto-heal failed');
+
         const healed = data.healing ? data.healing.healed_count : 0;
-        alert(`Auto-Heal Complete:\nHealed ${healed} degraded document(s).`);
-        refreshAll();
+        showToast(`Auto-heal complete: ${healed} degraded files recovered to Mirror channel!`, "success");
+        await refreshAll();
     } catch (e) {
-        alert("Auto-heal failed: " + e.message);
+        showToast(`Auto-heal error: ${e.message}`, "error");
+    }
+}
+
+async function runRecoveryDrill() {
+    showToast("Executing non-destructive sandboxed recovery drill...", "info");
+    const recSelect = document.getElementById('drill-record-select');
+    const passInput = document.getElementById('drill-passphrase-input');
+    const recId = recSelect ? recSelect.value : '';
+    const pass = passInput ? passInput.value.trim() : '';
+
+    let url = '/api/recovery-drill';
+    const params = [];
+    if (recId) params.push(`record_id=${encodeURIComponent(recId)}`);
+    if (pass) params.push(`passphrase=${encodeURIComponent(pass)}`);
+    if (params.length > 0) url += '?' + params.join('&');
+
+    try {
+        const res = await fetch(url, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Recovery drill failed');
+
+        const panel = document.getElementById('drill-results-panel');
+        if (panel) {
+            panel.style.display = 'block';
+            panel.innerHTML = `
+                <div style="font-weight: 700; color: var(--emerald); margin-bottom: 0.5rem;">
+                    ✓ Sandboxed Drill Succeeded for ${escapeHtml(data.record_id)}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-main); line-height: 1.5;">
+                    <div>• Download verified: <strong style="color: var(--cyan);">${data.download_success ? 'YES' : 'NO'}</strong></div>
+                    <div>• SHA-256 byte-by-byte match: <strong style="color: var(--emerald);">${data.hash_matched ? 'MATCHED' : 'FAILED'}</strong></div>
+                    <div>• Scratch cleanup: <strong style="color: var(--emerald);">${data.cleanup_verified ? 'SECURELY WIPED' : 'FAILED'}</strong></div>
+                    <div style="margin-top: 0.35rem; color: var(--text-dim);">${data.message}</div>
+                </div>
+            `;
+        }
+
+        showToast("Recovery Drill passed! Vault download and crypto proven intact.", "success");
+        await refreshAll();
+
+    } catch (e) {
+        showToast(`Recovery drill error: ${e.message}`, "error");
     }
 }
 
 async function handleRebuild() {
-    if (!confirm("Rebuild will scan your Telegram channels, read cryptographic tv2 captions, and reconstruct your SQLite index. Proceed?")) return;
+    if (!confirm("Start disaster recovery scan from Telegram channels? This will parse cloud messages to rebuild missing index entries.")) {
+        return;
+    }
+    showToast("Scanning MTProto channel history to rebuild vault...", "info");
     try {
         const res = await fetch('/api/rebuild', { method: 'POST' });
         const data = await res.json();
-        alert(`Rebuild Complete:\nReconstructed: ${data.records_reconstructed}\nHealthy: ${data.records_healthy}\nDegraded: ${data.records_degraded}`);
-        refreshAll();
+        if (!res.ok) throw new Error(data.detail || 'Rebuild failed');
+
+        showToast(`Rebuild complete: ${data.records_reconstructed} records restored!`, "success");
+        await refreshAll();
     } catch (e) {
-        alert("Rebuild failed: " + e.message);
+        showToast(`Rebuild error: ${e.message}`, "error");
     }
 }
 
-async function handleSnapshot() {
-    try {
-        const res = await fetch('/api/snapshot', { method: 'POST' });
-        const data = await res.json();
-        alert(`Snapshot exported to Telegram: ${data.snapshot_file}`);
-        refreshStatus();
-    } catch (e) {
-        alert("Snapshot failed: " + e.message);
-    }
+// =============================================================
+// Restore Modal
+// =============================================================
+function openRestoreModal(recordId, fileName, mode) {
+    activeRestoreRecord = { id: recordId, name: fileName, mode: mode };
+    const modal = document.getElementById('restore-modal');
+    document.getElementById('restore-file-name').textContent = fileName;
+    document.getElementById('restore-record-id').textContent = `Record ID: ${recordId}`;
+
+    const passRow = document.getElementById('restore-passphrase-row');
+    if (passRow) passRow.style.display = (mode === 'PRIVATE') ? 'block' : 'none';
+
+    const statusDiv = document.getElementById('restore-status');
+    if (statusDiv) statusDiv.style.display = 'none';
+
+    if (modal) modal.style.display = 'flex';
 }
 
-// -------------------------------------------------------------
-// Telegram Login Modal
-// -------------------------------------------------------------
-function initModals() {
-    window.openLoginModal = () => {
-        document.getElementById('login-modal').classList.add('active');
-        document.getElementById('login-error-msg').style.display = 'none';
-        document.getElementById('login-step-1').style.display = 'block';
-        document.getElementById('login-step-2').style.display = 'none';
-    };
-
-    window.closeLoginModal = () => {
-        document.getElementById('login-modal').classList.remove('active');
-    };
+function closeRestoreModal() {
+    const modal = document.getElementById('restore-modal');
+    if (modal) modal.style.display = 'none';
+    activeRestoreRecord = null;
 }
 
-async function submitSendCode() {
-    const apiId = document.getElementById('login-api-id').value.trim();
-    const apiHash = document.getElementById('login-api-hash').value.trim();
-    const phone = document.getElementById('login-phone').value.trim();
-    const errBox = document.getElementById('login-error-msg');
-    const sendBtn = document.getElementById('btn-send-code');
+// =============================================================
+// Preview & Media Streaming Modal
+// =============================================================
+function openPreviewModal(recordId, fileName, mode) {
+    const modal = document.getElementById('preview-modal');
+    const title = document.getElementById('preview-modal-title');
+    const container = document.getElementById('preview-container');
+    const directLink = document.getElementById('preview-direct-link');
+    const metaInfo = document.getElementById('preview-meta-info');
 
-    if (!apiId || !apiHash || !phone) {
-        errBox.textContent = "Please fill in API ID, API Hash, and Phone Number.";
-        errBox.style.display = 'block';
+    if (!modal || !container) return;
+
+    title.textContent = `👁️ Preview: ${fileName}`;
+    if (directLink) directLink.href = `/api/files/${encodeURIComponent(recordId)}/preview`;
+    if (metaInfo) metaInfo.textContent = `ID: ${recordId} | Mode: ${mode}`;
+
+    if (mode === 'PRIVATE') {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--text-dim);">
+                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔐</div>
+                <div style="font-weight: 600; color: #fff; margin-bottom: 0.25rem;">Encrypted Zero-Knowledge Document</div>
+                <div style="font-size: 0.82rem;">This file is encrypted with client-side AES-256-GCM.<br>Use "Restore" to decrypt with your passphrase.</div>
+            </div>
+        `;
+        modal.style.display = 'flex';
         return;
     }
 
-    sendBtn.disabled = true;
-    sendBtn.textContent = "Sending Code...";
-    errBox.style.display = 'none';
+    container.innerHTML = `<div style="color: var(--cyan); font-size: 0.9rem;"><span class="badge-pulse"></span> Streaming media from vault...</div>`;
+    modal.style.display = 'flex';
+
+    const ext = fileName.split('.').pop().toLowerCase();
+    const url = `/api/files/${encodeURIComponent(recordId)}/preview`;
+
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+        container.innerHTML = `<img src="${url}" alt="${escapeHtml(fileName)}" style="max-width: 100%; max-height: 480px; object-fit: contain; border-radius: 8px;">`;
+    } else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+        container.innerHTML = `
+            <video controls autoplay style="max-width: 100%; max-height: 480px; border-radius: 8px; width: 100%;">
+                <source src="${url}">
+                Your browser does not support HTML5 video streaming.
+            </video>
+        `;
+    } else if (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(ext)) {
+        container.innerHTML = `
+            <div style="text-align: center; width: 100%; padding: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🎵</div>
+                <audio controls autoplay style="width: 80%; max-width: 500px;">
+                    <source src="${url}">
+                    Your browser does not support audio streaming.
+                </audio>
+            </div>
+        `;
+    } else if (ext === 'pdf') {
+        container.innerHTML = `
+            <iframe src="${url}" style="width: 100%; height: 500px; border: none; border-radius: 8px;"></iframe>
+        `;
+    } else if (['txt', 'log', 'md', 'json', 'py', 'js', 'html', 'css', 'sql', 'sh', 'bat', 'yaml', 'yml', 'toml'].includes(ext)) {
+        fetch(url)
+            .then(res => res.text())
+            .then(text => {
+                container.innerHTML = `<pre class="preview-code-block">${escapeHtml(text.slice(0, 50000))}</pre>`;
+            })
+            .catch(err => {
+                container.innerHTML = `<div style="color: var(--rose);">Failed to load preview text: ${escapeHtml(err.message)}</div>`;
+            });
+    } else {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--text-dim);">
+                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📦</div>
+                <div style="font-weight: 600; color: #fff; margin-bottom: 0.25rem;">Binary Package</div>
+                <div style="font-size: 0.82rem;">Direct preview not available for .${ext} files.<br>Click "Open in New Tab" or "Restore" to download.</div>
+            </div>
+        `;
+    }
+}
+
+function closePreviewModal() {
+    const modal = document.getElementById('preview-modal');
+    if (modal) modal.style.display = 'none';
+    const container = document.getElementById('preview-container');
+    if (container) container.innerHTML = '';
+}
+
+async function executeRestore() {
+    if (!activeRestoreRecord) return;
+    const destFolder = document.getElementById('restore-dest-input').value.trim();
+    const passphrase = document.getElementById('restore-passphrase-input') ? document.getElementById('restore-passphrase-input').value.trim() : '';
+
+    const btn = document.getElementById('btn-execute-restore');
+    const statusDiv = document.getElementById('restore-status');
+    if (btn) btn.disabled = true;
+
+    if (statusDiv) {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = 'rgba(0, 242, 254, 0.1)';
+        statusDiv.style.color = 'var(--cyan)';
+        statusDiv.textContent = 'Downloading from Telegram and calculating SHA-256...';
+    }
+
+    let url = `/api/restore/${encodeURIComponent(activeRestoreRecord.id)}`;
+    const params = [];
+    if (destFolder) params.push(`dest_folder=${encodeURIComponent(destFolder)}`);
+    if (params.length > 0) url += '?' + params.join('&');
+
+    try {
+        const res = await fetch(url, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Restore failed');
+
+        if (statusDiv) {
+            statusDiv.style.background = 'rgba(0, 245, 160, 0.15)';
+            statusDiv.style.color = 'var(--emerald)';
+            statusDiv.innerHTML = `✓ Restored to: <code>${escapeHtml(data.restored_path)}</code><br>✓ SHA-256 Checksum Verified!`;
+        }
+
+        showToast(`Restored: ${activeRestoreRecord.name}`, "success");
+        setTimeout(closeRestoreModal, 2500);
+
+    } catch (e) {
+        if (statusDiv) {
+            statusDiv.style.background = 'rgba(244, 63, 94, 0.15)';
+            statusDiv.style.color = 'var(--crimson)';
+            statusDiv.textContent = `Error: ${e.message}`;
+        }
+        showToast(`Restore error: ${e.message}`, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// =============================================================
+// Telegram MTProto Login Wizard
+// =============================================================
+function initModals() {
+    // Click outside modal card to close
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) {
+                overlay.style.display = 'none';
+                const pc = document.getElementById('preview-container');
+                if (pc) pc.innerHTML = '';
+            }
+        });
+    });
+}
+
+function openLoginModal() {
+    const modal = document.getElementById('login-modal');
+    document.getElementById('login-step-1').style.display = 'block';
+    document.getElementById('login-step-2').style.display = 'none';
+    const feedback = document.getElementById('login-feedback');
+    if (feedback) feedback.style.display = 'none';
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function handleSendLoginCode() {
+    const apiId = document.getElementById('login-api-id').value.trim();
+    const apiHash = document.getElementById('login-api-hash').value.trim();
+    const phone = document.getElementById('login-phone').value.trim();
+    const feedback = document.getElementById('login-feedback');
+
+    if (!apiId || !apiHash || !phone) {
+        showToast("Please enter API ID, API Hash, and Phone Number.", "warning");
+        return;
+    }
+
+    if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(0, 242, 254, 0.1)';
+        feedback.style.color = 'var(--cyan)';
+        feedback.textContent = 'Connecting to Telegram MTProto and requesting code...';
+    }
 
     try {
         const res = await fetch('/api/login/send-code', {
@@ -918,41 +926,46 @@ async function submitSendCode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ api_id: apiId, api_hash: apiHash, phone: phone }),
         });
-        const data = await res.json();
 
-        if (res.ok && data.status === 'code_sent') {
-            pendingPhoneCodeHash = data.phone_code_hash;
-            document.getElementById('step-2-phone-label').textContent = phone;
-            document.getElementById('login-step-1').style.display = 'none';
-            document.getElementById('login-step-2').style.display = 'block';
-        } else {
-            errBox.textContent = data.detail || "Failed to send code.";
-            errBox.style.display = 'block';
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to send login code');
+
+        pendingPhoneCodeHash = data.phone_code_hash;
+        document.getElementById('login-step-1').style.display = 'none';
+        document.getElementById('login-step-2').style.display = 'block';
+
+        if (feedback) {
+            feedback.style.background = 'rgba(0, 245, 160, 0.15)';
+            feedback.style.color = 'var(--emerald)';
+            feedback.textContent = `Verification code sent to ${phone}. Enter code below:`;
         }
+
     } catch (e) {
-        errBox.textContent = e.message;
-        errBox.style.display = 'block';
-    } finally {
-        sendBtn.disabled = false;
-        sendBtn.textContent = "Send Verification Code";
+        if (feedback) {
+            feedback.style.background = 'rgba(244, 63, 94, 0.15)';
+            feedback.style.color = 'var(--crimson)';
+            feedback.textContent = `Error: ${e.message}`;
+        }
+        showToast(`Login error: ${e.message}`, "error");
     }
 }
 
-async function submitVerifyCode() {
+async function handleVerifyLoginCode() {
     const code = document.getElementById('login-code').value.trim();
-    const password = document.getElementById('login-password').value;
-    const errBox = document.getElementById('login-error-msg');
-    const verifyBtn = document.getElementById('btn-verify-code');
+    const password = document.getElementById('login-password').value.trim() || null;
+    const feedback = document.getElementById('login-feedback');
 
     if (!code) {
-        errBox.textContent = "Please enter the confirmation code from Telegram.";
-        errBox.style.display = 'block';
+        showToast("Please enter the verification code.", "warning");
         return;
     }
 
-    verifyBtn.disabled = true;
-    verifyBtn.textContent = "Verifying...";
-    errBox.style.display = 'none';
+    if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(0, 242, 254, 0.1)';
+        feedback.style.color = 'var(--cyan)';
+        feedback.textContent = 'Verifying Telegram session credentials...';
+    }
 
     try {
         const res = await fetch('/api/login/verify-code', {
@@ -961,125 +974,87 @@ async function submitVerifyCode() {
             body: JSON.stringify({
                 code: code,
                 phone_code_hash: pendingPhoneCodeHash,
-                password: password || null,
+                password: password,
             }),
         });
+
         const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Verification failed');
 
-        if (res.ok && data.status === 'success') {
-            closeLoginModal();
-            refreshStatus();
-            alert(`Connected to Telegram MTProto as ${data.user.first_name || data.user.phone}!`);
-        } else if (data.status === '2fa_required') {
-            document.getElementById('group-2fa').style.display = 'block';
-            errBox.textContent = "Two-step verification password is required for this account.";
-            errBox.style.display = 'block';
-        } else {
-            errBox.textContent = data.detail || "Verification failed.";
-            errBox.style.display = 'block';
+        if (data.status === '2fa_required') {
+            if (feedback) {
+                feedback.style.background = 'rgba(251, 191, 36, 0.15)';
+                feedback.style.color = 'var(--amber)';
+                feedback.textContent = '2FA password required. Enter your 2-Step password above.';
+            }
+            return;
         }
+
+        showToast("Telegram account authenticated successfully! Vault is live.", "success");
+        closeLoginModal();
+        await refreshAll();
+
     } catch (e) {
-        errBox.textContent = e.message;
-        errBox.style.display = 'block';
-    } finally {
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = "Verify & Connect";
-    }
-}
-
-// -------------------------------------------------------------
-// Account Info & Logs Rendering
-// -------------------------------------------------------------
-function renderAccountInfo(status) {
-    const container = document.getElementById('account-info-container');
-    if (!container) return;
-
-    if (status.authenticated && status.user) {
-        container.innerHTML = `
-            <div class="table-card" style="padding: 1.5rem;">
-                <div style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 1rem;">
-                    👤 Connected Telegram Account (MTProto)
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                    <div class="finding-box">
-                        <div class="finding-box-label">Name</div>
-                        <div style="font-size: 1rem; font-weight: 600; color: #fff;">${escapeHtml(status.user.first_name || '')} ${escapeHtml(status.user.last_name || '')}</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Phone Number</div>
-                        <div style="font-size: 1rem; font-weight: 600; color: var(--cyan);">${escapeHtml(status.user.phone || 'N/A')}</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Username</div>
-                        <div style="font-size: 1rem; font-weight: 600; color: #fff;">@${escapeHtml(status.user.username || 'none')}</div>
-                    </div>
-                    <div class="finding-box">
-                        <div class="finding-box-label">Data Center (DC)</div>
-                        <div style="font-size: 1rem; font-weight: 600; color: #fff;">DC ${status.user.dc_id || 'N/A'}</div>
-                    </div>
-                </div>
-                <button class="btn btn-danger" onclick="handleLogout()">Disconnect Telegram Account</button>
-            </div>
-        `;
-    } else {
-        container.innerHTML = `
-            <div class="table-card" style="padding: 2.5rem; text-align: center;">
-                <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📡</div>
-                <div style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;">Running in Simulation Mode</div>
-                <div style="color: var(--text-muted); font-size: 0.85rem; max-width: 520px; margin: 0 auto 1.5rem auto;">
-                    TeleVault is operating using an in-memory Fake MTProto Gateway. To back up real documents to your private Telegram storage channels, connect your Telegram account.
-                </div>
-                <button class="btn btn-primary" onclick="openLoginModal()">⚡ Connect Telegram Account</button>
-            </div>
-        `;
+        if (feedback) {
+            feedback.style.background = 'rgba(244, 63, 94, 0.15)';
+            feedback.style.color = 'var(--crimson)';
+            feedback.textContent = `Auth error: ${e.message}`;
+        }
+        showToast(`Auth error: ${e.message}`, "error");
     }
 }
 
 async function handleLogout() {
-    if (!confirm("Are you sure you want to disconnect your Telegram account?")) return;
+    if (!confirm("Are you sure you want to disconnect your Telegram session?")) return;
     try {
         await fetch('/api/logout', { method: 'POST' });
-        refreshAll();
+        showToast("Telegram session disconnected.", "info");
+        await refreshAll();
     } catch (e) {
-        alert("Logout failed: " + e.message);
+        showToast(`Logout error: ${e.message}`, "error");
     }
 }
 
-function renderLogs(logs) {
-    const term = document.getElementById('terminal-logs');
-    if (!term || !logs) return;
+// =============================================================
+// Toast System & Utility Formatters
+// =============================================================
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
 
-    term.innerHTML = logs.map(l => {
-        let levelClass = 'log-msg-success';
-        if (l.level === 'error') levelClass = 'log-msg-error';
-        if (l.level === 'warning') levelClass = 'log-msg-warning';
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
 
-        return `
-            <div class="log-entry">
-                <span class="log-time">[${l.timestamp || 'SYS'}]</span>
-                <span class="log-cat">[${escapeHtml(l.category)}]</span>
-                <span class="${levelClass}">${escapeHtml(l.message)}</span>
-            </div>
-        `;
-    }).join('');
-    term.scrollTop = term.scrollHeight;
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✓';
+    if (type === 'error') icon = '✖';
+    if (type === 'warning') icon = '⚠️';
+
+    toast.innerHTML = `<span>${icon}</span><span>${escapeHtml(message)}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
-// Helpers
 function formatBytes(bytes) {
-    if (!bytes || bytes === 0) return '0 B';
+    if (bytes === 0 || !bytes) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    return String(text)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }

@@ -33,8 +33,14 @@ class RestoreDialog(QDialog):
         title.setStyleSheet("font-family: 'JetBrains Mono'; font-weight: bold; color: #ECEFF4; font-size: 13px;")
         layout.addWidget(title)
 
+        size_str = (
+            f"{self.record.size / (1024*1024*1024):.2f} GB"
+            if self.record.size >= 1024 * 1024 * 1024
+            else f"{self.record.size / (1024*1024):.2f} MB"
+        )
+        parts_info = f"  |  Parts: {len(self.record.parts)} Chunks" if self.record.is_multipart else ""
         info = QLabel(
-            f"Size: {self.record.size / (1024*1024):.2f} MB  |  "
+            f"Size: {size_str}{parts_info}  |  "
             f"Expected SHA-256: {self.record.sha256[:12]}..."
         )
         info.setStyleSheet("color: #7E889B; font-size: 11px;")

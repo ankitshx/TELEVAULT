@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS file_records (
     mode TEXT NOT NULL DEFAULT 'original',
     tags TEXT NOT NULL DEFAULT '[]',
     recovery_path TEXT,
+    parts TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
