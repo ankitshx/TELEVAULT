@@ -6,7 +6,22 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg)]()
 [![Invariants](https://img.shields.io/badge/constitution%20invariants-4%2F4%20enforced-success.svg)]()
-[![Test Suite](https://img.shields.io/badge/tests-42%2F42%20passing-brightgreen.svg)]()
+[![Test Suite](https://img.shields.io/badge/tests-68%2F68%20passing-brightgreen.svg)]()
+[![Desktop Download](https://img.shields.io/badge/Download-TeleVault%20Desktop%20.exe-blueviolet?style=for-the-badge&logo=windows)](https://github.com/ankitshx/TELEVAULT/releases/latest)
+
+---
+
+### 🚀 Direct Download & Instant Use
+
+Anyone can download and run TeleVault directly on Windows 11 / 10 without needing Python installed:
+1. Download **[TeleVault-Windows-x64.zip](https://github.com/ankitshx/TELEVAULT/releases/latest)** or the standalone `televault.exe`.
+2. Double-click `televault.exe` to launch the native Fluent Desktop Drive.
+3. Click **"🔑 Connect Telegram"** in the top-right or Settings:
+   - Enter your Phone Number, API ID, and API Hash (from [my.telegram.org](https://my.telegram.org)).
+   - Enter the OTP code received in your Telegram app (and 2FA cloud password if enabled).
+   - TeleVault will automatically create and bind private dual-write channels (`TeleVault Primary` & `TeleVault Mirror`).
+4. Drag & drop files or folders to protect them instantly with dual-write cloud redundancy!
+
 
 ---
 
