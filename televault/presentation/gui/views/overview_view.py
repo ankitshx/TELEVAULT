@@ -44,6 +44,8 @@ class OverviewView(QWidget):
 
     backup_requested = pyqtSignal()
     verify_requested = pyqtSignal()
+    heal_requested = pyqtSignal()
+    rebuild_requested = pyqtSignal()
     recovery_drill_requested = pyqtSignal()
     doctor_requested = pyqtSignal()
 
@@ -59,7 +61,7 @@ class OverviewView(QWidget):
         # Welcome Banner / Title
         title_box = QHBoxLayout()
         vbox = QVBoxLayout()
-        h_title = QLabel("Vault Overview")
+        h_title = QLabel("Vault Overview & Health")
         h_title.setStyleSheet("font-size: 22px; font-weight: 700; color: #FFFFFF;")
         vbox.addWidget(h_title)
         sub_title = QLabel("Append-only, verifiable personal backup vault powered by Telegram MTProto.")
@@ -110,29 +112,33 @@ class OverviewView(QWidget):
         act_layout.setContentsMargins(18, 16, 18, 16)
         act_layout.setSpacing(12)
 
-        act_title = QLabel("Quick Actions")
+        act_title = QLabel("Vault Operations & Recovery")
         act_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #FFFFFF;")
         act_layout.addWidget(act_title)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
+        btn_row.setSpacing(10)
 
         self.btn_backup = QPushButton("+ Back Up File / Folder")
         self.btn_backup.setProperty("class", "btnAccent")
+        self.btn_backup.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_backup.clicked.connect(self.backup_requested.emit)
         btn_row.addWidget(self.btn_backup)
 
-        self.btn_verify = QPushButton("Verify Vault Health")
+        self.btn_verify = QPushButton("🔍 Verify Health")
+        self.btn_verify.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_verify.clicked.connect(self.verify_requested.emit)
         btn_row.addWidget(self.btn_verify)
 
-        self.btn_drill = QPushButton("Run Recovery Drill")
-        self.btn_drill.clicked.connect(self.recovery_drill_requested.emit)
-        btn_row.addWidget(self.btn_drill)
+        self.btn_heal = QPushButton("🩹 Self-Heal Vault")
+        self.btn_heal.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_heal.clicked.connect(self.heal_requested.emit)
+        btn_row.addWidget(self.btn_heal)
 
-        self.btn_doctor = QPushButton("Vault Doctor Scan")
-        self.btn_doctor.clicked.connect(self.doctor_requested.emit)
-        btn_row.addWidget(self.btn_doctor)
+        self.btn_rebuild = QPushButton("🔄 Rebuild From Cloud")
+        self.btn_rebuild.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_rebuild.clicked.connect(self.rebuild_requested.emit)
+        btn_row.addWidget(self.btn_rebuild)
 
         btn_row.addStretch()
         act_layout.addLayout(btn_row)

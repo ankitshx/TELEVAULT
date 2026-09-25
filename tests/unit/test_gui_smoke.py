@@ -73,3 +73,16 @@ def test_main_window_smoke(qapp, tmp_path: Path):
     assert window.minimumHeight() >= 600
 
     window.close()
+
+
+def test_login_dialog_instantiation(qapp, tmp_path: Path):
+    from televault.infrastructure.telegram.auth_service import TelegramAuthService
+    from televault.presentation.gui.dialogs.login_dialog import TelegramLoginDialog
+
+    config = TeleVaultConfig(base_dir=tmp_path / "app_data")
+    auth_service = TelegramAuthService(config=config)
+    dlg = TelegramLoginDialog(auth_service=auth_service)
+    assert dlg.windowTitle() == "Connect Telegram Account — TeleVault"
+    assert dlg.stack.count() == 2
+    dlg.close()
+

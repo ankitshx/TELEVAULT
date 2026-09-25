@@ -17,9 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from televault.ai.orchestrator import AIOrchestrator
 from televault.application.backup import BackupFileUseCase
-from televault.application.doctor import VaultDoctorUseCase
 from televault.application.event_bus import SimpleEventBus
 from televault.application.heal import HealVaultUseCase
 from televault.application.manifest import ManifestService
@@ -33,18 +31,17 @@ from televault.domain.states import HealthState, VaultMode
 from televault.infrastructure.os.config import TeleVaultConfig
 from televault.infrastructure.storage.recovery_cache import RecoveryCache
 from televault.infrastructure.storage.sqlite_repo import SQLiteVaultRepository
+from televault.infrastructure.telegram.auth_service import TelegramAuthService
+from televault.infrastructure.telegram.telethon_gateway import TelethonGateway
 from televault.presentation.gui.async_bridge import AsyncBridge
 from televault.presentation.gui.dialogs.health_dialog import HealthReportDialog
+from televault.presentation.gui.dialogs.login_dialog import TelegramLoginDialog
 from televault.presentation.gui.dialogs.restore_dialog import RestoreDialog
 from televault.presentation.gui.dialogs.settings_dialog import SettingsDialog
 from televault.presentation.gui.theme import THEME_STYLESHEET
 from televault.presentation.gui.tray import TeleVaultTrayIcon
-from televault.presentation.gui.views.activity_view import ActivityView
-from televault.presentation.gui.views.ai_doctor_view import AIDoctorView
 from televault.presentation.gui.views.files_view import FilesView
 from televault.presentation.gui.views.overview_view import OverviewView
-from televault.presentation.gui.views.recovery_view import RecoveryView
-from televault.presentation.gui.views.security_view import SecurityView
 from televault.presentation.gui.views.settings_view import SettingsView
 from televault.presentation.gui.views.timeline_view import TimelineView
 from tests.fakes.fake_gateway import FakeTelegramGateway
@@ -52,7 +49,7 @@ from tests.fakes.fake_gateway import FakeTelegramGateway
 
 class MainWindow(QMainWindow):
     """Main application shell for TeleVault featuring Windows 11 Fluent UI,
-    compact sidebar navigation, 8 specialized views, and AI Doctor integration.
+    fast drive file management, MTProto authentication, and dual-write health.
     """
 
     def __init__(self, gateway: TelegramGateway | None = None, config: TeleVaultConfig | None = None):
@@ -67,9 +64,25 @@ class MainWindow(QMainWindow):
         self.repo = SQLiteVaultRepository(self.config.db_path)
         self.recovery_cache = RecoveryCache(self.config.cache_dir)
         self.event_bus = SimpleEventBus()
+        self.auth_service = TelegramAuthService(self.config)
+
+        # Default to passed gateway or offline simulation until MTProto is verified
         self.gateway = gateway or FakeTelegramGateway()
+        self.is_live_telegram = isinstance(self.gateway, TelethonGateway)
+        self.current_user: dict | None = None
 
         # Core Application Use Cases
+        self._init_use_cases()
+
+        self._active_worker: AsyncBridge | None = None
+        self._init_ui()
+        self._refresh_vault_table()
+
+        # Probe background Telegram authorization if no explicit gateway provided
+        if gateway is None:
+            self._check_initial_auth()
+
+    def _init_use_cases(self):
         self.backup_uc = BackupFileUseCase(self.gateway, self.repo, self.event_bus)
         self.restore_uc = RestoreFileUseCase(self.gateway, self.repo, self.event_bus)
         self.verify_uc = VerifyVaultUseCase(self.gateway, self.repo, self.recovery_cache, self.event_bus)
@@ -77,19 +90,6 @@ class MainWindow(QMainWindow):
         self.rebuild_uc = RebuildIndexUseCase(self.gateway, self.repo)
         self.recovery_drill_uc = RecoveryDrillUseCase(self.gateway, self.repo, self.config.recovery_dir, self.repo)
         self.manifest_service = ManifestService(self.repo, self.repo, vault_id="v_main", audit_ledger=self.repo)
-        self.doctor_uc = VaultDoctorUseCase(self.gateway, self.repo, self.repo, self.repo, self.repo)
-
-        # AI Advisory Orchestration
-        self.ai_orchestrator = AIOrchestrator(
-            repo=self.repo,
-            gateway=self.gateway,
-            manifest_repo=self.repo,
-            audit_ledger=self.repo,
-        )
-
-        self._active_worker: AsyncBridge | None = None
-        self._init_ui()
-        self._refresh_vault_table()
 
     def _init_ui(self):
         central = QWidget()
@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
         logo.setObjectName("sidebarLogo")
         sidebar_layout.addWidget(logo)
 
-        sub_logo = QLabel("v2.0 • FLUID RECOVERY")
+        sub_logo = QLabel("TELEGRAM CLOUD DRIVE")
         sub_logo.setObjectName("sidebarSubtitle")
         sidebar_layout.addWidget(sub_logo)
         sidebar_layout.addSpacing(14)
@@ -121,14 +121,10 @@ class MainWindow(QMainWindow):
         self.nav_buttons: list[QPushButton] = []
 
         nav_items = [
-            ("⊞ Overview", 0),
-            ("🗁 Files", 1),
-            ("◷ Timeline", 2),
-            ("⛨ Recovery", 3),
-            ("⚕ AI Doctor", 4),
-            ("🔒 Security", 5),
-            ("📝 Activity", 6),
-            ("⚙ Settings", 7),
+            ("🗁 My Drive", 0),
+            ("⊞ Health & Stats", 1),
+            ("◷ Time Machine", 2),
+            ("⚙ Settings & Account", 3),
         ]
 
         for text, index in nav_items:
@@ -145,8 +141,9 @@ class MainWindow(QMainWindow):
         sidebar_layout.addStretch()
 
         # Connection status pill in sidebar footer
-        self.sidebar_conn = QLabel("● Telegram Online")
-        self.sidebar_conn.setStyleSheet("color: #10B981; font-size: 11px; font-weight: 600; padding: 6px 8px;")
+        self.sidebar_conn = QLabel("○ Telegram Offline")
+        self.sidebar_conn.setStyleSheet("color: #9CA3AF; font-size: 11px; font-weight: 600; padding: 6px 8px;")
+        self.sidebar_conn.setCursor(Qt.CursorShape.PointingHandCursor)
         sidebar_layout.addWidget(self.sidebar_conn)
 
         main_h_layout.addWidget(sidebar)
@@ -154,20 +151,12 @@ class MainWindow(QMainWindow):
         # 2. Main Stacked Views Container
         self.stack = QStackedWidget()
 
-        # View 0: Overview
-        self.overview_view = OverviewView()
-        self.overview_view.backup_requested.connect(self._prompt_backup_file)
-        self.overview_view.verify_requested.connect(self.run_verification)
-        self.overview_view.recovery_drill_requested.connect(self._run_recovery_drill)
-        self.overview_view.doctor_requested.connect(lambda: self._switch_view(4))
-        self.stack.addWidget(self.overview_view)
-
-        # View 1: Files
+        # View 0: Files (My Drive)
         self.files_view = FilesView()
         self.files_view.restore_requested.connect(lambda r: self._handle_restore(r.id))
         self.files_view.verify_single_requested.connect(self._handle_verify_single)
         self.files_view.backup_file_requested.connect(self._handle_backup_path)
-        # Compatibility aliases for tests
+        # Compatibility aliases
         self.drop_zone = self.files_view.dropzone
         self.pipeline_strip = self.files_view.pipeline_strip
         self.vault_table = self.files_view.table
@@ -176,40 +165,27 @@ class MainWindow(QMainWindow):
         self.vault_table.backup_again_clicked.connect(self._handle_backup_again)
         self.stack.addWidget(self.files_view)
 
+        # View 1: Overview & Health
+        self.overview_view = OverviewView()
+        self.overview_view.backup_requested.connect(self._prompt_backup_file)
+        self.overview_view.verify_requested.connect(self.run_verification)
+        self.overview_view.heal_requested.connect(self._run_auto_heal)
+        self.overview_view.rebuild_requested.connect(self._run_rebuild)
+        self.overview_view.recovery_drill_requested.connect(self._run_recovery_drill)
+        self.stack.addWidget(self.overview_view)
+
         # View 2: Timeline
         self.timeline_view = TimelineView()
         self.timeline_view.restore_version_requested.connect(lambda r: self._handle_restore(r.id))
         self.stack.addWidget(self.timeline_view)
 
-        # View 3: Recovery
-        self.recovery_view = RecoveryView()
-        self.recovery_view.run_drill_requested.connect(self._run_recovery_drill)
-        self.recovery_view.rebuild_vault_requested.connect(self._run_rebuild)
-        self.stack.addWidget(self.recovery_view)
-
-        # View 4: AI Doctor
-        self.ai_doctor_view = AIDoctorView()
-        self.ai_doctor_view.query_requested.connect(self._handle_ai_query)
-        self.ai_doctor_view.proposal_approved.connect(self._handle_proposal_approved)
-        self.ai_doctor_view.proposal_rejected.connect(self._handle_proposal_rejected)
-        self.stack.addWidget(self.ai_doctor_view)
-
-        # View 5: Security
-        self.security_view = SecurityView()
-        self.security_view.verify_manifest_requested.connect(self._verify_manifest)
-        self.security_view.generate_manifest_requested.connect(self._generate_manifest)
-        self.stack.addWidget(self.security_view)
-
-        # View 6: Activity
-        self.activity_view = ActivityView()
-        self.stack.addWidget(self.activity_view)
-
-        # View 7: Settings
+        # View 3: Settings & Account
         self.settings_view = SettingsView(self.config)
-        self.settings_view.login_requested.connect(self._open_settings)
+        self.settings_view.login_requested.connect(self._open_login_dialog)
+        self.settings_view.logout_requested.connect(self._handle_logout)
         self.stack.addWidget(self.settings_view)
 
-        # Header for Global Badge
+        # Header for Global Badge & Quick Actions
         content_box = QVBoxLayout()
         content_box.setContentsMargins(0, 0, 0, 0)
         content_box.setSpacing(0)
@@ -218,8 +194,9 @@ class MainWindow(QMainWindow):
         header.setObjectName("headerPanel")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(20, 10, 20, 10)
+        header_layout.setSpacing(12)
 
-        self.brand_title = QLabel("Personal Vault")
+        self.brand_title = QLabel("TeleVault Drive")
         self.brand_title.setObjectName("brandTitle")
         header_layout.addWidget(self.brand_title)
 
@@ -229,7 +206,20 @@ class MainWindow(QMainWindow):
 
         header_layout.addStretch()
 
+        # Connect / Account Button in Header
+        self.btn_auth_header = QPushButton("🔑 Connect Telegram")
+        self.btn_auth_header.setObjectName("btnPrimary")
+        self.btn_auth_header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_auth_header.clicked.connect(self._open_login_dialog)
+        header_layout.addWidget(self.btn_auth_header)
+
+        btn_add = QPushButton("+ Protect File")
+        btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add.clicked.connect(self._prompt_backup_file)
+        header_layout.addWidget(btn_add)
+
         btn_verify = QPushButton("Verify Vault")
+        btn_verify.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_verify.clicked.connect(self.run_verification)
         header_layout.addWidget(btn_verify)
 
@@ -254,14 +244,6 @@ class MainWindow(QMainWindow):
         self.overview_view.update_telemetry(records)
         self.timeline_view.update_records(records)
 
-        # Activity view
-        try:
-            events = self.repo.list_events(limit=50)
-            is_valid, _ = self.repo.verify_integrity()
-            self.activity_view.update_events(events, is_valid)
-        except Exception:
-            pass
-
         # Global Badge status
         any_lost = any(r.state == HealthState.LOST for r in records)
         any_degraded = any(r.state == HealthState.DEGRADED for r in records)
@@ -275,6 +257,78 @@ class MainWindow(QMainWindow):
         else:
             self.badge_global.setText("● ALL FILES SAFE")
             self.badge_global.setObjectName("badgeHealthy")
+
+    def _check_initial_auth(self):
+        async def _check():
+            if await self.auth_service.is_authorized():
+                gw = await self.auth_service.get_live_gateway()
+                user = await self.auth_service.get_current_user()
+                return gw, user
+            return None, None
+
+        worker = AsyncBridge(_check)
+
+        def _done(result):
+            gw, user = result
+            if gw:
+                self._apply_live_gateway(gw, user)
+            else:
+                self._update_auth_ui(False, None)
+
+        worker.task_completed.connect(_done)
+        worker.task_failed.connect(lambda _: self._update_auth_ui(False, None))
+        worker.start()
+
+    def _open_login_dialog(self):
+        dlg = TelegramLoginDialog(self.auth_service, parent=self)
+        dlg.login_success.connect(self._apply_live_gateway)
+        dlg.exec()
+
+    def _apply_live_gateway(self, gateway: TelethonGateway, user_info: dict | None = None):
+        self.gateway = gateway
+        self.is_live_telegram = True
+        self.current_user = user_info or {}
+        self._init_use_cases()
+        self._update_auth_ui(True, self.current_user)
+
+    def _update_auth_ui(self, is_connected: bool, user_info: dict | None):
+        creds = self.auth_service.get_stored_credentials()
+        channels = {
+            "primary_id": creds.get("primary_channel_id"),
+            "mirror_id": creds.get("mirror_channel_id"),
+        }
+        self.settings_view.update_account_info(is_connected, user_info, channels)
+
+        if is_connected and user_info:
+            handle = f"@{user_info.get('username')}" if user_info.get("username") else user_info.get("first_name", "Telegram")
+            self.sidebar_conn.setText(f"● {handle}")
+            self.sidebar_conn.setStyleSheet("color: #10B981; font-size: 11px; font-weight: 600; padding: 6px 8px;")
+            self.btn_auth_header.setText(f"● {handle}")
+            self.btn_auth_header.setStyleSheet("background-color: #064E3B; color: #34D399; font-weight: 600; border: 1px solid #059669;")
+        else:
+            self.sidebar_conn.setText("○ Telegram Disconnected")
+            self.sidebar_conn.setStyleSheet("color: #EF4444; font-size: 11px; font-weight: 600; padding: 6px 8px;")
+            self.btn_auth_header.setText("🔑 Connect Telegram")
+            self.btn_auth_header.setObjectName("btnPrimary")
+            self.btn_auth_header.setStyleSheet("")
+
+    def _handle_logout(self):
+        confirm = QMessageBox.question(
+            self, "Confirm Disconnect",
+            "Are you sure you want to disconnect your Telegram account?\n"
+            "Your existing files will remain intact in Telegram and your local database.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        self.auth_service.clear_credentials()
+        self.gateway = FakeTelegramGateway()
+        self.is_live_telegram = False
+        self.current_user = None
+        self._init_use_cases()
+        self._update_auth_ui(False, None)
+        QMessageBox.information(self, "Disconnected", "Telegram session cleared successfully.")
 
     def _prompt_backup_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File to Protect in TeleVault")
@@ -374,8 +428,7 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _run_recovery_drill(self):
-        self._switch_view(3)
-        self.recovery_view.set_drill_running(True)
+        self._switch_view(1)
 
         async def _run():
             return await self.recovery_drill_uc.execute()
@@ -383,12 +436,14 @@ class MainWindow(QMainWindow):
         worker = AsyncBridge(_run)
 
         def _done(report):
-            self.recovery_view.set_drill_running(False)
-            self.recovery_view.display_drill_report(report)
             self._refresh_vault_table()
+            QMessageBox.information(
+                self, "Recovery Drill Completed",
+                f"Drill finished successfully!\nReadiness Score: {report.readiness_score}/100\n"
+                f"Files Verified: {report.total_files_tested}\nSurviving: {report.surviving_files}"
+            )
 
         def _failed(err):
-            self.recovery_view.set_drill_running(False)
             QMessageBox.critical(self, "Recovery Drill Failed", f"Drill encountered an error:\n{err}")
 
         worker.task_completed.connect(_done)
@@ -419,51 +474,6 @@ class MainWindow(QMainWindow):
         worker.task_completed.connect(_done)
         worker.task_failed.connect(self._on_task_failed)
         worker.start()
-
-    def _handle_ai_query(self, role: str, prompt: str):
-        async def _run():
-            return await self.ai_orchestrator.query_agent(role, prompt)
-
-        worker = AsyncBridge(_run)
-
-        def _done(resp):
-            self.ai_doctor_view.append_response(resp.agent_name, resp.message)
-            self.ai_doctor_view.display_proposals(resp.proposals)
-
-        worker.task_completed.connect(_done)
-        worker.task_failed.connect(lambda err: self.ai_doctor_view.append_response("System Error", err))
-        worker.start()
-
-    def _handle_proposal_approved(self, proposal_id: str):
-        prop = self.ai_orchestrator.approve_proposal(proposal_id)
-        if not prop:
-            return
-
-        if "Heal" in prop.action_title:
-            self._run_auto_heal()
-        elif "Recovery Drill" in prop.action_title:
-            self._run_recovery_drill()
-        elif "Rebuild" in prop.action_title:
-            self._run_rebuild()
-
-        self.ai_doctor_view.display_proposals(self.ai_orchestrator.get_pending_proposals())
-
-    def _handle_proposal_rejected(self, proposal_id: str):
-        self.ai_orchestrator.reject_proposal(proposal_id)
-        self.ai_doctor_view.display_proposals(self.ai_orchestrator.get_pending_proposals())
-
-    def _verify_manifest(self):
-        is_valid, msg = self.manifest_service.verify_chain()
-        self.security_view.set_manifest_status(is_valid, msg)
-        self._refresh_vault_table()
-
-    def _generate_manifest(self):
-        m = self.manifest_service.generate_manifest()
-        self.security_view.set_manifest_status(
-            True,
-            f"Generation {m.generation} created ({m.total_files} files, {m.total_bytes} bytes)."
-        )
-        self._refresh_vault_table()
 
     def _open_settings(self):
         dlg = SettingsDialog(self)
