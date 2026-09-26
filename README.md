@@ -6,6 +6,31 @@
 
 ---
 
+## 🚀 Download & Quick Start
+
+### 📥 Option 1: Direct Download (Ready-to-Use Binary)
+Download the standalone executable directly from this repository:
+- **[Download telecloud-desktop.exe](telecloud-desktop.exe)** (~27 MB)
+1. Double-click `telecloud-desktop.exe` to launch.
+2. In the login screen, enter your Telegram phone number, **API ID**, and **API Hash** (obtained for free from [my.telegram.org](https://my.telegram.org)).
+3. Enter the verification code sent to your Telegram app.
+4. Your private channels (`TeleVault Primary` & `TeleVault Mirror`) are initialized automatically. Upload, download, and manage your cloud drive!
+
+### 🛠️ Option 2: Build from Source
+```bash
+# Clone the repository
+git clone https://github.com/ankitshx/TELEVAULT.git
+cd TELEVAULT
+
+# Build Desktop App
+cd apps/desktop
+npm install
+npm run build
+npx tauri build --no-bundle
+```
+
+---
+
 ## 🌟 Key Features
 
 - **Logical File & Folder Abstraction:** You interact with your files and folders like any modern cloud drive (Google Drive, OneDrive, Dropbox). Telegram channels, messages, and chunk partitions are transparent implementation details.

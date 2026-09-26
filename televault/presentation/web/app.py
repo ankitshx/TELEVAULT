@@ -310,10 +310,38 @@ async def backup_local_path(req: PathBackupRequest):
             "is_duplicate": res.is_duplicate,
             "message": res.message,
             "record_id": res.record.id if res.record else None,
+            "channel_id": getattr(res.record.primary_ref, "channel_id", None) if res.record else None,
+            "message_id": getattr(res.record.primary_ref, "message_id", None) if res.record else None,
         })
-        add_log("Backup", f"Backed up: {f.name} -> {res.message}", "info")
+        add_log("Backup", f"Backed up: {f.name} -> {res.message}", "info" if res.is_duplicate else "success")
 
     return {"status": "complete", "results": results}
+
+
+@app.delete("/api/records/{record_id}")
+async def delete_file_record(record_id: str, delete_from_telegram: bool = True):
+    """Delete a file from the local catalog and optionally from Telegram channels."""
+    try:
+        record = repo.get(record_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="File record not found.")
+
+    if delete_from_telegram and record.primary_ref:
+        try:
+            live_gw = await resolve_gateway()
+            if hasattr(live_gw, "client") and live_gw.client.is_connected():
+                if record.primary_ref:
+                    p_peer = await live_gw.client.get_input_entity(record.primary_ref.channel_id)
+                    await live_gw.client.delete_messages(p_peer, [record.primary_ref.message_id])
+                if record.mirror_ref:
+                    m_peer = await live_gw.client.get_input_entity(record.mirror_ref.channel_id)
+                    await live_gw.client.delete_messages(m_peer, [record.mirror_ref.message_id])
+        except Exception as e:
+            add_log("Telegram", f"Could not delete message from Telegram: {e}", "warning")
+
+    repo.delete(record_id)
+    add_log("Storage", f"Deleted file '{record.name}' from storage catalog.", "info")
+    return {"status": "deleted", "id": record_id}
 
 
 @app.post("/api/restore/{record_id}")

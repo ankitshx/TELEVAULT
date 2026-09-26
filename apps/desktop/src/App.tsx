@@ -8,7 +8,7 @@ import {
   StorageStatus,
   ToastMessage,
 } from "./types";
-import { tauriApi } from "./services/tauri";
+import { tauriApi, isTauri } from "./services/tauri";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
 import { HomeDashboard } from "./components/dashboard/HomeDashboard";
@@ -44,15 +44,16 @@ export default function App() {
   const [favorites, setFavorites] = useState<LogicalFile[]>([]);
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>({
-    is_connected: true,
+    is_connected: false,
     provider_name: "Telegram MTProto",
     total_quota_bytes: 2 * 1024 * 1024 * 1024 * 1024,
-    used_bytes: 186.4 * 1024 * 1024 * 1024,
+    used_bytes: 0,
   });
 
   // Modals & Drawers state
   const [selectedPreviewFile, setSelectedPreviewFile] = useState<LogicalFile | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadInitialPath, setUploadInitialPath] = useState<string>("");
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -110,6 +111,25 @@ export default function App() {
 
   // Drag and Drop listeners over the application
   useEffect(() => {
+    let unlistenTauriDrop: (() => void) | undefined;
+
+    if (isTauri()) {
+      import("@tauri-apps/api/webviewWindow")
+        .then(({ getCurrentWebviewWindow }) => {
+          return getCurrentWebviewWindow().onDragDropEvent((event: any) => {
+            if (event.payload.type === "drop" && event.payload.paths?.length > 0) {
+              const dropped = event.payload.paths[0];
+              setUploadInitialPath(dropped);
+              setShowUploadModal(true);
+            }
+          });
+        })
+        .then((unsub) => {
+          unlistenTauriDrop = unsub;
+        })
+        .catch(() => {});
+    }
+
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       setIsDragOver(true);
@@ -121,6 +141,11 @@ export default function App() {
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
+      if (!storageStatus.is_connected) {
+        addToast("warning", "Login Required", "Please connect your Telegram account before uploading files.");
+        setShowLoginModal(true);
+        return;
+      }
       setShowUploadModal(true);
     };
 
@@ -132,13 +157,27 @@ export default function App() {
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("dragleave", handleDragLeave);
       window.removeEventListener("drop", handleDrop);
+      if (unlistenTauriDrop) unlistenTauriDrop();
     };
+  }, [storageStatus.is_connected]);
+
+  // Fetch initial storage status and enforce login
+  const loadStorageStatus = useCallback(async () => {
+    try {
+      const status = await tauriApi.getStorageStatus();
+      setStorageStatus(status);
+      if (!status.is_connected) {
+        setShowLoginModal(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setShowLoginModal(true);
+    }
   }, []);
 
-  // Fetch initial storage status
   useEffect(() => {
-    tauriApi.getStorageStatus().then(setStorageStatus).catch(console.error);
-  }, []);
+    loadStorageStatus();
+  }, [loadStorageStatus]);
 
   // Fetch directory contents
   const loadDirectory = useCallback(async () => {
@@ -203,26 +242,45 @@ export default function App() {
   };
 
   const handleUpload = async (filePath: string, isEncrypted: boolean, passphrase?: string) => {
+    if (!storageStatus.is_connected) {
+      addToast("warning", "Login Required", "Please connect your Telegram account before uploading files.");
+      setShowLoginModal(true);
+      return;
+    }
     try {
-      await tauriApi.enqueueUpload(filePath, currentFolderId, passphrase, isEncrypted);
-      addToast(
-        "info",
-        "Upload queued",
-        isEncrypted
-          ? "Streaming file with client-side AES-256 encryption."
-          : "Streaming file in bounded chunks to cloud."
-      );
+      const res = await tauriApi.enqueueUpload(filePath, currentFolderId, passphrase, isEncrypted);
+      if (res.isDuplicate) {
+        addToast(
+          "warning",
+          "Already in Telegram Vault",
+          `"${res.name}" is already safely stored in your Telegram channel.`
+        );
+      } else {
+        addToast(
+          "success",
+          "Uploaded to Telegram",
+          `"${res.name}" verified and uploaded to Primary & Mirror channels.`
+        );
+      }
+      await loadDirectory();
+      await loadStorageStatus();
       loadTransfers();
     } catch (err) {
       addToast("error", "Upload failed", String(err));
+      throw err;
     }
   };
 
   const handleDownload = async (file: LogicalFile) => {
+    if (!storageStatus.is_connected) {
+      addToast("warning", "Login Required", "Please connect your Telegram account before downloading files.");
+      setShowLoginModal(true);
+      return;
+    }
     try {
-      const destPath = file.name;
-      await tauriApi.enqueueDownload(file.id, destPath);
-      addToast("info", "Download queued", `Downloading "${file.name}" with integrity verification.`);
+      addToast("info", "Download Started", `Retrieving "${file.name}" from Telegram MTProto...`);
+      const res = await tauriApi.enqueueDownload(file.id, file.name);
+      addToast("success", "Download Complete", `File saved to: ${res.restored_path}`);
       loadTransfers();
     } catch (err) {
       addToast("error", "Download failed", String(err));
@@ -239,16 +297,44 @@ export default function App() {
     }
   };
 
+  const handleLogout = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Log Out of Telegram",
+      message:
+        "Are you sure you want to disconnect this Telegram account? You will be prompted to log in with another Telegram account or phone number to access your cloud vault.",
+      onConfirm: async () => {
+        try {
+          await tauriApi.logout();
+          setStorageStatus({
+            is_connected: false,
+            provider_name: "Telegram MTProto",
+            is_premium: false,
+            max_single_upload_bytes: 2000 * 1024 * 1024,
+            total_quota_bytes: 2 * 1024 * 1024 * 1024 * 1024,
+            used_bytes: 0,
+          });
+          setFiles([]);
+          addToast("info", "Logged out", "Telegram MTProto session cleared. Please log in with an account.");
+          setShowLoginModal(true);
+        } catch (err) {
+          addToast("error", "Logout failed", String(err));
+        }
+      },
+    });
+  };
+
   const handleDeleteFile = (fileId: string) => {
     setConfirmDialog({
       isOpen: true,
       title: "Delete File from Cloud",
-      message: "Are you sure you want to permanently delete this file from your cloud storage?",
+      message: "Are you sure you want to permanently delete this file from Telegram and local index?",
       onConfirm: async () => {
         try {
           await tauriApi.deleteFile(fileId);
-          addToast("success", "File deleted", "Removed from cloud storage.");
-          loadDirectory();
+          addToast("success", "File deleted", "Removed from Telegram channels and local index.");
+          await loadDirectory();
+          await loadStorageStatus();
           loadFavorites();
         } catch (err) {
           addToast("error", "Delete failed", String(err));
@@ -378,6 +464,7 @@ export default function App() {
           storageStatus={storageStatus}
           onOpenSettings={() => setActiveTab("settings")}
           onOpenConnect={() => setShowLoginModal(true)}
+          onLogout={handleLogout}
         />
 
         {/* View Content Area */}
@@ -459,7 +546,9 @@ export default function App() {
             />
           )}
 
-          {activeTab === "settings" && <SettingsView storageStatus={storageStatus} />}
+          {activeTab === "settings" && (
+            <SettingsView storageStatus={storageStatus} onLogout={handleLogout} />
+          )}
         </main>
 
         {/* Bottom Active Transfer Drawer (when not on transfers tab) */}
@@ -477,7 +566,11 @@ export default function App() {
       {/* Global Modals & Overlays */}
       <UploadModal
         isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
+        initialFilePath={uploadInitialPath}
+        onClose={() => {
+          setShowUploadModal(false);
+          setUploadInitialPath("");
+        }}
         onUpload={handleUpload}
       />
 

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Upload, Lock, Eye, EyeOff, FolderOpen } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Upload, Lock, Eye, EyeOff, FolderOpen, FileText, CheckCircle2, Loader2 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -7,16 +7,30 @@ import { tauriApi } from "../../services/tauri";
 
 export interface UploadModalProps {
   isOpen: boolean;
+  initialFilePath?: string;
   onClose: () => void;
-  onUpload: (filePath: string, isEncrypted: boolean, passphrase?: string) => void;
+  onUpload: (filePath: string, isEncrypted: boolean, passphrase?: string) => Promise<void>;
 }
 
-export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) => {
-  const [filePath, setFilePath] = useState("");
-  const [isEncrypted, setIsEncrypted] = useState(true);
+export const UploadModal: React.FC<UploadModalProps> = ({
+  isOpen,
+  initialFilePath = "",
+  onClose,
+  onUpload,
+}) => {
+  const [filePath, setFilePath] = useState(initialFilePath);
+  const [isEncrypted, setIsEncrypted] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (initialFilePath) {
+      setFilePath(initialFilePath);
+      setError("");
+    }
+  }, [initialFilePath]);
 
   const handleBrowse = async () => {
     try {
@@ -30,35 +44,48 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fileName = filePath ? filePath.split(/[\\/]/).pop() || filePath : "";
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!filePath.trim()) {
-      setError("Please specify a valid local file path");
+      setError("Please select or enter a valid local file path.");
       return;
     }
     setError("");
-    onUpload(filePath.trim(), isEncrypted, passphrase.trim() || undefined);
-    setFilePath("");
-    setPassphrase("");
-    onClose();
+    setIsUploading(true);
+    try {
+      await onUpload(filePath.trim(), isEncrypted, passphrase.trim() || undefined);
+      setFilePath("");
+      setPassphrase("");
+      setIsUploading(false);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Upload failed. Please try again.");
+      setIsUploading(false);
+    }
   };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
-      title="Upload to Cloud"
-      subtitle="Files are sliced into chunks and streamed with bounded RAM usage."
+      onClose={() => {
+        if (!isUploading) onClose();
+      }}
+      title="Upload File to Telegram Drive"
+      subtitle="Direct MTProto cloud upload to your private TeleVault Primary & Mirror channels."
       icon={<Upload size={18} />}
-      maxWidth="500px"
+      maxWidth="520px"
     >
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+        {/* Selected File Banner or Input */}
         <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
           <div style={{ flex: 1 }}>
             <Input
               label="Local File Path"
               placeholder="C:\Users\...\document.pdf"
               value={filePath}
+              disabled={isUploading}
               onChange={(e) => {
                 setFilePath(e.target.value);
                 setError("");
@@ -72,11 +99,47 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             variant="secondary"
             icon={<FolderOpen size={16} />}
             onClick={handleBrowse}
+            disabled={isUploading}
             style={{ marginBottom: error ? "22px" : "0", height: "40px" }}
           >
             Browse
           </Button>
         </div>
+
+        {/* Selected File Card */}
+        {fileName && !error && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              padding: "10px 14px",
+              backgroundColor: "rgba(59, 130, 246, 0.08)",
+              border: "1px solid rgba(59, 130, 246, 0.25)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
+            <FileText size={20} color="var(--accent-primary)" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {fileName}
+              </p>
+              <p style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                Ready for MTProto cloud upload & Telegram channel backup
+              </p>
+            </div>
+            <CheckCircle2 size={16} color="var(--status-success)" />
+          </div>
+        )}
 
         {/* Zero-Knowledge Encryption Toggle Box */}
         <div
@@ -110,15 +173,26 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                   Zero-Knowledge Encryption
                 </p>
                 <p style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                  AES-256-GCM authenticated per chunk
+                  {isEncrypted
+                    ? "AES-256-GCM authenticated per chunk (Private Vault)"
+                    : "Upload original unencrypted document to Telegram"}
                 </p>
               </div>
             </div>
 
-            <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
+            <label
+              style={{
+                position: "relative",
+                display: "inline-block",
+                width: "40px",
+                height: "22px",
+                cursor: isUploading ? "not-allowed" : "pointer",
+              }}
+            >
               <input
                 type="checkbox"
                 checked={isEncrypted}
+                disabled={isUploading}
                 onChange={(e) => setIsEncrypted(e.target.checked)}
                 style={{ opacity: 0, width: 0, height: 0 }}
               />
@@ -154,6 +228,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 type={showPassword ? "text" : "password"}
                 placeholder="Leave blank to use default account key"
                 value={passphrase}
+                disabled={isUploading}
                 onChange={(e) => setPassphrase(e.target.value)}
                 iconRight={
                   <button
@@ -179,13 +254,42 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           )}
         </div>
 
+        {/* Uploading Status Banner */}
+        {isUploading && (
+          <div
+            style={{
+              padding: "12px 16px",
+              backgroundColor: "rgba(59, 130, 246, 0.12)",
+              border: "1px solid var(--accent-primary)",
+              borderRadius: "var(--radius-md)",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <Loader2
+              size={20}
+              color="var(--accent-primary)"
+              style={{ animation: "spin 1s linear infinite" }}
+            />
+            <div>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                Uploading to Telegram...
+              </p>
+              <p style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                Computing SHA-256 and dual-writing to Primary & Mirror channels.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Buttons */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" }}>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isUploading}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary">
-            Start Upload
+          <Button type="submit" variant="primary" disabled={isUploading || !filePath.trim()}>
+            {isUploading ? "Uploading to Telegram..." : "Upload to Telegram"}
           </Button>
         </div>
       </form>

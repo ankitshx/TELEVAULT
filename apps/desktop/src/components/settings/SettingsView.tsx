@@ -7,6 +7,7 @@ import {
   Info,
   Lock,
   Cpu,
+  LogOut,
 } from "lucide-react";
 import { StorageStatus } from "../../types";
 import { Button } from "../ui/Button";
@@ -14,9 +15,10 @@ import { Badge } from "../ui/Badge";
 
 export interface SettingsViewProps {
   storageStatus: StorageStatus;
+  onLogout?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus, onLogout }) => {
   const [activeTab, setActiveTab] = useState<
     "general" | "appearance" | "transfers" | "security" | "storage" | "about"
   >("general");
@@ -310,7 +312,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus }) => 
                     Active Storage Provider
                   </p>
                   <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    {storageStatus.provider_name}
+                    {storageStatus.provider_name} ({storageStatus.user_identifier || "Anonymous"})
                   </p>
                 </div>
                 <Badge variant={storageStatus.is_connected ? "success" : "error"} size="md">
@@ -322,12 +324,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus }) => 
 
               <div>
                 <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Telegram Cloud Channels (Dual-Write Vaults)
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", backgroundColor: "var(--bg-surface)", borderRadius: "var(--radius-sm)" }}>
+                    <span style={{ fontSize: "12px", color: "var(--text-primary)", fontWeight: 500 }}>
+                      TeleVault Primary
+                    </span>
+                    <Badge variant="blue" size="sm">Channel: 4437762898</Badge>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", backgroundColor: "var(--bg-surface)", borderRadius: "var(--radius-sm)" }}>
+                    <span style={{ fontSize: "12px", color: "var(--text-primary)", fontWeight: 500 }}>
+                      TeleVault Mirror
+                    </span>
+                    <Badge variant="cyan" size="sm">Channel: 4375793514</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ height: "1px", backgroundColor: "var(--border-subtle)" }} />
+
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
                   Local Database Engine
                 </p>
                 <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-                  SQLite 3 with Write-Ahead Logging (WAL) and FTS5 full-text search index.
+                  SQLite 3 WAL Index: <code>%LOCALAPPDATA%\TeleVault\televault_index.db</code>
                 </p>
               </div>
+
+              {storageStatus.is_connected && (
+                <>
+                  <div style={{ height: "1px", backgroundColor: "var(--border-subtle)" }} />
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                        Telegram Account Session
+                      </p>
+                      <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                        Log out of current Telegram ID to link another account or phone number.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      icon={<LogOut size={14} />}
+                      onClick={onLogout}
+                    >
+                      Log Out / Switch Account
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

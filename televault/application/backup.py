@@ -79,7 +79,9 @@ class BackupFileUseCase:
         mtime = file_path.stat().st_mtime
 
         # Step 2: Deduplication Check
-        dedupe = self.dedupe_checker.check(file_sha256)
+        live_channel_id = getattr(self.gateway, "primary_channel_id", None)
+        dedupe_checker = DedupeChecker(self.repo, live_channel_id=live_channel_id)
+        dedupe = dedupe_checker.check(file_sha256)
         if dedupe.is_duplicate and dedupe.existing_record:
             return BackupResult(
                 record=dedupe.existing_record,

@@ -284,15 +284,23 @@ class MainWindow(QMainWindow):
                 self._apply_live_gateway(gw, user)
             else:
                 self._update_auth_ui(False, None)
+                self._open_login_dialog(mandatory=True)
+
+        def _failed(_):
+            self._update_auth_ui(False, None)
+            self._open_login_dialog(mandatory=True)
 
         self._auth_worker.task_completed.connect(_done)
-        self._auth_worker.task_failed.connect(lambda _: self._update_auth_ui(False, None))
+        self._auth_worker.task_failed.connect(_failed)
         self._auth_worker.start()
 
-    def _open_login_dialog(self):
+    def _open_login_dialog(self, mandatory: bool = False):
         dlg = TelegramLoginDialog(self.auth_service, parent=self)
         dlg.login_success.connect(self._apply_live_gateway)
         dlg.exec()
+        if mandatory and not self.is_live_telegram:
+            # If login is mandatory and user cancelled or closed dialog, exit app
+            self.close()
 
     def _apply_live_gateway(self, gateway: TelethonGateway, user_info: dict | None = None):
         self.gateway = gateway
@@ -339,6 +347,7 @@ class MainWindow(QMainWindow):
         self._init_use_cases()
         self._update_auth_ui(False, None)
         QMessageBox.information(self, "Disconnected", "Telegram session cleared successfully.")
+        self._open_login_dialog(mandatory=True)
 
     def _prompt_backup_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File to Protect in TeleVault")
@@ -357,6 +366,17 @@ class MainWindow(QMainWindow):
                 self._start_backup_task(p)
 
     def _start_backup_task(self, file_path: Path, mode: VaultMode = VaultMode.ORIGINAL):
+        if not self.is_live_telegram:
+            QMessageBox.warning(
+                self,
+                "Telegram Login Required",
+                "You must connect your Telegram account before uploading files to TeleVault.\n\n"
+                "Please sign in with your Telegram API credentials.",
+            )
+            self._open_login_dialog(mandatory=True)
+            if not self.is_live_telegram:
+                return
+
         self.files_view.pipeline_strip.start_pipeline(file_path.name, file_path.stat().st_size)
 
         async def _run():

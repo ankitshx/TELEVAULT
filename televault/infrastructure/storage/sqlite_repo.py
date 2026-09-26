@@ -169,6 +169,11 @@ class SQLiteVaultRepository(
             rows = conn.execute(sql).fetchall()
             return [self._row_to_record(r) for r in rows]
 
+    def delete(self, record_id: str) -> None:
+        sql = "DELETE FROM file_records WHERE id = ?"
+        with self._connection() as conn:
+            conn.execute(sql, (record_id,))
+
     def update_state(self, entity_id: str, state: HealthState | TransactionState, **refs: Any) -> None:
         if isinstance(state, TransactionState):
             self.update_transaction_state(entity_id, state, **refs)

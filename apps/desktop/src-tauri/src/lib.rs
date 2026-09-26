@@ -315,6 +315,38 @@ async fn select_file() -> Result<Option<String>, String> {
     .map_err(|e| e.to_string())?
 }
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+fn ensure_backend_running() {
+    std::thread::spawn(|| {
+        if std::net::TcpStream::connect("127.0.0.1:8000").is_err() {
+            let exe_dir = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                .unwrap_or_else(|| PathBuf::from("."));
+            let televault_exe = exe_dir.join("televault.exe");
+
+            #[cfg(target_os = "windows")]
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            if televault_exe.exists() {
+                let mut cmd = std::process::Command::new(&televault_exe);
+                cmd.args(&["web", "--no-browser"]);
+                #[cfg(target_os = "windows")]
+                cmd.creation_flags(CREATE_NO_WINDOW);
+                let _ = cmd.spawn();
+            } else {
+                let mut cmd = std::process::Command::new("python");
+                cmd.args(&["-m", "televault.presentation.cli", "web", "--no-browser"]);
+                #[cfg(target_os = "windows")]
+                cmd.creation_flags(CREATE_NO_WINDOW);
+                let _ = cmd.spawn();
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let local_app_data = std::env::var("LOCALAPPDATA")
@@ -355,6 +387,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(app_state)
         .setup(|app| {
+            ensure_backend_running();
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();

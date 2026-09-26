@@ -54,6 +54,7 @@ yarn-error.log*
 src-tauri/target/
 *.msi
 *.exe
+!telecloud-desktop.exe
 *.dmg
 *.AppImage
 *.deb

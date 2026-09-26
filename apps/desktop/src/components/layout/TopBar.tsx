@@ -14,6 +14,7 @@ export interface TopBarProps {
   storageStatus: StorageStatus;
   onOpenSettings: () => void;
   onOpenConnect?: () => void;
+  onLogout?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -21,8 +22,13 @@ export const TopBar: React.FC<TopBarProps> = ({
   storageStatus,
   onOpenSettings,
   onOpenConnect,
+  onLogout,
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const userInitial = storageStatus.user_identifier
+    ? storageStatus.user_identifier.replace("@", "").charAt(0).toUpperCase()
+    : "T";
 
   return (
     <header
@@ -190,10 +196,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                 color: "#ffffff",
               }}
             >
-              U
+              {userInitial}
             </div>
             <span style={{ fontSize: "12px", fontWeight: 600, paddingRight: "4px" }}>
-              Personal Drive
+              {storageStatus.user_identifier || "Telegram Account"}
             </span>
           </button>
 
@@ -205,7 +211,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 position: "absolute",
                 right: 0,
                 top: "42px",
-                width: "220px",
+                width: "230px",
                 borderRadius: "var(--radius-md)",
                 backgroundColor: "var(--bg-surface-elevated)",
                 border: "1px solid var(--border-card)",
@@ -222,10 +228,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                 }}
               >
                 <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                  Primary User
+                  {storageStatus.user_identifier || "Telegram Account"}
                 </p>
-                <p style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-                  Zero-Knowledge Vault
+                <p style={{ fontSize: "11px", color: storageStatus.is_connected ? "var(--status-success)" : "var(--text-muted)", marginTop: "2px" }}>
+                  {storageStatus.is_connected ? "Connected to MTProto Cloud" : "Disconnected"}
                 </p>
               </div>
 
@@ -256,7 +262,10 @@ export const TopBar: React.FC<TopBarProps> = ({
               </button>
 
               <button
-                onClick={() => setShowProfileMenu(false)}
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  if (onLogout) onLogout();
+                }}
                 style={{
                   width: "100%",
                   display: "flex",
@@ -278,7 +287,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 <LogOut size={15} color="var(--status-error)" />
-                <span>Lock Vault</span>
+                <span>Log Out / Switch Account</span>
               </button>
             </div>
           )}
