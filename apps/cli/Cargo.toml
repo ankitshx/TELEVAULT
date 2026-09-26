@@ -1,0 +1,27 @@
+[package]
+name = "telecloud-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "telecloud"
+path = "src/main.rs"
+
+[dependencies]
+telecloud-core = { workspace = true }
+telecloud-manifest = { workspace = true }
+telecloud-crypto = { workspace = true }
+telecloud-storage = { workspace = true }
+telecloud-telegram = { workspace = true }
+telecloud-db = { workspace = true }
+telecloud-transfer = { workspace = true }
+telecloud-integrity = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

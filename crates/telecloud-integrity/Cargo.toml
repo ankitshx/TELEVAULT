@@ -1,0 +1,15 @@
+[package]
+name = "telecloud-integrity"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+telecloud-core = { workspace = true }
+telecloud-manifest = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

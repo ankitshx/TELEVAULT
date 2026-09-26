@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://telecloud.dev/schemas/manifest_v1.json",
+  "title": "TeleCloudManifestV1",
+  "description": "Cryptographic manifest defining a logical TeleCloud file and its physical chunk mapping.",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "file_id",
+    "name",
+    "size",
+    "full_sha256",
+    "chunk_size",
+    "total_chunks",
+    "chunks",
+    "created_at"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Manifest schema version (1)"
+    },
+    "file_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique UUID of the logical file"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical filename"
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total original file size in bytes"
+    },
+    "full_sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "Hex-encoded SHA-256 hash of the complete file"
+    },
+    "mime_type": {
+      "type": ["string", "null"],
+      "description": "MIME content type if known"
+    },
+    "chunk_size": {
+      "type": "integer",
+      "minimum": 1048576,
+      "description": "Nominal chunk size in bytes (minimum 1 MB)"
+    },
+    "total_chunks": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total number of physical chunks"
+    },
+    "encryption": {
+      "type": ["object", "null"],
+      "description": "Encryption parameters if file is encrypted",
+      "required": ["algorithm", "kdf", "salt"],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["AES-256-GCM"]
+        },
+        "kdf": {
+          "type": "string",
+          "enum": ["Argon2id"]
+        },
+        "salt": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{32}$",
+          "description": "16-byte hex-encoded salt used for Argon2id key derivation"
+        }
+      }
+    },
+    "chunks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "offset",
+          "size",
+          "sha256",
+          "storage_objects",
+          "status"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based chunk index"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Byte offset in the unencrypted/original stream"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Size of this chunk in bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "description": "Hex-encoded SHA-256 hash of this chunk payload"
+          },
+          "storage_objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["provider", "chat_id", "object_id"],
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "description": "Storage provider identifier (e.g., 'telegram')"
+                },
+                "chat_id": {
+                  "type": "integer",
+                  "description": "Remote channel or chat ID"
+                },
+                "object_id": {
+                  "type": "integer",
+                  "description": "Remote message or document ID"
+                },
+                "is_primary": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "uploading", "completed", "failed"]
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  }
+}

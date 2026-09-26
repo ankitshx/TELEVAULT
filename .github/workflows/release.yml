@@ -1,4 +1,4 @@
-name: Release Desktop Application
+name: Release TeleCloud Applications
 
 on:
   push:
@@ -10,41 +10,109 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build Standalone Windows Executable
+  build-windows:
+    name: Build Windows Desktop & CLI
     runs-on: windows-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
+          node-version: 20
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .[dev]
-          pip install pyinstaller
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
 
-      - name: Build Executable with PyInstaller
-        run: |
-          python -m PyInstaller packaging/televault.spec --clean --noconfirm
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
 
-      - name: Compress Release Archive
+      - name: Install Frontend Dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Build Windows CLI Binary
+        run: cargo build --release --bin telecloud
+
+      - name: Package Windows CLI
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/televault.exe -DestinationPath dist/TeleVault-Windows-x64.zip -Force
+          New-Item -ItemType Directory -Force -Path dist
+          Compress-Archive -Path target/release/telecloud.exe -DestinationPath dist/telecloud-cli-windows-x64.zip -Force
+
+      - name: Build Tauri Desktop Application
+        working-directory: apps/desktop
+        run: npm run tauri build
+
+      - name: Collect Desktop Artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path apps/desktop/src-tauri/target/release/bundle -Recurse -Include *.msi,*.exe,*.zip | Copy-Item -Destination dist/
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: telecloud-windows
+          path: dist/*
+
+  build-linux-cli:
+    name: Build Linux CLI (Headless)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Build Linux CLI Binary
+        run: cargo build --release --bin telecloud
+
+      - name: Package Linux CLI
+        run: |
+          mkdir -p dist
+          tar -czvf dist/telecloud-cli-linux-x86_64.tar.gz -C target/release telecloud
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: telecloud-linux
+          path: dist/*
+
+  create-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux-cli]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: telecloud-windows
+          path: release-artifacts
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: telecloud-linux
+          path: release-artifacts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: TeleVault ${{ github.ref_name }} — Desktop Application
+          name: TeleCloud ${{ github.ref_name }} — Personal Cloud Drive
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            dist/televault.exe
-            dist/TeleVault-Windows-x64.zip
+          files: release-artifacts/*

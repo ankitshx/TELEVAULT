@@ -1,0 +1,68 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/telecloud-core",
+    "crates/telecloud-manifest",
+    "crates/telecloud-crypto",
+    "crates/telecloud-storage",
+    "crates/telecloud-telegram",
+    "crates/telecloud-db",
+    "crates/telecloud-transfer",
+    "crates/telecloud-integrity",
+    "apps/cli",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["TeleCloud Team"]
+license = "MIT"
+repository = "https://github.com/ankitshx/TELEVAULT"
+
+[workspace.dependencies]
+# Internal Workspace Crates
+telecloud-core = { path = "crates/telecloud-core" }
+telecloud-manifest = { path = "crates/telecloud-manifest" }
+telecloud-crypto = { path = "crates/telecloud-crypto" }
+telecloud-storage = { path = "crates/telecloud-storage" }
+telecloud-telegram = { path = "crates/telecloud-telegram" }
+telecloud-db = { path = "crates/telecloud-db" }
+telecloud-transfer = { path = "crates/telecloud-transfer" }
+telecloud-integrity = { path = "crates/telecloud-integrity" }
+
+# Async & Runtime
+tokio = { version = "1.43", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Serialization & Data Formats
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.12", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Cryptography & Hashing
+sha2 = "0.10"
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+zeroize = { version = "1.8", features = ["derive"] }
+
+# Database
+rusqlite = { version = "0.33", features = ["bundled", "chrono", "uuid"] }
+
+# Logging & Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error Handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Keyring
+keyring = "3.0"

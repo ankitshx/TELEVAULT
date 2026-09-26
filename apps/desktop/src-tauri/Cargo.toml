@@ -1,0 +1,26 @@
+[package]
+name = "telecloud-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+telecloud-core = { workspace = true }
+telecloud-manifest = { workspace = true }
+telecloud-crypto = { workspace = true }
+telecloud-storage = { workspace = true }
+telecloud-telegram = { workspace = true }
+telecloud-db = { workspace = true }
+telecloud-transfer = { workspace = true }
+telecloud-integrity = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

@@ -22,6 +22,7 @@ ENV/
 *.db-wal
 cache/
 logs/
+*.log
 
 # Testing & Quality
 .pytest_cache/
@@ -36,3 +37,29 @@ dist/
 *.spec.bak
 *.egg-info/
 packaging/output/
+
+# Rust & Cargo
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node & Frontend
+node_modules/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Tauri & Desktop Bundles
+src-tauri/target/
+*.msi
+*.exe
+*.dmg
+*.AppImage
+*.deb
+
+# Temporary Files & Staging
+*.tmp
+*staging/
+.DS_Store
+Thumbs.db
