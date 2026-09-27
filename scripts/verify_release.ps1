@@ -41,15 +41,7 @@ if (Test-Path $ReleaseExe) {
     Write-Host "  Found Executable: TELEVAULT.exe ($([math]::Round($ExeSize, 2)) MB)" -ForegroundColor Green
     $Artifacts += $ReleaseExe
 } else {
-    throw "Missing standalone binary: '$ReleaseExe'. Run scripts/build_windows.ps1 first."
-}
-
-if (Test-Path $InstallerExe) {
-    $InstSize = (Get-Item $InstallerExe).Length / 1MB
-    Write-Host "  Found Installer:  TELEVAULT-Setup.exe ($([math]::Round($InstSize, 2)) MB)" -ForegroundColor Green
-    $Artifacts += $InstallerExe
-} else {
-    Write-Host "  [NOTICE] Installer not found at '$InstallerExe'. (Run scripts/build_installer.ps1 to generate it)" -ForegroundColor Yellow
+    throw "Missing binary: '$ReleaseExe'."
 }
 
 # 2. Authenticode Signature Inspection
@@ -111,10 +103,10 @@ Publisher: Ankit Sharma (@ankitshx)
 
 PRIMARY ARTIFACT IN THIS RELEASE:
 --------------------------------------------------------------------------------
-1. TELEVAULT-Setup.exe  - Full Windows 11 All-in-One Installer
-   - Installs TELEVAULT with Desktop Icon & Start Menu Integration
-   - Adds Windows Explorer "Send To -> TELEVAULT" Context Menu
-   - Preserves user vault databases & encryption keys safely across upgrades
+1. TELEVAULT.exe - Direct Run Portable Executable
+   - Pure Rust + React modern glassmorphism cloud drive
+   - Zero installation, zero external dependencies
+   - Double-click to launch directly!
 
 SHA-256 CHECKSUMS:
 --------------------------------------------------------------------------------

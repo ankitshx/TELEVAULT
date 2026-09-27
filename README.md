@@ -9,27 +9,17 @@
 [![Author](https://img.shields.io/badge/Author-Ankit%20Sharma%20(@ankitshx)-06B6D4.svg?style=for-the-badge&logo=github)](https://github.com/ankitshx)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg?style=for-the-badge&logo=windows)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
-[![Download Windows Setup](https://img.shields.io/badge/Download-TELEVAULT--Setup.exe%20(Single%20Installer)-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)
+[![Download Portable EXE](https://img.shields.io/badge/Download-TELEVAULT.exe%20(Direct--Run%20Portable)-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)
 
 ---
 
 ## 🚀 Download & Quick Start
 
-### ⚡ Method A: 1-Click Instant Install (Recommended)
-
-Open PowerShell and paste this command (automatically downloads, unblocks, and runs the setup wizard):
-
-```powershell
-irm https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/install.ps1 | iex
-```
-
----
-
-### 📥 Method B: Direct Windows Installer Download
+### 📥 1-Click Direct Download (No Install Required)
 
 Zero external dependencies (No Python, Node.js, or Rust required):
 
-- **[⬇️ Download TELEVAULT-Setup.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)** (Single All-in-One Installer with Desktop Icon & Explorer "Send To" Integration)
+- **[⬇️ Download TELEVAULT.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)** (Single Standalone Executable — Direct Run!)
 - *All Releases & Changelogs:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
 
 #### 🛡️ Windows SmartScreen Note ("Windows protected your PC")
@@ -38,9 +28,10 @@ Zero external dependencies (No Python, Node.js, or Rust required):
 > 1. Click **"More info"**
 > 2. Click **"Run anyway"**
 > 
-> *Tip: Running `install.ps1` via PowerShell automatically unblocks the file to bypass this alert.*
+> *Tip: Or unblock the file with PowerShell: `Unblock-File .\TELEVAULT.exe`.*
 
-1. Run **`TELEVAULT-Setup.exe`**.
+### ⚡ Quick Start:
+1. Double-click **`TELEVAULT.exe`** to launch the modern Rust + React glassmorphism drive interface.
 2. Log in using your Telegram phone number, **API ID**, and **API Hash** (obtained for free in 1 minute from [my.telegram.org](https://my.telegram.org)).
 3. Enter your verification code.
 4. Your encrypted private backup channels are ready! Upload, download, restore, and verify files seamlessly.
