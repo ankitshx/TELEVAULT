@@ -1,4 +1,4 @@
-; Inno Setup Script for TELEVAULT Windows 11 Installer
+; Inno Setup Script for TELEVAULT Professional Windows 11 Installer
 #define MyAppName "TELEVAULT"
 #define MyAppVersion "2.1.1"
 #define MyAppPublisher "TeleVault Team"
@@ -11,9 +11,10 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
-AppUpdatesURL={#MyAppURL}
+AppSupportURL={#MyAppURL}/issues
+AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\release
 OutputBaseFilename=TELEVAULT-Setup
@@ -21,6 +22,11 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\assets\icons\televault.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -39,3 +45,7 @@ Name: "{userappdata}\Microsoft\Windows\SendTo\{#MyAppName}"; Filename: "{app}\{#
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+; Data Safety Note:
+; User vaults, databases, and encryption keys stored in %LOCALAPPDATA%\TeleVault
+; and %USERPROFILE%\.televault are NEVER deleted upon uninstallation or upgrade.

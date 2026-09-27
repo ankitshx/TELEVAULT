@@ -1,38 +1,113 @@
-# TeleCloud 1-Click Automated Windows Installer
+# TELEVAULT 1-Click Automated Windows Installer & Quick Launcher
 # Usage: irm https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/install.ps1 | iex
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-Write-Host "================================================" -ForegroundColor Cyan
-Write-Host " 🚀 Installing TeleCloud Desktop Application..." -ForegroundColor Cyan
-Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host " 🚀 TELEVAULT Windows 1-Click Setup & Launcher" -ForegroundColor Cyan
+Write-Host "    Private, append-only, resilient cloud drive via MTProto" -ForegroundColor DarkCyan
+Write-Host "================================================================" -ForegroundColor Cyan
 
-$InstallDir = "$env:LOCALAPPDATA\Programs\TeleCloud"
+$CurrentScriptDir = $PSScriptRoot
+if (-not $CurrentScriptDir) {
+    $CurrentScriptDir = (Get-Location).Path
+}
+
+$InstallDir = "$env:LOCALAPPDATA\Programs\TELEVAULT"
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-$ExePath = "$InstallDir\telecloud-desktop.exe"
-$DownloadUrl = "https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/telecloud-desktop.exe"
+# -----------------------------------------------------------------------------
+# 1. Locate or Download TELEVAULT Installer / Executable
+# -----------------------------------------------------------------------------
+Write-Host "`n[1/3] Resolving application package..." -ForegroundColor Yellow
 
-Write-Host "[1/3] Downloading latest binary (27 MB)..." -ForegroundColor Yellow
-Invoke-WebRequest -Uri $DownloadUrl -OutFile $ExePath -UseBasicParsing
+$LocalCandidates = @(
+    (Join-Path $CurrentScriptDir "release\TELEVAULT-Setup.exe"),
+    (Join-Path $CurrentScriptDir "TELEVAULT-Setup.exe"),
+    (Join-Path $CurrentScriptDir "dist\TELEVAULT.exe"),
+    (Join-Path $CurrentScriptDir "TELEVAULT.exe")
+)
 
-Write-Host "[2/3] Whitelisting binary with Windows Defender..." -ForegroundColor Yellow
-if (Get-Command Unblock-File -ErrorAction SilentlyContinue) {
-    Unblock-File -Path $ExePath
+$LocalInstaller = $null
+foreach ($cand in $LocalCandidates) {
+    if (Test-Path $cand) {
+        $LocalInstaller = $cand
+        break
+    }
 }
 
-Write-Host "[3/3] Creating Desktop Shortcut..." -ForegroundColor Yellow
-$WshShell = New-Object -ComObject WScript.Shell
-$DesktopPath = [Environment]::GetFolderPath("Desktop")
-$Shortcut = $WshShell.CreateShortcut("$DesktopPath\TeleCloud.lnk")
-$Shortcut.TargetPath = $ExePath
-$Shortcut.WorkingDirectory = $InstallDir
-$Shortcut.Description = "TeleCloud: High-Performance Personal Cloud Drive"
-$Shortcut.Save()
+$TargetSetupExe = "$InstallDir\TELEVAULT-Setup.exe"
+$TargetStandaloneExe = "$InstallDir\TELEVAULT.exe"
 
-Write-Host ""
-Write-Host "✅ Installation Complete! Launching TeleCloud..." -ForegroundColor Green
-Start-Process -FilePath $ExePath
+if ($LocalInstaller) {
+    Write-Host "      ✓ Found local package: $(Split-Path -Leaf $LocalInstaller)" -ForegroundColor Green
+    if ($LocalInstaller -like "*Setup.exe") {
+        Copy-Item -Path $LocalInstaller -Destination $TargetSetupExe -Force
+        $ExecTarget = $TargetSetupExe
+    } else {
+        Copy-Item -Path $LocalInstaller -Destination $TargetStandaloneExe -Force
+        $ExecTarget = $TargetStandaloneExe
+    }
+} else {
+    Write-Host "      ⬇ Downloading latest TELEVAULT-Setup.exe from GitHub..." -ForegroundColor Cyan
+    $DownloadUrl = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe"
+    try {
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $TargetSetupExe -UseBasicParsing
+        $ExecTarget = $TargetSetupExe
+        Write-Host "      ✓ Download complete ($([math]::Round((Get-Item $TargetSetupExe).Length / 1MB, 2)) MB)" -ForegroundColor Green
+    } catch {
+        Write-Host "      [!] Setup download notice: GitHub release may be initializing. Trying standalone fallback..." -ForegroundColor Gray
+        $FallbackUrl = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe"
+        try {
+            Invoke-WebRequest -Uri $FallbackUrl -OutFile $TargetStandaloneExe -UseBasicParsing
+            $ExecTarget = $TargetStandaloneExe
+            Write-Host "      ✓ Downloaded standalone executable ($([math]::Round((Get-Item $TargetStandaloneExe).Length / 1MB, 2)) MB)" -ForegroundColor Green
+        } catch {
+            throw "Failed to download TELEVAULT from GitHub Releases. Check your internet connection or releases page: https://github.com/ankitshx/TELEVAULT/releases"
+        }
+    }
+}
+
+# -----------------------------------------------------------------------------
+# 2. Windows Defender Unblock (Eliminates spinning wait cursor)
+# -----------------------------------------------------------------------------
+Write-Host "`n[2/3] Unblocking executable with Windows Defender..." -ForegroundColor Yellow
+if (Get-Command Unblock-File -ErrorAction SilentlyContinue) {
+    Get-ChildItem -Path $InstallDir -Filter "*.exe" | ForEach-Object {
+        Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+    }
+    Write-Host "      ✓ Executables unblocked for instant startup." -ForegroundColor Green
+}
+
+# -----------------------------------------------------------------------------
+# 3. Install & Launch Application
+# -----------------------------------------------------------------------------
+Write-Host "`n[3/3] Launching TELEVAULT..." -ForegroundColor Yellow
+
+if ($ExecTarget -like "*Setup.exe") {
+    Write-Host "      Running installer wizard..." -ForegroundColor Cyan
+    Start-Process -FilePath $ExecTarget
+} else {
+    # Standalone mode: ensure Desktop shortcut exists
+    try {
+        $WshShell = New-Object -ComObject WScript.Shell
+        $DesktopPath = [Environment]::GetFolderPath("Desktop")
+        $Shortcut = $WshShell.CreateShortcut("$DesktopPath\TELEVAULT.lnk")
+        $Shortcut.TargetPath = $TargetStandaloneExe
+        $Shortcut.WorkingDirectory = $InstallDir
+        $Shortcut.IconLocation = "$TargetStandaloneExe,0"
+        $Shortcut.Description = "TELEVAULT: High-Performance Personal Cloud Drive"
+        $Shortcut.Save()
+        Write-Host "      ✓ Desktop shortcut created." -ForegroundColor Green
+    } catch {
+        # ignore shortcut creation error
+    }
+    Start-Process -FilePath $TargetStandaloneExe
+}
+
+Write-Host "`n================================================================" -ForegroundColor Green
+Write-Host " ✅ TELEVAULT Ready! Enjoy your private Telegram Cloud Drive." -ForegroundColor Green
+Write-Host "================================================================" -ForegroundColor Green

@@ -6,16 +6,16 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Download Desktop Zip](https://img.shields.io/badge/Download-TeleCloud%20ZIP%20(7.6%20MB)-blueviolet?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/raw/main/TeleCloud-Windows-x64.zip)
-[![Download Desktop App](https://img.shields.io/badge/Download-telecloud--desktop.exe%20(27%20MB)-7c3aed?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)
+[![Download Windows Setup](https://img.shields.io/badge/Download-TELEVAULT--Setup.exe%20(Installer)-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)
+[![Download Portable Exe](https://img.shields.io/badge/Download-TELEVAULT.exe%20(Portable)-7c3aed?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)
 
 ---
 
 ## 🚀 Download & Quick Start
 
-### ⚡ Method A: 1-Click Instant Install (Recommended — Bypasses SmartScreen)
+### ⚡ Method A: 1-Click Instant Install (Recommended)
 
-Open PowerShell and paste this command (automatically downloads, unblocks, creates desktop shortcut, and runs):
+Open PowerShell and paste this command (automatically downloads, unblocks, and runs the setup wizard):
 
 ```powershell
 irm https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/install.ps1 | iex
@@ -23,26 +23,26 @@ irm https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/install.ps1 | iex
 
 ---
 
-### 📥 Method B: Direct Archive / Binary Download
+### 📥 Method B: Direct Binary / Setup Download
 
-No Python, Node.js, or Rust installation required:
+Zero external dependencies (No Python, Node.js, or Rust required):
 
-- **[⬇️ Download ZIP: TeleCloud-Windows-x64.zip](https://github.com/ankitshx/TELEVAULT/raw/main/TeleCloud-Windows-x64.zip)** (~7.6 MB, Recommended Portable Package)
-- **[⬇️ Direct Binary: telecloud-desktop.exe](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)** (~27 MB Standalone)
-- *All Versions & Archives:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
+- **[⬇️ Download Installer: TELEVAULT-Setup.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)** (Recommended — 1-Click Windows Setup with Desktop Icon & Explorer Integration)
+- **[⬇️ Download Portable Binary: TELEVAULT.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)** (Standalone single `.exe` file)
+- *All Releases & Changelogs:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
 
 #### 🛡️ Windows SmartScreen Note ("Windows protected your PC")
-> As TeleCloud is free and open-source, it is not signed with an enterprise commercial certificate ($500/year). 
-> When Windows Defender SmartScreen shows the blue alert:
+> As TELEVAULT is a free community open-source project, it does not use a $500/yr enterprise EV certificate.
+> When Windows SmartScreen displays the blue notice:
 > 1. Click **"More info"**
 > 2. Click **"Run anyway"**
 > 
-> *Alternatively, right-click the downloaded file ➔ **Properties** ➔ check **Unblock** ➔ click **OK**.*
+> *Tip: Running `install.ps1` via PowerShell automatically unblocks the file to bypass this alert.*
 
-1. Double-click `telecloud-desktop.exe` to launch.
-2. In the login screen, enter your Telegram phone number, **API ID**, and **API Hash** (obtained for free from [my.telegram.org](https://my.telegram.org)).
-3. Enter the verification code sent to your Telegram app.
-4. Your private channels (`TeleVault Primary` & `TeleVault Mirror`) are initialized automatically. Upload, download, and manage your cloud drive!
+1. Run `TELEVAULT-Setup.exe` (or double-click `TELEVAULT.exe`).
+2. Log in using your Telegram phone number, **API ID**, and **API Hash** (obtained for free in 1 minute from [my.telegram.org](https://my.telegram.org)).
+3. Enter your verification code.
+4. Your encrypted private backup channels are ready! Upload, download, restore, and verify files seamlessly.
 
 ### 🛠️ Option 2: Build from Source
 ```bash

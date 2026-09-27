@@ -59,6 +59,14 @@ src-tauri/target/
 *.AppImage
 *.deb
 
+# Build & Packaging Releases
+release/
+*.pfx
+*.p12
+*.cer
+*.crt
+*.pem
+
 # Temporary Files & Staging
 *.tmp
 *staging/

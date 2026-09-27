@@ -37,6 +37,7 @@ def test_cli_backup_dry_run(tmp_path: Path):
 
 
 def test_cli_backup_and_ls(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("TELEVAULT_HOME", str(tmp_path))
     test_file = tmp_path / "test_notes.md"
     test_file.write_bytes(b"# Meeting Notes for TeleVault")
 

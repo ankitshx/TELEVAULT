@@ -21,16 +21,15 @@ class DedupeChecker:
     def check(self, sha256: str) -> DedupeResult:
         existing = self.repo.find_by_hash(sha256)
         if existing and existing.is_healthy:
-            # If the record is from a fake test channel, do not count as duplicate in real vault
-            if existing.primary_ref and existing.primary_ref.channel_id == -10010001:
-                return DedupeResult(is_duplicate=False)
-
             # If live channel is known, ensure the record was actually uploaded to this vault
-            if self.live_channel_id and existing.primary_ref:
-                c1 = str(abs(existing.primary_ref.channel_id)).replace("100", "", 1)
-                c2 = str(abs(self.live_channel_id)).replace("100", "", 1)
-                if c1 != c2:
+            if self.live_channel_id:
+                if existing.primary_ref and existing.primary_ref.channel_id == -10010001:
                     return DedupeResult(is_duplicate=False)
+                if existing.primary_ref:
+                    c1 = str(abs(existing.primary_ref.channel_id)).replace("100", "", 1)
+                    c2 = str(abs(self.live_channel_id)).replace("100", "", 1)
+                    if c1 != c2:
+                        return DedupeResult(is_duplicate=False)
 
             return DedupeResult(
                 is_duplicate=True,

@@ -20,6 +20,8 @@ class TeleVaultConfig:
     def __init__(self, base_dir: Path | None = None, vault_id: str | None = None):
         if base_dir:
             self.app_dir = base_dir
+        elif "TELEVAULT_HOME" in os.environ:
+            self.app_dir = Path(os.environ["TELEVAULT_HOME"])
         elif os.name == "nt" and "LOCALAPPDATA" in os.environ:
             self.app_dir = Path(os.environ["LOCALAPPDATA"]) / "TeleVault"
         else:

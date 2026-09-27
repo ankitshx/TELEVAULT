@@ -63,6 +63,8 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+version_info_path = SPEC_DIR / 'version_info.txt'
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -70,11 +72,11 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='televault',
+    name='TELEVAULT',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -82,5 +84,6 @@ exe = EXE(
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
+    version=str(version_info_path) if version_info_path.exists() else None,
     icon=str(REPO_ROOT / 'assets' / 'icons' / 'televault.ico') if (REPO_ROOT / 'assets' / 'icons' / 'televault.ico').exists() else None,
 )

@@ -14,6 +14,18 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+:: Automatically install/verify dependencies if missing
+python -c "import fastapi, uvicorn, telethon, rich, cryptography" >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [INFO] Detected missing dependencies. Auto-installing required packages...
+    python -m pip install --quiet --upgrade pip >nul 2>&1
+    python -m pip install -e "%REPO_ROOT%[dev]"
+    if !ERRORLEVEL! neq 0 (
+        python -m pip install -e "%REPO_ROOT%"
+    )
+    echo [INFO] Dependencies installed successfully.
+)
+
 :: If arguments were provided on the command line, pass them straight through
 if not "%~1"=="" (
     python -m televault.presentation.cli %*

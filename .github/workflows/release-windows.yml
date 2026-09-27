@@ -1,0 +1,99 @@
+name: TELEVAULT Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build, Sign, and Release Windows Application
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run Test Suite Validation
+        run: |
+          pytest tests/ -v
+
+      - name: Build Windows Executable (PyInstaller)
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/build_windows.ps1 -Mode Production -SkipTests
+
+      - name: Install Inno Setup Compiler (if needed)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc.exe -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe") -and -not (Test-Path "C:\Program Files\Inno Setup 6\ISCC.exe")) {
+            Write-Host "Installing Inno Setup via Chocolatey..."
+            choco install innosetup --yes --no-progress
+          }
+
+      - name: Build Windows Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1
+
+      - name: Authenticode Code Signing
+        shell: pwsh
+        env:
+          CERT_B64: ${{ secrets.TELEVAULT_CERTIFICATE_BASE64 }}
+          CERT_PASS: ${{ secrets.TELEVAULT_CERT_PASSWORD }}
+        run: |
+          if ($env:CERT_B64) {
+            Write-Host "Authenticode certificate secret detected. Preparing signing..."
+            $CertPath = "$env:RUNNER_TEMP\telecloud_signing_cert.pfx"
+            $CertBytes = [Convert]::FromBase64String($env:CERT_B64)
+            [IO.File]::WriteAllBytes($CertPath, $CertBytes)
+
+            $env:TELEVAULT_CERTIFICATE = $CertPath
+            $env:TELEVAULT_CERT_PASSWORD = $env:CERT_PASS
+
+            try {
+              powershell -ExecutionPolicy Bypass -File scripts/sign_release.ps1 -Strict
+            } finally {
+              if (Test-Path $CertPath) {
+                Remove-Item $CertPath -Force
+              }
+            }
+          } else {
+            Write-Host "No certificate secret configured (TELEVAULT_CERTIFICATE_BASE64 is empty)."
+            Write-Host "Proceeding with unsigned release artifacts for testing."
+            powershell -ExecutionPolicy Bypass -File scripts/sign_release.ps1
+          }
+
+      - name: Verify Release & Compute SHA-256 Checksums
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/verify_release.ps1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          name: TELEVAULT ${{ github.ref_name || 'v2.1.0' }} — Windows Desktop
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release/TELEVAULT-Setup.exe
+            release/TELEVAULT.exe
+            release/SHA256SUMS.txt
+            release/RELEASE_NOTES.txt

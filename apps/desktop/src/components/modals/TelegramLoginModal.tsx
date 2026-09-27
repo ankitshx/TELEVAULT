@@ -52,23 +52,46 @@ export const TelegramLoginModal: React.FC<TelegramLoginModalProps> = ({
     setIsLoading(true);
     setStatusMessage("Connecting to Telegram MTProto and requesting login code...");
 
+    const postWithRetry = async (url: string, payload: any, maxRetries = 3): Promise<any> => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(err.detail || `Request failed (${res.status})`);
+          }
+          return await res.json();
+        } catch (err: any) {
+          const isNetworkError =
+            err?.message?.includes("Failed to fetch") ||
+            err?.message?.includes("NetworkError") ||
+            err?.name === "TypeError";
+          if (isNetworkError && attempt < maxRetries) {
+            setStatusMessage(`Starting TeleVault service (127.0.0.1:8000)... Retrying (${attempt}/${maxRetries})`);
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            continue;
+          }
+          if (isNetworkError) {
+            throw new Error(
+              "Cannot connect to TeleVault service at 127.0.0.1:8000. Please ensure televault.exe is running or start with run-desktop.bat."
+            );
+          }
+          throw err;
+        }
+      }
+    };
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/login/send-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: phoneNumber.trim(),
-          api_id: apiId.trim(),
-          api_hash: apiHash.trim(),
-        }),
+      const data = await postWithRetry("http://127.0.0.1:8000/api/login/send-code", {
+        phone: phoneNumber.trim(),
+        api_id: apiId.trim(),
+        api_hash: apiHash.trim(),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || "Failed to send code from Telegram");
-      }
-
-      const data = await res.json();
       setPhoneCodeHash(data.phone_code_hash);
       setStep(2);
       setStatusMessage(`Verification code sent to ${phoneNumber}. Check your Telegram app.`);
@@ -129,7 +152,14 @@ export const TelegramLoginModal: React.FC<TelegramLoginModalProps> = ({
         onClose();
       }, 1000);
     } catch (err: any) {
-      setStatusMessage(`Verification Error: ${err.message || String(err)}`);
+      const isNetworkError =
+        err?.message?.includes("Failed to fetch") ||
+        err?.name === "TypeError";
+      if (isNetworkError) {
+        setStatusMessage("Error: Cannot connect to TeleVault service at 127.0.0.1:8000. Please ensure televault.exe is running.");
+      } else {
+        setStatusMessage(`Verification Error: ${err.message || String(err)}`);
+      }
     } finally {
       setIsLoading(false);
     }

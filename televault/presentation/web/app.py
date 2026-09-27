@@ -326,21 +326,8 @@ async def delete_file_record(record_id: str, delete_from_telegram: bool = True):
     except KeyError:
         raise HTTPException(status_code=404, detail="File record not found.")
 
-    if delete_from_telegram and record.primary_ref:
-        try:
-            live_gw = await resolve_gateway()
-            if hasattr(live_gw, "client") and live_gw.client.is_connected():
-                if record.primary_ref:
-                    p_peer = await live_gw.client.get_input_entity(record.primary_ref.channel_id)
-                    await live_gw.client.delete_messages(p_peer, [record.primary_ref.message_id])
-                if record.mirror_ref:
-                    m_peer = await live_gw.client.get_input_entity(record.mirror_ref.channel_id)
-                    await live_gw.client.delete_messages(m_peer, [record.mirror_ref.message_id])
-        except Exception as e:
-            add_log("Telegram", f"Could not delete message from Telegram: {e}", "warning")
-
     repo.delete(record_id)
-    add_log("Storage", f"Deleted file '{record.name}' from storage catalog.", "info")
+    add_log("Storage", f"Deleted file '{record.name}' from local storage catalog.", "info")
     return {"status": "deleted", "id": record_id}
 
 

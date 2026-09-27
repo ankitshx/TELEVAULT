@@ -325,14 +325,30 @@ fn ensure_backend_running() {
                 .ok()
                 .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| PathBuf::from("."));
-            let televault_exe = exe_dir.join("televault.exe");
+
+            let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+
+            let candidates = vec![
+                exe_dir.join("televault.exe"),
+                PathBuf::from("televault.exe"),
+                exe_dir.join("..").join("televault.exe"),
+                exe_dir.join("..").join("..").join("televault.exe"),
+                exe_dir.join("dist").join("televault.exe"),
+                PathBuf::from(&local_app_data).join("Programs").join("TeleCloud").join("televault.exe"),
+                PathBuf::from(&local_app_data).join("TeleVault").join("televault.exe"),
+            ];
+
+            let found = candidates.into_iter().find(|p| p.exists());
 
             #[cfg(target_os = "windows")]
             const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-            if televault_exe.exists() {
-                let mut cmd = std::process::Command::new(&televault_exe);
+            if let Some(target) = found {
+                let mut cmd = std::process::Command::new(&target);
                 cmd.args(&["web", "--no-browser"]);
+                if let Some(parent) = target.parent() {
+                    cmd.current_dir(parent);
+                }
                 #[cfg(target_os = "windows")]
                 cmd.creation_flags(CREATE_NO_WINDOW);
                 let _ = cmd.spawn();
