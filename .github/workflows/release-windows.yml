@@ -28,16 +28,13 @@ jobs:
       - name: Set up Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build React Desktop Frontend
+      - name: Build Standalone Executable (Tauri)
+        shell: pwsh
         run: |
           cd apps/desktop
           npm ci
-          npm run build
-
-      - name: Build Rust Desktop Executable (Tauri)
-        shell: pwsh
-        run: |
-          cargo build --release --manifest-path apps/desktop/src-tauri/Cargo.toml
+          npx tauri build --no-bundle
+          cd ../..
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item target/release/TELEVAULT.exe dist/TELEVAULT.exe -Force
 
