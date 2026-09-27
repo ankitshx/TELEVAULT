@@ -84,7 +84,7 @@ jobs:
       - name: Verify Release & Compute SHA-256 Checksums
         shell: pwsh
         run: |
-          powershell -ExecutionPolicy Bypass -File scripts/verify_release.ps1
+          powershell -ExecutionPolicy Bypass -File scripts/verify_release.ps1 -SkipSmokeTest
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

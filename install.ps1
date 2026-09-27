@@ -5,9 +5,9 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host " 🚀 TELEVAULT Windows 1-Click Setup & Launcher" -ForegroundColor Cyan
-Write-Host "    Private, append-only, resilient cloud drive via MTProto" -ForegroundColor DarkCyan
-Write-Host "    Created with ❤️ by Ankit Sharma (@ankitshx)" -ForegroundColor Green
+Write-Host "  TELEVAULT Windows 1-Click Setup & Launcher" -ForegroundColor Cyan
+Write-Host "  Private, append-only, resilient cloud drive via MTProto" -ForegroundColor DarkCyan
+Write-Host "  Created with love by Ankit Sharma (@ankitshx)" -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Cyan
 
 $CurrentScriptDir = $PSScriptRoot
@@ -44,7 +44,7 @@ $TargetSetupExe = "$InstallDir\TELEVAULT-Setup.exe"
 $TargetStandaloneExe = "$InstallDir\TELEVAULT.exe"
 
 if ($LocalInstaller) {
-    Write-Host "      ✓ Found local package: $(Split-Path -Leaf $LocalInstaller)" -ForegroundColor Green
+    Write-Host "      [OK] Found local package: $(Split-Path -Leaf $LocalInstaller)" -ForegroundColor Green
     if ($LocalInstaller -like "*Setup.exe") {
         Copy-Item -Path $LocalInstaller -Destination $TargetSetupExe -Force
         $ExecTarget = $TargetSetupExe
@@ -53,30 +53,37 @@ if ($LocalInstaller) {
         $ExecTarget = $TargetStandaloneExe
     }
 } else {
-    Write-Host "      ⬇ Downloading TELEVAULT from GitHub Releases..." -ForegroundColor Cyan
-    
+    Write-Host "      Downloading TELEVAULT from GitHub Releases..." -ForegroundColor Cyan
+
     $Candidates = @(
-        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe"; Target = $TargetSetupExe; IsSetup = $true },
-        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup.exe"; Target = $TargetSetupExe; IsSetup = $true },
-        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.2/TELEVAULT-Setup.exe"; Target = $TargetSetupExe; IsSetup = $true },
-        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe"; Target = $TargetStandaloneExe; IsSetup = $false },
-        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.0/televault.exe"; Target = $TargetStandaloneExe; IsSetup = $false }
+        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.2/TELEVAULT-Setup.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.0/televault.exe"
     )
 
     $Downloaded = $false
-    foreach ($c in $Candidates) {
+    foreach ($Url in $Candidates) {
+        if ($Url -like "*Setup.exe") {
+            $TargetFile = $TargetSetupExe
+        } else {
+            $TargetFile = $TargetStandaloneExe
+        }
         try {
-            Write-Host "      Checking: $($c.Url)" -ForegroundColor DarkGray
-            Invoke-WebRequest -Uri $c.Url -OutFile $c.Target -UseBasicParsing -TimeoutSec 30
-            if ((Get-Item $c.Target).Length -gt 1000000) {
-                $ExecTarget = $c.Target
-                $Downloaded = $true
-                $SizeMb = [math]::Round((Get-Item $c.Target).Length / 1MB, 2)
-                Write-Host "      ✓ Download complete ($SizeMb MB): $(Split-Path -Leaf $c.Target)" -ForegroundColor Green
-                break
+            Invoke-WebRequest -Uri $Url -OutFile $TargetFile -UseBasicParsing
+            if (Test-Path $TargetFile) {
+                $Item = Get-Item $TargetFile
+                if ($Item.Length -gt 1000000) {
+                    $ExecTarget = $TargetFile
+                    $Downloaded = $true
+                    $SizeMb = [math]::Round($Item.Length / 1MB, 2)
+                    Write-Host "      [OK] Download complete ($SizeMb MB)" -ForegroundColor Green
+                    break
+                }
             }
         } catch {
-            # Try next fallback
+            [void]$_
         }
     }
 
@@ -93,7 +100,7 @@ if (Get-Command Unblock-File -ErrorAction SilentlyContinue) {
     Get-ChildItem -Path $InstallDir -Filter "*.exe" | ForEach-Object {
         Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
     }
-    Write-Host "      ✓ Executables unblocked for instant startup." -ForegroundColor Green
+    Write-Host "      [OK] Executables unblocked for instant startup." -ForegroundColor Green
 }
 
 # -----------------------------------------------------------------------------
@@ -105,7 +112,6 @@ if ($ExecTarget -like "*Setup.exe") {
     Write-Host "      Running installer wizard..." -ForegroundColor Cyan
     Start-Process -FilePath $ExecTarget
 } else {
-    # Standalone mode: ensure Desktop shortcut exists
     try {
         $WshShell = New-Object -ComObject WScript.Shell
         $DesktopPath = [Environment]::GetFolderPath("Desktop")
@@ -115,13 +121,13 @@ if ($ExecTarget -like "*Setup.exe") {
         $Shortcut.IconLocation = "$TargetStandaloneExe,0"
         $Shortcut.Description = "TELEVAULT: High-Performance Personal Cloud Drive"
         $Shortcut.Save()
-        Write-Host "      ✓ Desktop shortcut created." -ForegroundColor Green
+        Write-Host "      [OK] Desktop shortcut created." -ForegroundColor Green
     } catch {
-        # ignore shortcut creation error
+        [void]$_
     }
     Start-Process -FilePath $TargetStandaloneExe
 }
 
 Write-Host "`n================================================================" -ForegroundColor Green
-Write-Host " ✅ TELEVAULT Ready! Enjoy your private Telegram Cloud Drive." -ForegroundColor Green
+Write-Host "  TELEVAULT Ready! Enjoy your private Telegram Cloud Drive." -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
