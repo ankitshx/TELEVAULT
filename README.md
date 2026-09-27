@@ -6,21 +6,38 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Download Desktop Zip](https://img.shields.io/badge/Download-TeleCloud%20ZIP%20(7.6%20MB)-blueviolet?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/raw/main/TeleCloud-Windows-x64.zip)
 [![Download Desktop App](https://img.shields.io/badge/Download-telecloud--desktop.exe%20(27%20MB)-7c3aed?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)
 
 ---
 
 ## 🚀 Download & Quick Start
 
-### 📥 Option 1: Direct Download (Ready-to-Use Windows Desktop .exe)
+### ⚡ Method A: 1-Click Instant Install (Recommended — Bypasses SmartScreen)
 
-Download the standalone executable directly (no Python, Node.js, or Rust installation required):
+Open PowerShell and paste this command (automatically downloads, unblocks, creates desktop shortcut, and runs):
 
-- **[⬇️ Direct Download: telecloud-desktop.exe](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)** (~27 MB, Standalone Windows Binary)
-- *Alternative CDN Mirror:* **[Raw GitHub Link](https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/telecloud-desktop.exe)**
+```powershell
+irm https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/install.ps1 | iex
+```
+
+---
+
+### 📥 Method B: Direct Archive / Binary Download
+
+No Python, Node.js, or Rust installation required:
+
+- **[⬇️ Download ZIP: TeleCloud-Windows-x64.zip](https://github.com/ankitshx/TELEVAULT/raw/main/TeleCloud-Windows-x64.zip)** (~7.6 MB, Recommended Portable Package)
+- **[⬇️ Direct Binary: telecloud-desktop.exe](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)** (~27 MB Standalone)
 - *All Versions & Archives:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
 
-> **Note for Browser Downloads:** Always use the links above for direct `.exe` download. Do not right-click repository code links, as GitHub serves repository JSON metadata for internal file viewer links.
+#### 🛡️ Windows SmartScreen Note ("Windows protected your PC")
+> As TeleCloud is free and open-source, it is not signed with an enterprise commercial certificate ($500/year). 
+> When Windows Defender SmartScreen shows the blue alert:
+> 1. Click **"More info"**
+> 2. Click **"Run anyway"**
+> 
+> *Alternatively, right-click the downloaded file ➔ **Properties** ➔ check **Unblock** ➔ click **OK**.*
 
 1. Double-click `telecloud-desktop.exe` to launch.
 2. In the login screen, enter your Telegram phone number, **API ID**, and **API Hash** (obtained for free from [my.telegram.org](https://my.telegram.org)).
