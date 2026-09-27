@@ -53,22 +53,35 @@ if ($LocalInstaller) {
         $ExecTarget = $TargetStandaloneExe
     }
 } else {
-    Write-Host "      ⬇ Downloading latest TELEVAULT-Setup.exe from GitHub..." -ForegroundColor Cyan
-    $DownloadUrl = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe"
-    try {
-        Invoke-WebRequest -Uri $DownloadUrl -OutFile $TargetSetupExe -UseBasicParsing
-        $ExecTarget = $TargetSetupExe
-        Write-Host "      ✓ Download complete ($([math]::Round((Get-Item $TargetSetupExe).Length / 1MB, 2)) MB)" -ForegroundColor Green
-    } catch {
-        Write-Host "      [!] Setup download notice: GitHub release may be initializing. Trying standalone fallback..." -ForegroundColor Gray
-        $FallbackUrl = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe"
+    Write-Host "      ⬇ Downloading TELEVAULT from GitHub Releases..." -ForegroundColor Cyan
+    
+    $Candidates = @(
+        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe"; Target = $TargetSetupExe; IsSetup = $true },
+        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup.exe"; Target = $TargetSetupExe; IsSetup = $true },
+        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.2/TELEVAULT-Setup.exe"; Target = $TargetSetupExe; IsSetup = $true },
+        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe"; Target = $TargetStandaloneExe; IsSetup = $false },
+        @{ Url = "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.0/televault.exe"; Target = $TargetStandaloneExe; IsSetup = $false }
+    )
+
+    $Downloaded = $false
+    foreach ($c in $Candidates) {
         try {
-            Invoke-WebRequest -Uri $FallbackUrl -OutFile $TargetStandaloneExe -UseBasicParsing
-            $ExecTarget = $TargetStandaloneExe
-            Write-Host "      ✓ Downloaded standalone executable ($([math]::Round((Get-Item $TargetStandaloneExe).Length / 1MB, 2)) MB)" -ForegroundColor Green
+            Write-Host "      Checking: $($c.Url)" -ForegroundColor DarkGray
+            Invoke-WebRequest -Uri $c.Url -OutFile $c.Target -UseBasicParsing -TimeoutSec 30
+            if ((Get-Item $c.Target).Length -gt 1000000) {
+                $ExecTarget = $c.Target
+                $Downloaded = $true
+                $SizeMb = [math]::Round((Get-Item $c.Target).Length / 1MB, 2)
+                Write-Host "      ✓ Download complete ($SizeMb MB): $(Split-Path -Leaf $c.Target)" -ForegroundColor Green
+                break
+            }
         } catch {
-            throw "Failed to download TELEVAULT from GitHub Releases. Check your internet connection or releases page: https://github.com/ankitshx/TELEVAULT/releases"
+            # Try next fallback
         }
+    }
+
+    if (-not $Downloaded) {
+        throw "Failed to download TELEVAULT from GitHub Releases. Please check https://github.com/ankitshx/TELEVAULT/releases"
     }
 }
 

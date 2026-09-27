@@ -102,7 +102,7 @@ Write-Host "[5/5] Generating release notes template..." -ForegroundColor Yellow
 $NotesFile = Join-Path $ReleaseDir "RELEASE_NOTES.txt"
 $ReleaseNotes = @"
 ================================================================================
-  TELEVAULT Windows 11 Release v2.1.2
+  TELEVAULT Windows 11 Release v2.1.3
   High-Performance Resilient Personal Cloud Drive
 ================================================================================
 

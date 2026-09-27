@@ -30,6 +30,8 @@ jobs:
           pip install -e .[dev]
 
       - name: Run Test Suite Validation
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           pytest tests/ -v
 

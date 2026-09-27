@@ -23,9 +23,13 @@ jobs:
           pip install -e .[dev]
 
       - name: Run Invariant Tests ("Constitution")
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           pytest tests/test_invariants.py -v
 
       - name: Run Full Test Suite
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           pytest tests/ -v
