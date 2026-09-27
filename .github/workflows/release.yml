@@ -50,7 +50,9 @@ jobs:
       - name: Collect Desktop Artifacts
         shell: pwsh
         run: |
-          Get-ChildItem -Path apps/desktop/src-tauri/target/release/bundle -Recurse -Include *.msi,*.exe,*.zip | Copy-Item -Destination dist/
+          if (Test-Path apps/desktop/src-tauri/target/release/TeleCloud.exe) { Copy-Item apps/desktop/src-tauri/target/release/TeleCloud.exe dist/telecloud-desktop.exe -Force }
+          elseif (Test-Path telecloud-desktop.exe) { Copy-Item telecloud-desktop.exe dist/telecloud-desktop.exe -Force }
+          Get-ChildItem -Path apps/desktop/src-tauri/target/release/bundle -Recurse -Include *.msi,*.exe,*.zip -ErrorAction SilentlyContinue | Copy-Item -Destination dist/ -Force
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -101,12 +103,14 @@ jobs:
         with:
           name: telecloud-windows
           path: release-artifacts
+          merge-multiple: true
 
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
           name: telecloud-linux
           path: release-artifacts
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

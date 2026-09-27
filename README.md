@@ -4,13 +4,24 @@
 > 
 > *Disclaimer: TeleCloud is an independent project and is NOT an official Telegram product.*
 
+[![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Download Desktop App](https://img.shields.io/badge/Download-telecloud--desktop.exe%20(27%20MB)-7c3aed?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)
+
 ---
 
 ## 🚀 Download & Quick Start
 
-### 📥 Option 1: Direct Download (Ready-to-Use Binary)
-Download the standalone executable directly from this repository:
-- **[Download telecloud-desktop.exe](telecloud-desktop.exe)** (~27 MB)
+### 📥 Option 1: Direct Download (Ready-to-Use Windows Desktop .exe)
+
+Download the standalone executable directly (no Python, Node.js, or Rust installation required):
+
+- **[⬇️ Direct Download: telecloud-desktop.exe](https://github.com/ankitshx/TELEVAULT/raw/main/telecloud-desktop.exe)** (~27 MB, Standalone Windows Binary)
+- *Alternative CDN Mirror:* **[Raw GitHub Link](https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/telecloud-desktop.exe)**
+- *All Versions & Archives:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
+
+> **Note for Browser Downloads:** Always use the links above for direct `.exe` download. Do not right-click repository code links, as GitHub serves repository JSON metadata for internal file viewer links.
+
 1. Double-click `telecloud-desktop.exe` to launch.
 2. In the login screen, enter your Telegram phone number, **API ID**, and **API Hash** (obtained for free from [my.telegram.org](https://my.telegram.org)).
 3. Enter the verification code sent to your Telegram app.
