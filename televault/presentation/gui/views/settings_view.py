@@ -117,6 +117,26 @@ class SettingsView(QWidget):
         d_layout.addWidget(d_lbl)
         layout.addWidget(dir_card)
 
+        # About & Developer Credits Card
+        about_card = QFrame()
+        about_card.setProperty("class", "fluentCard")
+        a_layout = QVBoxLayout(about_card)
+        a_layout.setContentsMargins(18, 16, 18, 16)
+        a_layout.setSpacing(6)
+
+        a_title = QLabel("About TELEVAULT")
+        a_title.setStyleSheet("font-size: 15px; font-weight: 600; color: #FFFFFF;")
+        a_layout.addWidget(a_title)
+
+        a_desc = QLabel(
+            "<b>TELEVAULT v2.1.2</b> — Resilient, append-only personal cloud drive powered by Telegram MTProto.<br>"
+            "Created and developed by <b>Ankit Sharma</b> (<a href='https://github.com/ankitshx' style='color: #06B6D4;'>@ankitshx</a>)."
+        )
+        a_desc.setOpenExternalLinks(True)
+        a_desc.setStyleSheet("color: #9CA3AF; font-size: 12px; line-height: 1.5;")
+        a_layout.addWidget(a_desc)
+        layout.addWidget(about_card)
+
         layout.addStretch()
 
     def update_account_info(

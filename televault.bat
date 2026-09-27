@@ -36,8 +36,9 @@ if not "%~1"=="" (
 :menu
 cls
 echo ===============================================================================
-echo                      TELEVAULT v2.0 - WINDOWS 11 LAUNCHER                      
+echo                      TELEVAULT v2.1 - WINDOWS 11 LAUNCHER                      
 echo         A private, append-only, verifiable backup vault via MTProto            
+echo                Created with ❤️ by Ankit Sharma (@ankitshx)                     
 echo ===============================================================================
 echo.
 echo Application Interfaces:

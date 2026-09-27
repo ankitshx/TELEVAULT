@@ -1,7 +1,7 @@
 ; Inno Setup Script for TELEVAULT Windows 11 Installer
 #define MyAppName "TELEVAULT"
-#define MyAppVersion "2.1.1"
-#define MyAppPublisher "TeleVault Team"
+#define MyAppVersion "2.1.2"
+#define MyAppPublisher "Ankit Sharma (@ankitshx)"
 #define MyAppURL "https://github.com/ankitshx/TELEVAULT"
 #define MyAppExeName "TELEVAULT.exe"
 

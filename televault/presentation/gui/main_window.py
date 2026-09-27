@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, gateway: TelegramGateway | None = None, config: TeleVaultConfig | None = None):
         super().__init__()
-        self.setWindowTitle("TeleVault — Resilient Telegram Desktop Backup")
+        self.setWindowTitle("TeleVault — Telegram Cloud Drive | By Ankit Sharma (@ankitshx)")
         self.setMinimumSize(1080, 720)
         self.setStyleSheet(THEME_STYLESHEET)
 
@@ -155,6 +155,10 @@ class MainWindow(QMainWindow):
         self.sidebar_conn.setStyleSheet("color: #9CA3AF; font-size: 11px; font-weight: 600; padding: 6px 8px;")
         self.sidebar_conn.setCursor(Qt.CursorShape.PointingHandCursor)
         sidebar_layout.addWidget(self.sidebar_conn)
+
+        creator_lbl = QLabel("Created by Ankit Sharma (@ankitshx)")
+        creator_lbl.setStyleSheet("color: #06B6D4; font-size: 10px; font-weight: 600; padding: 4px 8px;")
+        sidebar_layout.addWidget(creator_lbl)
 
         main_h_layout.addWidget(sidebar)
 

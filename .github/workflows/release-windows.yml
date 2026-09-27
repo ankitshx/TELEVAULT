@@ -94,6 +94,5 @@ jobs:
           generate_release_notes: true
           files: |
             release/TELEVAULT-Setup.exe
-            release/TELEVAULT.exe
             release/SHA256SUMS.txt
             release/RELEASE_NOTES.txt

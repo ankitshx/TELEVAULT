@@ -1,13 +1,15 @@
-# TeleCloud: High-Performance Personal Cloud Drive Powered by Telegram Storage
+# TELEVAULT: High-Performance Personal Cloud Drive Powered by Telegram Storage
 
-> **TeleCloud** is a production-grade, personal cloud-drive desktop and CLI application that uses Telegram as a resilient, infinite object storage backend.
+> **TELEVAULT** is a production-grade, personal cloud-drive desktop and CLI application that uses Telegram as a resilient, infinite object storage backend.
 > 
-> *Disclaimer: TeleCloud is an independent project and is NOT an official Telegram product.*
+> 👨‍💻 **Created & Developed by [Ankit Sharma (@ankitshx)](https://github.com/ankitshx)**
+> 
+> *Disclaimer: TELEVAULT is an independent open-source project and is NOT an official Telegram product.*
 
-[![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Download Windows Setup](https://img.shields.io/badge/Download-TELEVAULT--Setup.exe%20(Installer)-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)
-[![Download Portable Exe](https://img.shields.io/badge/Download-TELEVAULT.exe%20(Portable)-7c3aed?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)
+[![Author](https://img.shields.io/badge/Author-Ankit%20Sharma%20(@ankitshx)-06B6D4.svg?style=for-the-badge&logo=github)](https://github.com/ankitshx)
+[![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg?style=for-the-badge&logo=windows)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
+[![Download Windows Setup](https://img.shields.io/badge/Download-TELEVAULT--Setup.exe%20(Single%20Installer)-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)
 
 ---
 
@@ -23,23 +25,22 @@ irm https://raw.githubusercontent.com/ankitshx/TELEVAULT/main/install.ps1 | iex
 
 ---
 
-### 📥 Method B: Direct Binary / Setup Download
+### 📥 Method B: Direct Windows Installer Download
 
 Zero external dependencies (No Python, Node.js, or Rust required):
 
-- **[⬇️ Download Installer: TELEVAULT-Setup.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)** (Recommended — 1-Click Windows Setup with Desktop Icon & Explorer Integration)
-- **[⬇️ Download Portable Binary: TELEVAULT.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)** (Standalone single `.exe` file)
+- **[⬇️ Download TELEVAULT-Setup.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe)** (Single All-in-One Installer with Desktop Icon & Explorer "Send To" Integration)
 - *All Releases & Changelogs:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
 
 #### 🛡️ Windows SmartScreen Note ("Windows protected your PC")
-> As TELEVAULT is a free community open-source project, it does not use a $500/yr enterprise EV certificate.
+> As TELEVAULT is a free community open-source project, it does not use an expensive enterprise EV certificate.
 > When Windows SmartScreen displays the blue notice:
 > 1. Click **"More info"**
 > 2. Click **"Run anyway"**
 > 
 > *Tip: Running `install.ps1` via PowerShell automatically unblocks the file to bypass this alert.*
 
-1. Run `TELEVAULT-Setup.exe` (or double-click `TELEVAULT.exe`).
+1. Run **`TELEVAULT-Setup.exe`**.
 2. Log in using your Telegram phone number, **API ID**, and **API Hash** (obtained for free in 1 minute from [my.telegram.org](https://my.telegram.org)).
 3. Enter your verification code.
 4. Your encrypted private backup channels are ready! Upload, download, restore, and verify files seamlessly.
@@ -163,6 +164,12 @@ cargo build --release --bin telecloud
 
 ---
 
+## 👨‍💻 Author & Maintainer
+
+Created with ❤️ by **Ankit Sharma** ([@ankitshx](https://github.com/ankitshx)).
+
+---
+
 ## 📜 License
 
-MIT License. Copyright (c) 2026 TeleCloud Team.
+MIT License. Copyright (c) 2026 Ankit Sharma (@ankitshx).

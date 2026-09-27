@@ -68,7 +68,7 @@ def test_main_window_smoke(qapp, tmp_path: Path):
     gateway = FakeTelegramGateway()
     window = MainWindow(gateway=gateway, config=config)
 
-    assert window.windowTitle() == "TeleVault — Resilient Telegram Desktop Backup"
+    assert "TeleVault" in window.windowTitle() and "Ankit Sharma" in window.windowTitle()
     assert window.minimumWidth() >= 900
     assert window.minimumHeight() >= 600
 

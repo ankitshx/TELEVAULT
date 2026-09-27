@@ -102,23 +102,19 @@ Write-Host "[5/5] Generating release notes template..." -ForegroundColor Yellow
 $NotesFile = Join-Path $ReleaseDir "RELEASE_NOTES.txt"
 $ReleaseNotes = @"
 ================================================================================
-  TELEVAULT Windows 11 Release v2.1.0
+  TELEVAULT Windows 11 Release v2.1.2
   High-Performance Resilient Personal Cloud Drive
 ================================================================================
 
 Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-Publisher: TeleVault Team
+Publisher: Ankit Sharma (@ankitshx)
 
-ARTIFACTS IN THIS RELEASE:
+PRIMARY ARTIFACT IN THIS RELEASE:
 --------------------------------------------------------------------------------
-1. TELEVAULT-Setup.exe  - Full Windows 11 NSIS/Inno Setup Installer
-   - Installs to Program Files
-   - Creates Start Menu & Desktop Shortcuts
-   - Registers Windows Uninstaller
-   - Completely preserves your vault databases & encryption keys
-
-2. TELEVAULT.exe        - Portable Standalone Executable
-   - Ready to run directly without installation
+1. TELEVAULT-Setup.exe  - Full Windows 11 All-in-One Installer
+   - Installs TELEVAULT with Desktop Icon & Start Menu Integration
+   - Adds Windows Explorer "Send To -> TELEVAULT" Context Menu
+   - Preserves user vault databases & encryption keys safely across upgrades
 
 SHA-256 CHECKSUMS:
 --------------------------------------------------------------------------------

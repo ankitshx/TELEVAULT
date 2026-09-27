@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host " 🚀 TELEVAULT Windows 1-Click Setup & Launcher" -ForegroundColor Cyan
 Write-Host "    Private, append-only, resilient cloud drive via MTProto" -ForegroundColor DarkCyan
+Write-Host "    Created with ❤️ by Ankit Sharma (@ankitshx)" -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Cyan
 
 $CurrentScriptDir = $PSScriptRoot
