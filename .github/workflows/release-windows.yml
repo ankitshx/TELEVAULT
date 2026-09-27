@@ -35,10 +35,18 @@ jobs:
         run: |
           pytest tests/ -v
 
-      - name: Build Windows Executable (PyInstaller)
+      - name: Build React Desktop Frontend
+        run: |
+          cd apps/desktop
+          npm ci
+          npm run build
+
+      - name: Build Rust Desktop Executable (Tauri)
         shell: pwsh
         run: |
-          powershell -ExecutionPolicy Bypass -File scripts/build_windows.ps1 -Mode Production -SkipTests
+          cargo build --release --manifest-path apps/desktop/src-tauri/Cargo.toml
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/release/TELEVAULT.exe dist/TELEVAULT.exe -Force
 
       - name: Install Inno Setup Compiler (if needed)
         shell: pwsh

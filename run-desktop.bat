@@ -10,17 +10,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path '%~d
 if exist "%LOCALAPPDATA%\Programs\TELEVAULT\TELEVAULT.exe" (
     start "" "%LOCALAPPDATA%\Programs\TELEVAULT\TELEVAULT.exe"
 ) else if exist "%~dp0dist\TELEVAULT.exe" (
-    start "" "%~dp0dist\TELEVAULT.exe" gui
+    start "" "%~dp0dist\TELEVAULT.exe"
+) else if exist "%~dp0target\release\TELEVAULT.exe" (
+    start "" "%~dp0target\release\TELEVAULT.exe"
 ) else if exist "%~dp0release\TELEVAULT-Setup.exe" (
     start "" "%~dp0release\TELEVAULT-Setup.exe"
 ) else (
-    where python >nul 2>&1
-    if %ERRORLEVEL% equ 0 (
-        start "" python -m televault.presentation.cli gui
-    ) else (
-        echo [ERROR] No desktop executable or Python environment found.
-        echo Please run release\TELEVAULT-Setup.exe or install Python 3.12+.
-        pause
-    )
+    echo [ERROR] No TELEVAULT desktop executable found.
+    echo Please run release\TELEVAULT-Setup.exe to install.
+    pause
 )
 

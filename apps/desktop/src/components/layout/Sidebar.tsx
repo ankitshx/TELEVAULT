@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               lineHeight: 1.2,
             }}
           >
-            TeleCloud
+            TELEVAULT
           </h1>
           <p
             style={{
@@ -243,6 +243,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>{formatBytes(usedBytes)}</span>
           <span>{formatBytes(totalBytes)}</span>
         </div>
+      </div>
+
+      {/* Creator Attribution */}
+      <div
+        style={{
+          marginTop: "12px",
+          padding: "8px 10px",
+          textAlign: "center",
+          fontSize: "11px",
+          color: "var(--text-muted)",
+          borderTop: "1px solid var(--border-subtle)",
+        }}
+      >
+        Created with ❤️ by{" "}
+        <a
+          href="https://github.com/ankitshx"
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: "var(--accent-cyan)", fontWeight: 600, textDecoration: "none" }}
+        >
+          Ankit Sharma (@ankitshx)
+        </a>
       </div>
     </aside>
   );

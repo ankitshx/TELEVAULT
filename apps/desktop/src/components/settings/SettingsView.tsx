@@ -386,10 +386,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus, onLog
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div>
               <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)" }}>
-                About TeleCloud
+                About TELEVAULT
               </h3>
               <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-                Commercial personal cloud drive powered by Telegram storage.
+                High-performance personal cloud drive powered by Telegram MTProto storage.
               </p>
             </div>
 
@@ -410,27 +410,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus, onLog
                 </div>
                 <div>
                   <h4 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)" }}>
-                    TeleCloud Desktop
+                    TELEVAULT Desktop
                   </h4>
                   <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    Version 0.1.0 • Built with Tauri 2 + Rust
+                    Version 2.1.3 • Built with Tauri 2 + Rust + React
                   </p>
                 </div>
               </div>
 
               <div style={{ height: "1px", backgroundColor: "var(--border-subtle)" }} />
 
+              <div style={{ padding: "10px 14px", backgroundColor: "rgba(6, 182, 212, 0.1)", borderRadius: "8px", border: "1px solid rgba(6, 182, 212, 0.2)" }}>
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--accent-cyan)", margin: 0 }}>
+                  👨‍💻 Created & Developed by Ankit Sharma (@ankitshx)
+                </p>
+                <p style={{ fontSize: "11px", color: "var(--text-secondary)", margin: "4px 0 0 0" }}>
+                  Infinite resilient personal storage via MTProto object partitioning.
+                </p>
+              </div>
+
               <p style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                TeleCloud is an independent open-source cloud storage application. It is NOT an official Telegram product and does not claim any affiliation with Telegram FZ-LLC.
+                TELEVAULT is an independent open-source cloud storage application. It is NOT an official Telegram product and does not claim any affiliation with Telegram FZ-LLC.
               </p>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                <Button variant="secondary" size="sm">
-                  View License (MIT)
-                </Button>
-                <Button variant="ghost" size="sm">
-                  Documentation
-                </Button>
+                <a href="https://github.com/ankitshx/TELEVAULT" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                  <Button variant="secondary" size="sm">
+                    GitHub Repository
+                  </Button>
+                </a>
               </div>
             </div>
           </div>
