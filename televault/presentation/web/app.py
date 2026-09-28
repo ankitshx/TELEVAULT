@@ -124,6 +124,11 @@ async def get_index():
     return FileResponse(index_path)
 
 
+@app.get("/api/health")
+async def get_health():
+    return {"status": "ok", "service": "TELEVAULT-backend"}
+
+
 @app.get("/api/status")
 async def get_status():
     is_auth = await auth_service.is_authorized()

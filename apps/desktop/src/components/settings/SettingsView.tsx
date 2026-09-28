@@ -413,7 +413,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ storageStatus, onLog
                     TELEVAULT Desktop
                   </h4>
                   <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    Version 2.1.3 • Built with Tauri 2 + Rust + React
+                    Version 2.1.4 • Built with Tauri 2 + Rust + React
                   </p>
                 </div>
               </div>

@@ -60,8 +60,8 @@ $DistDir = Join-Path $ProjectRoot "dist"
 $BuildDir = Join-Path $ProjectRoot "build"
 $SpecFile = Join-Path $ProjectRoot "packaging\televault.spec"
 
-if (Test-Path (Join-Path $DistDir "TELEVAULT.exe")) {
-    Remove-Item (Join-Path $DistDir "TELEVAULT.exe") -Force -ErrorAction SilentlyContinue
+if (Test-Path (Join-Path $DistDir "TELEVAULT-backend.exe")) {
+    Remove-Item (Join-Path $DistDir "TELEVAULT-backend.exe") -Force -ErrorAction SilentlyContinue
 }
 if ($Mode -eq "Production" -and (Test-Path $BuildDir)) {
     Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -91,7 +91,7 @@ try {
 }
 
 # 5. Output Verification
-$TargetExe = Join-Path $DistDir "TELEVAULT.exe"
+$TargetExe = Join-Path $DistDir "TELEVAULT-backend.exe"
 if (-not (Test-Path $TargetExe)) {
     throw "Build failed: Output executable '$TargetExe' was not created."
 }

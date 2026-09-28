@@ -112,19 +112,24 @@ Write-Host "[5/5] Generating release notes template..." -ForegroundColor Yellow
 $NotesFile = Join-Path $ReleaseDir "RELEASE_NOTES.txt"
 $ReleaseNotes = @"
 ================================================================================
-  TELEVAULT Windows 11 Release v2.1.3
+  TELEVAULT Windows 11 Release v2.1.4
   High-Performance Resilient Personal Cloud Drive
 ================================================================================
 
 Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Publisher: Ankit Sharma (@ankitshx)
 
-PRIMARY ARTIFACT IN THIS RELEASE:
+PRODUCTION ARTIFACTS IN THIS RELEASE:
 --------------------------------------------------------------------------------
-1. TELEVAULT.exe - Direct Run Portable Executable
-   - Pure Rust + React modern glassmorphism cloud drive
-   - Zero installation, zero external dependencies
-   - Double-click to launch directly!
+1. TELEVAULT-Setup-x64.exe - Production Windows Installer
+   - Installs TELEVAULT desktop application and TELEVAULT-backend service
+   - Desktop and Start Menu shortcuts, SendTo integration, safe uninstaller
+   - Zero external dependencies; Python not required
+
+2. TELEVAULT-Portable-x64.exe - Standalone Direct-Run Portable Application
+   - Single-file zero-install executable
+   - Automatically manages backend service lifecycle on 127.0.0.1:8000
+   - Double-click to launch directly from any directory
 
 SHA-256 CHECKSUMS:
 --------------------------------------------------------------------------------
@@ -133,12 +138,12 @@ $(Get-Content $ChecksumFile -Raw)
 SYSTEM REQUIREMENTS:
 --------------------------------------------------------------------------------
 - Windows 11 / Windows 10 (x64)
-- No Python or runtime dependencies required
+- No Python or developer runtimes required
 
 SECURITY & VERIFICATION:
 --------------------------------------------------------------------------------
 - Verify the SHA-256 hash using PowerShell:
-    Get-FileHash TELEVAULT-Setup.exe -Algorithm SHA256
+    Get-FileHash TELEVAULT-Setup-x64.exe -Algorithm SHA256
 "@
 
 $ReleaseNotes | Out-File -FilePath $NotesFile -Encoding utf8 -Force

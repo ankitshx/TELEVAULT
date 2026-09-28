@@ -1,9 +1,10 @@
 ; Inno Setup Script for TELEVAULT Windows 11 Installer
 #define MyAppName "TELEVAULT"
-#define MyAppVersion "2.1.3"
+#define MyAppVersion "2.1.4"
 #define MyAppPublisher "Ankit Sharma (@ankitshx)"
 #define MyAppURL "https://github.com/ankitshx/TELEVAULT"
 #define MyAppExeName "TELEVAULT.exe"
+#define MyAppBackendExeName "TELEVAULT-backend.exe"
 
 [Setup]
 AppId={{D99F26E4-998C-4D0C-B2B2-3788F9651C5E}
@@ -36,6 +37,7 @@ Name: "sendto"; Description: "Add to Windows Explorer 'Send To' menu"; GroupDesc
 
 [Files]
 Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\{#MyAppBackendExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

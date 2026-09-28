@@ -579,17 +579,21 @@ async def handle_audit(args: argparse.Namespace) -> int:
 
 def handle_web(args: argparse.Namespace) -> int:
     import uvicorn
+    from televault.presentation.web.app import app
     url = f"http://{args.host}:{args.port}"
-    console.print(Panel.fit(
-        f"[bold cyan]TeleVault Web Server Running[/bold cyan]\n"
-        f"[bold white]URL:[/bold white] [link={url}]{url}[/link]\n"
-        f"[dim]Press Ctrl+C to terminate the web server.[/dim]",
-        border_style="cyan",
-        box=box.ASCII,
-    ))
+    try:
+        console.print(Panel.fit(
+            f"[bold cyan]TeleVault Web Server Running[/bold cyan]\n"
+            f"[bold white]URL:[/bold white] [link={url}]{url}[/link]\n"
+            f"[dim]Press Ctrl+C to terminate the web server.[/dim]",
+            border_style="cyan",
+            box=box.ASCII,
+        ))
+    except Exception:
+        pass
     if not args.no_browser:
         webbrowser.open(url)
-    uvicorn.run("televault.presentation.web.app:app", host=args.host, port=args.port, reload=False)
+    uvicorn.run(app, host=args.host, port=args.port, reload=False)
     return 0
 
 

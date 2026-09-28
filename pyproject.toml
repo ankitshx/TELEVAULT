@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "televault"
-version = "2.1.3"
+version = "2.1.4"
 description = "Manual-only, append-only resilient desktop backup vault powered by Telegram MTProto user sessions."
 readme = "docs/README.md"
 requires-python = ">=3.12"

@@ -129,7 +129,7 @@ class SettingsView(QWidget):
         a_layout.addWidget(a_title)
 
         a_desc = QLabel(
-            "<b>TELEVAULT v2.1.3</b> — Resilient, append-only personal cloud drive powered by Telegram MTProto.<br>"
+            "<b>TELEVAULT v2.1.4</b> — Resilient, append-only personal cloud drive powered by Telegram MTProto.<br>"
             "Created and developed by <b>Ankit Sharma</b> (<a href='https://github.com/ankitshx' style='color: #06B6D4;'>@ankitshx</a>)."
         )
         a_desc.setOpenExternalLinks(True)

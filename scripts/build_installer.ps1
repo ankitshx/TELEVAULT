@@ -21,8 +21,12 @@ Write-Host "=======================================================" -Foreground
 
 # 1. Verify Prerequisites
 $DistExe = Join-Path $ProjectRoot "dist\TELEVAULT.exe"
+$BackendExe = Join-Path $ProjectRoot "dist\TELEVAULT-backend.exe"
 if (-not (Test-Path $DistExe)) {
-    throw "Target executable '$DistExe' does not exist. Run scripts/build_windows.ps1 first."
+    throw "Target executable '$DistExe' does not exist. Run tauri build first."
+}
+if (-not (Test-Path $BackendExe)) {
+    throw "Backend executable '$BackendExe' does not exist. Run scripts/build_windows.ps1 first."
 }
 
 if (-not $IssPath) {

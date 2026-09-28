@@ -318,46 +318,107 @@ async fn select_file() -> Result<Option<String>, String> {
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
+static BACKEND_CHILD: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
+
+pub fn stop_backend() {
+    if let Ok(mut lock) = BACKEND_CHILD.lock() {
+        if let Some(mut child) = lock.take() {
+            println!("[TELEVAULT] Shutting down backend process (PID: {})...", child.id());
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 fn ensure_backend_running() {
     std::thread::spawn(|| {
-        if std::net::TcpStream::connect("127.0.0.1:8000").is_err() {
-            let exe_dir = std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-                .unwrap_or_else(|| PathBuf::from("."));
+        if std::net::TcpStream::connect("127.0.0.1:8000").is_ok() {
+            println!("[TELEVAULT] Backend is already running on 127.0.0.1:8000.");
+            return;
+        }
 
-            let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| PathBuf::from("."));
 
-            let candidates = vec![
-                exe_dir.join("televault.exe"),
-                PathBuf::from("televault.exe"),
-                exe_dir.join("..").join("televault.exe"),
-                exe_dir.join("..").join("..").join("televault.exe"),
-                exe_dir.join("dist").join("televault.exe"),
-                PathBuf::from(&local_app_data).join("Programs").join("TeleCloud").join("televault.exe"),
-                PathBuf::from(&local_app_data).join("TeleVault").join("televault.exe"),
-            ];
+        let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
 
-            let found = candidates.into_iter().find(|p| p.exists());
+        let candidates = vec![
+            exe_dir.join("TELEVAULT-backend.exe"),
+            exe_dir.join("dist").join("TELEVAULT-backend.exe"),
+            exe_dir.join("..").join("TELEVAULT-backend.exe"),
+            exe_dir.join("..").join("dist").join("TELEVAULT-backend.exe"),
+            exe_dir.join("..").join("..").join("dist").join("TELEVAULT-backend.exe"),
+            PathBuf::from(&local_app_data).join("Programs").join("TELEVAULT").join("TELEVAULT-backend.exe"),
+            PathBuf::from(&local_app_data).join("Programs").join("TeleCloud").join("TELEVAULT-backend.exe"),
+            PathBuf::from(&local_app_data).join("TeleVault").join("TELEVAULT-backend.exe"),
+        ];
 
+        let mut found = candidates.into_iter().find(|p| p.is_file());
+
+        if found.is_none() {
+            // Portable fallback: extract embedded TELEVAULT-backend.exe to %LOCALAPPDATA%\TeleVault\bin\
+            let bin_dir = PathBuf::from(&local_app_data).join("TeleVault").join("bin");
+            let _ = std::fs::create_dir_all(&bin_dir);
+            let extracted_path = bin_dir.join("TELEVAULT-backend.exe");
+            const EMBEDDED_BACKEND: &[u8] = include_bytes!("../../../../dist/TELEVAULT-backend.exe");
+            println!("[TELEVAULT] Extracting embedded portable backend ({} bytes) to {:?}", EMBEDDED_BACKEND.len(), extracted_path);
+            if std::fs::write(&extracted_path, EMBEDDED_BACKEND).is_ok() {
+                found = Some(extracted_path);
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let spawn_result = if let Some(target) = found {
+            println!("[TELEVAULT] Starting production backend from: {:?}", target);
+            let mut cmd = std::process::Command::new(&target);
+            cmd.args(&["web", "--no-browser"]);
+            if let Some(parent) = target.parent() {
+                cmd.current_dir(parent);
+            }
             #[cfg(target_os = "windows")]
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.spawn()
+        } else {
+            println!("[TELEVAULT] Production backend binary not found. Falling back to development Python launcher...");
+            let mut cmd = std::process::Command::new("python");
+            cmd.args(&["-m", "televault.presentation.cli", "web", "--no-browser"]);
+            #[cfg(target_os = "windows")]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.spawn()
+        };
 
-            if let Some(target) = found {
-                let mut cmd = std::process::Command::new(&target);
-                cmd.args(&["web", "--no-browser"]);
-                if let Some(parent) = target.parent() {
-                    cmd.current_dir(parent);
+        match spawn_result {
+            Ok(child) => {
+                let pid = child.id();
+                println!("[TELEVAULT] Backend process spawned successfully with PID {}", pid);
+                if let Ok(mut lock) = BACKEND_CHILD.lock() {
+                    *lock = Some(child);
                 }
-                #[cfg(target_os = "windows")]
-                cmd.creation_flags(CREATE_NO_WINDOW);
-                let _ = cmd.spawn();
-            } else {
-                let mut cmd = std::process::Command::new("python");
-                cmd.args(&["-m", "televault.presentation.cli", "web", "--no-browser"]);
-                #[cfg(target_os = "windows")]
-                cmd.creation_flags(CREATE_NO_WINDOW);
-                let _ = cmd.spawn();
+
+                // Poll for backend readiness (timeout: 15 seconds)
+                let start = std::time::Instant::now();
+                let timeout = std::time::Duration::from_secs(15);
+                let mut ready = false;
+                while start.elapsed() < timeout {
+                    if std::net::TcpStream::connect("127.0.0.1:8000").is_ok() {
+                        ready = true;
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(250));
+                }
+
+                if ready {
+                    println!("[TELEVAULT] Backend is ready and listening on 127.0.0.1:8000 (took {:?}).", start.elapsed());
+                } else {
+                    eprintln!("[TELEVAULT] WARNING: Backend was spawned (PID {}) but did not respond on 127.0.0.1:8000 within 15 seconds.", pid);
+                }
+            }
+            Err(e) => {
+                eprintln!("[TELEVAULT] ERROR: Failed to spawn TeleVault backend process: {}", e);
             }
         }
     });
@@ -436,7 +497,12 @@ pub fn run() {
             get_storage_status,
             select_file
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running telecloud application");
+        .build(tauri::generate_context!())
+        .expect("error while building telecloud application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                stop_backend();
+            }
+        });
 }
 

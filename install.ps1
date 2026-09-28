@@ -59,10 +59,10 @@ if ($LocalInstaller) {
 
     $Candidates = @(
         "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup-x64.exe",
-        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.4/TELEVAULT-Setup-x64.exe",
         "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup-x64.exe",
-        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup.exe",
         "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Portable-x64.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.4/TELEVAULT-Portable-x64.exe",
         "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe"
     )
 
