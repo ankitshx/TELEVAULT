@@ -79,9 +79,9 @@ try {
 }
 
 # 4. Verify Output
-$InstallerExe = Join-Path $ReleaseDir "TELEVAULT-Setup.exe"
+$InstallerExe = Join-Path $ReleaseDir "TELEVAULT-Setup-x64.exe"
 if (-not (Test-Path $InstallerExe)) {
-    # Check for versioned filename fallback
+    # Check for legacy or versioned filename fallback
     $Found = Get-ChildItem -Path $ReleaseDir -Filter "*TELEVAULT*Setup*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($Found) {
         $InstallerExe = $Found.FullName

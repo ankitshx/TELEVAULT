@@ -8,6 +8,7 @@ on:
 
 jobs:
   test:
+    name: Windows Test Suite
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,3 +34,26 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           pytest tests/ -v
+
+  linux-cli:
+    name: Build & Test Linux CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Linux CLI (telecloud)
+        run: |
+          cargo build --release -p telecloud-cli
+
+      - name: Run Rust Workspace Tests on Linux
+        run: |
+          cargo test --workspace --exclude telecloud-desktop
+
+      - name: CLI Smoke Test
+        run: |
+          ./target/release/telecloud --help
+          ./target/release/telecloud status
+

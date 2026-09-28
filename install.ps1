@@ -26,9 +26,11 @@ if (-not (Test-Path $InstallDir)) {
 Write-Host "`n[1/3] Resolving application package..." -ForegroundColor Yellow
 
 $LocalCandidates = @(
+    (Join-Path $CurrentScriptDir "release\TELEVAULT-Setup-x64.exe"),
+    (Join-Path $CurrentScriptDir "TELEVAULT-Setup-x64.exe"),
     (Join-Path $CurrentScriptDir "release\TELEVAULT-Setup.exe"),
-    (Join-Path $CurrentScriptDir "TELEVAULT-Setup.exe"),
     (Join-Path $CurrentScriptDir "dist\TELEVAULT.exe"),
+    (Join-Path $CurrentScriptDir "release\TELEVAULT-Portable-x64.exe"),
     (Join-Path $CurrentScriptDir "TELEVAULT.exe")
 )
 
@@ -40,12 +42,12 @@ foreach ($cand in $LocalCandidates) {
     }
 }
 
-$TargetSetupExe = "$InstallDir\TELEVAULT-Setup.exe"
+$TargetSetupExe = "$InstallDir\TELEVAULT-Setup-x64.exe"
 $TargetStandaloneExe = "$InstallDir\TELEVAULT.exe"
 
 if ($LocalInstaller) {
     Write-Host "      [OK] Found local package: $(Split-Path -Leaf $LocalInstaller)" -ForegroundColor Green
-    if ($LocalInstaller -like "*Setup.exe") {
+    if ($LocalInstaller -like "*Setup*.exe") {
         Copy-Item -Path $LocalInstaller -Destination $TargetSetupExe -Force
         $ExecTarget = $TargetSetupExe
     } else {
@@ -56,11 +58,12 @@ if ($LocalInstaller) {
     Write-Host "      Downloading TELEVAULT from GitHub Releases..." -ForegroundColor Cyan
 
     $Candidates = @(
+        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup-x64.exe",
         "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup-x64.exe",
         "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.3/TELEVAULT-Setup.exe",
-        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.2/TELEVAULT-Setup.exe",
-        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe",
-        "https://github.com/ankitshx/TELEVAULT/releases/download/v2.1.0/televault.exe"
+        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Portable-x64.exe",
+        "https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe"
     )
 
     $Downloaded = $false

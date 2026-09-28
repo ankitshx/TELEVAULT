@@ -16,17 +16,22 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\release
-OutputBaseFilename=TELEVAULT-Setup
+OutputBaseFilename=TELEVAULT-Setup-x64
 Compression=lzma2/ultra64
 SolidCompression=yes
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequiredOverridesAllowed=dialog commandline
+UsedUserAreasWarning=no
 WizardStyle=modern
 SetupIconFile=..\assets\icons\televault.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "sendto"; Description: "Add to Windows Explorer 'Send To' menu"; GroupDescription: "Explorer Integration:"
 
 [Files]
@@ -39,3 +44,33 @@ Name: "{userappdata}\Microsoft\Windows\SendTo\{#MyAppName}"; Filename: "{app}\{#
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Prompt during uninstallation to optionally preserve or remove user data
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  UserDataDirTeleVault: string;
+  UserDataDirTeleCloud: string;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    UserDataDirTeleVault := ExpandConstant('{localappdata}\TeleVault');
+    UserDataDirTeleCloud := ExpandConstant('{localappdata}\TeleCloud');
+    
+    if DirExists(UserDataDirTeleVault) or DirExists(UserDataDirTeleCloud) then
+    begin
+      // Prompt user with default button = NO (protect user data from accidental loss)
+      if MsgBox('Do you also want to remove your TELEVAULT local database, configuration, and cached transfer data?' + #13#10 + #13#10 +
+                'Click NO to keep your local data and Telegram session intact for future reinstalls.' + #13#10 +
+                'Click YES to completely delete all local cache and databases.',
+                mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      begin
+        if DirExists(UserDataDirTeleVault) then
+          DelTree(UserDataDirTeleVault, True, True, True);
+        if DirExists(UserDataDirTeleCloud) then
+          DelTree(UserDataDirTeleCloud, True, True, True);
+      end;
+    end;
+  end;
+end;
+

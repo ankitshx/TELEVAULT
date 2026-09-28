@@ -86,14 +86,18 @@ if ($TargetPath) {
     $TargetsToSign += (Resolve-Path $TargetPath).Path
 } else {
     $ExePath = Join-Path $ProjectRoot "dist\TELEVAULT.exe"
-    $InstallerPath = Join-Path $ProjectRoot "release\TELEVAULT-Setup.exe"
+    $InstallerPath = Join-Path $ProjectRoot "release\TELEVAULT-Setup-x64.exe"
+    $PortablePath = Join-Path $ProjectRoot "release\TELEVAULT-Portable-x64.exe"
+    $ReleaseExePath = Join-Path $ProjectRoot "release\TELEVAULT.exe"
 
     if (Test-Path $ExePath) { $TargetsToSign += $ExePath }
     if (Test-Path $InstallerPath) { $TargetsToSign += $InstallerPath }
+    if (Test-Path $PortablePath) { $TargetsToSign += $PortablePath }
+    if (Test-Path $ReleaseExePath -and $ReleaseExePath -ne $ExePath) { $TargetsToSign += $ReleaseExePath }
 }
 
 if ($TargetsToSign.Count -eq 0) {
-    throw "No files found to sign. Expected dist\TELEVAULT.exe or release\TELEVAULT-Setup.exe."
+    throw "No files found to sign. Expected dist\TELEVAULT.exe or release\TELEVAULT-Setup-x64.exe."
 }
 
 # 3. Sign Files

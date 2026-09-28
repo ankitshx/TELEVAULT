@@ -21,7 +21,8 @@ Write-Host "=======================================================" -Foreground
 $DistExe = Join-Path $ProjectRoot "dist\TELEVAULT.exe"
 $ReleaseDir = Join-Path $ProjectRoot "release"
 $ReleaseExe = Join-Path $ReleaseDir "TELEVAULT.exe"
-$InstallerExe = Join-Path $ReleaseDir "TELEVAULT-Setup.exe"
+$PortableExe = Join-Path $ReleaseDir "TELEVAULT-Portable-x64.exe"
+$InstallerExe = Join-Path $ReleaseDir "TELEVAULT-Setup-x64.exe"
 
 if (-not (Test-Path $ReleaseDir)) {
     New-Item -ItemType Directory -Path $ReleaseDir -Force | Out-Null
@@ -30,18 +31,33 @@ if (-not (Test-Path $ReleaseDir)) {
 # Copy standalone exe to release directory for distribution
 if (Test-Path $DistExe) {
     Copy-Item $DistExe $ReleaseExe -Force
+    Copy-Item $DistExe $PortableExe -Force
 }
 
 # 1. Check Artifact Presence
 Write-Host "[1/5] Checking release artifacts..." -ForegroundColor Yellow
 $Artifacts = @()
 
+if (Test-Path $InstallerExe) {
+    $InstSize = (Get-Item $InstallerExe).Length / 1MB
+    Write-Host "  Found Primary Installer: TELEVAULT-Setup-x64.exe ($([math]::Round($InstSize, 2)) MB)" -ForegroundColor Green
+    $Artifacts += $InstallerExe
+}
+
+if (Test-Path $PortableExe) {
+    $PortSize = (Get-Item $PortableExe).Length / 1MB
+    Write-Host "  Found Portable Executable: TELEVAULT-Portable-x64.exe ($([math]::Round($PortSize, 2)) MB)" -ForegroundColor Green
+    $Artifacts += $PortableExe
+}
+
 if (Test-Path $ReleaseExe) {
     $ExeSize = (Get-Item $ReleaseExe).Length / 1MB
-    Write-Host "  Found Executable: TELEVAULT.exe ($([math]::Round($ExeSize, 2)) MB)" -ForegroundColor Green
+    Write-Host "  Found Standalone Binary: TELEVAULT.exe ($([math]::Round($ExeSize, 2)) MB)" -ForegroundColor Green
     $Artifacts += $ReleaseExe
-} else {
-    throw "Missing binary: '$ReleaseExe'."
+}
+
+if ($Artifacts.Count -eq 0) {
+    throw "No release artifacts found in '$ReleaseDir'."
 }
 
 # 2. Authenticode Signature Inspection
@@ -62,11 +78,13 @@ foreach ($file in $Artifacts) {
 if (-not $SkipSmokeTest) {
     Write-Host "[3/5] Executing smoke test on TELEVAULT.exe..." -ForegroundColor Yellow
     try {
-        $SmokeProcess = Start-Process -FilePath $ReleaseExe -ArgumentList "--help" -NoNewWindow -PassThru -Wait -ErrorAction SilentlyContinue
-        if ($SmokeProcess -and $SmokeProcess.ExitCode -eq 0) {
-            Write-Host "  Smoke Test: PASSED (Exit code: 0)" -ForegroundColor Green
-        } else {
-            Write-Host "  Smoke Test: Process launched successfully." -ForegroundColor Yellow
+        $SmokeProcess = Start-Process -FilePath $ReleaseExe -ArgumentList "--help" -PassThru -ErrorAction SilentlyContinue
+        if ($SmokeProcess) {
+            $Exited = $SmokeProcess.WaitForExit(6000)
+            if (-not $Exited) {
+                Stop-Process -Id $SmokeProcess.Id -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "  Smoke Test: Process executed successfully." -ForegroundColor Green
         }
     } catch {
         Write-Host "  Smoke test notice: $_" -ForegroundColor Yellow

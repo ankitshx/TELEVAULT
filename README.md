@@ -1,42 +1,62 @@
-# TELEVAULT: High-Performance Personal Cloud Drive Powered by Telegram Storage
+# TELEVAULT
 
-> **TELEVAULT** is a production-grade, personal cloud-drive desktop and CLI application that uses Telegram as a resilient, infinite object storage backend.
+> **Your Personal Cloud. Powered by Telegram.**
+>
+> Production-grade, high-performance personal cloud-drive desktop and CLI application that uses Telegram as a resilient, infinite object storage backend.
 > 
 > 👨‍💻 **Created & Developed by [Ankit Sharma (@ankitshx)](https://github.com/ankitshx)**
 > 
 > *Disclaimer: TELEVAULT is an independent open-source project and is NOT an official Telegram product.*
 
 [![Author](https://img.shields.io/badge/Author-Ankit%20Sharma%20(@ankitshx)-06B6D4.svg?style=for-the-badge&logo=github)](https://github.com/ankitshx)
-[![Platform](https://img.shields.io/badge/platform-Windows%2011%20x64-brightgreen.svg?style=for-the-badge&logo=windows)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-brightgreen.svg?style=for-the-badge&logo=windows)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
-[![Download Portable EXE](https://img.shields.io/badge/Download-TELEVAULT.exe%20(Direct--Run%20Portable)-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)
+[![Download Installer](https://img.shields.io/badge/Download-TELEVAULT--Setup--x64.exe-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup-x64.exe)
 
 ---
 
-## 🚀 Download & Quick Start
+## ⬇️ Download TELEVAULT for Windows
 
-### 📥 1-Click Direct Download (No Install Required)
+**Latest Stable Release: Windows 10/11 x64**
 
-Zero external dependencies (No Python, Node.js, or Rust required):
+*Zero external dependencies — no Python, Node.js, Rust, or Git required.*
 
-- **[⬇️ Download TELEVAULT.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT.exe)** (Single Standalone Executable — Direct Run!)
-- *All Releases & Changelogs:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
+| Edition | Direct Download | Notes |
+| :--- | :--- | :--- |
+| **Windows Installer (Recommended)** | **[⬇️ TELEVAULT-Setup-x64.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Setup-x64.exe)** | Standard installer with Start Menu & Desktop shortcuts, SendTo integration, and persistent data protection |
+| **Portable Version** | **[⬇️ TELEVAULT-Portable-x64.exe](https://github.com/ankitshx/TELEVAULT/releases/latest/download/TELEVAULT-Portable-x64.exe)** | Single standalone executable — direct run without installation |
+
+*All releases, source code, and release notes:* **[GitHub Releases](https://github.com/ankitshx/TELEVAULT/releases)**
 
 #### 🛡️ Windows SmartScreen Note ("Windows protected your PC")
 > As TELEVAULT is a free community open-source project, it does not use an expensive enterprise EV certificate.
-> When Windows SmartScreen displays the blue notice:
+> When Windows SmartScreen displays the notification:
 > 1. Click **"More info"**
 > 2. Click **"Run anyway"**
 > 
-> *Tip: Or unblock the file with PowerShell: `Unblock-File .\TELEVAULT.exe`.*
+> *Tip: Or unblock the downloaded file with PowerShell: `Unblock-File .\TELEVAULT-Setup-x64.exe`.*
 
-### ⚡ Quick Start:
-1. Double-click **`TELEVAULT.exe`** to launch the modern Rust + React glassmorphism drive interface.
-2. Log in using your Telegram phone number, **API ID**, and **API Hash** (obtained for free in 1 minute from [my.telegram.org](https://my.telegram.org)).
-3. Enter your verification code.
-4. Your encrypted private backup channels are ready! Upload, download, restore, and verify files seamlessly.
+---
 
-### 🛠️ Option 2: Build from Source
+## 🚀 Installation & First Run
+
+### 1. Install & Launch
+1. Download **`TELEVAULT-Setup-x64.exe`** and run the setup wizard.
+2. Launch TELEVAULT from your Desktop shortcut or Start Menu.
+
+### 2. Login Once
+1. Enter your Telegram phone number, **API ID**, and **API Hash** (obtained free in 1 minute from [my.telegram.org](https://my.telegram.org)).
+2. Enter your OTP verification code.
+3. Your session is encrypted and securely stored in **Windows Credential Manager**.
+
+### 3. Persistent Across Launches
+- Close TELEVAULT and launch it anytime — your session is automatically detected and the dashboard opens immediately.
+- Local SQLite database and transfer state are stored in `%LOCALAPPDATA%\TeleVault` and `%LOCALAPPDATA%\TeleCloud`.
+- Installing newer versions or updates preserves all existing data and logins.
+
+---
+
+## 🛠️ Build from Source (Developers Only)
 ```bash
 # Clone the repository
 git clone https://github.com/ankitshx/TELEVAULT.git
@@ -48,6 +68,7 @@ npm install
 npm run build
 npx tauri build --no-bundle
 ```
+
 
 ---
 
