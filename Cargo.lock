@@ -407,7 +407,10 @@ dependencies = [
 name = "televault-manifest"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "televault-core",
+ "thiserror",
 ]
 
 [[package]]

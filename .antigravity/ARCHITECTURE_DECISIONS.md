@@ -49,3 +49,23 @@
 - Decision: All symmetric keys are encapsulated in `SecretKey` using `zeroize::ZeroizeOnDrop`, with custom `Debug` implementations that redact key bytes (`SecretKey([REDACTED])`), preventing memory retention after scope exit and accidental leakage in diagnostic logs
 - Reason: Defense-in-depth security protecting secret keys from memory scraping and log exposure
 - Date: 2026-10-07
+
+## AD-011: Manifest Authoritative Logical File Representation
+- Decision: `ManifestV1` is the authoritative source of truth defining a logical file, its integrity digest, its encryption/compression state, and its ordered physical storage chunks. Chunks are internal transfer units and are never presented as independent files to the user
+- Reason: Decouples physical Telegram storage chunking limits from the user-visible file model and guarantees atomic file representation
+- Date: 2026-10-07
+
+## AD-012: Explicit Manifest Specification Versioning
+- Decision: The manifest format is strictly versioned via `ManifestVersion::V1`. Deserialization and validation reject unknown or unvalidated versions with `ManifestError::UnsupportedVersion`
+- Reason: Prevents silent corruption or misinterpretation when future schema versions (v2, v3) are introduced
+- Date: 2026-10-07
+
+## AD-013: Deterministic Chunk Ordering and Restore Invariants
+- Decision: Manifest chunk indices must be contiguous starting at zero (0, 1, ..., N-1), with strict validation ensuring sum of chunk plaintext sizes equals original logical file size. Duplicate chunk IDs or missing indices are rejected deterministically
+- Reason: Guarantees that restore pipelines can reassemble the original file without relying on external directory or network order
+- Date: 2026-10-07
+
+## AD-014: Explicit Optional Encryption in Manifest Metadata
+- Decision: Manifest metadata represents encryption as `Option<EncryptionMetadata>`. When encryption is disabled, the field is `None` with zero synthetic or dummy encryption parameters
+- Reason: Enforces the optional encryption contract, ensuring unencrypted files do not carry misleading or redundant cryptographic headers
+- Date: 2026-10-07

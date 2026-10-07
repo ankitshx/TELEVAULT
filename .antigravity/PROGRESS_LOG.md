@@ -95,50 +95,64 @@
 - Optional encryption contract (`EncryptionPolicy::Enabled` / `EncryptionPolicy::Disabled`).
 - Zero secret leakage, negative security tests, and workspace integration.
 
-### Work Completed:
-- Configured dependencies: `aes-gcm = "0.10"`, `argon2 = "0.5"`, `zeroize = "1.8"`, `rand = "0.8"`.
-- Built `src/error.rs` mapping crypto failures to `televault_core::AppError`.
-- Built `src/key.rs` implementing `SecretKey` (with zeroization), `Salt`, and `Nonce`.
-- Built `src/kdf.rs` implementing Argon2id key derivation according to specifications.
-- Built `src/aad.rs` implementing `ChunkAad` context binding to prevent chunk replay/tampering.
-- Built `src/payload.rs` implementing versioned `EncryptedPayload` and `KdfMetadata`.
-- Built `src/cipher.rs` implementing `encrypt_raw`, `decrypt_raw`, `encrypt_chunk`, `decrypt_chunk`.
-- Built `src/policy.rs` defining `EncryptionPolicy` for explicit opt-in encryption.
-- Updated `src/lib.rs` with clean exports and docstrings.
-- Created 23 unit tests in `televault-crypto` (positive and negative security tests).
-- Verified entire workspace: 53 tests passing across all crates.
+### Commit:
+- Commit message: "Phase 3 complete - cryptographic foundation"
+- Commit hash: `8a6d8ef`
+- Local commit only; NO push to GitHub.
 
-### Files Created (6):
-- `crates/televault-crypto/src/aad.rs`
-- `crates/televault-crypto/src/cipher.rs`
-- `crates/televault-crypto/src/error.rs`
-- `crates/televault-crypto/src/kdf.rs`
-- `crates/televault-crypto/src/key.rs`
-- `crates/televault-crypto/src/payload.rs`
-- `crates/televault-crypto/src/policy.rs`
+---
+
+## Phase 4 - Manifest & Metadata Specification
+- Started: 2026-10-07 14:27 IST
+- Completed: 2026-10-07 14:36 IST
+- Status: Completed
+
+### Objective:
+- Implement production-grade Manifest & Metadata foundation in `crates/televault-manifest`.
+- Define `ManifestV1` as the authoritative source of truth representing a logical file and its physical storage chunks.
+- Implement explicit schema versioning (`ManifestVersion::V1`).
+- Enforce logical file representation (< 2 GB single upload unit, >= 2 GB 1.8 GB internal chunks) without exposing chunks to users.
+- Support optional encryption metadata (`Option<EncryptionMetadata>`).
+- Support independent compression metadata (`CompressionMetadata`).
+- Enforce cryptographic integrity tracking (`IntegrityMetadata` with SHA-256 validation).
+- Enforce strict chunk ordering (0..N-1 contiguous), duplicate ID rejection, size summation invariants, and path traversal security.
+- Comprehensive positive/negative tests, deterministic JSON serialization, 0 Clippy warnings.
+
+### Work Completed:
+- Added `thiserror`, `serde`, `serde_json` to `crates/televault-manifest/Cargo.toml`.
+- Built `src/error.rs` with `ManifestError` mapping to `televault_core::AppError`.
+- Built `src/version.rs` with `ManifestVersion::V1`.
+- Built `src/types.rs` with `IntegrityMetadata`, `CompressionMetadata`, `EncryptionMetadata`, `KdfInfo`, `StorageReference`.
+- Built `src/chunk.rs` with `ChunkManifest`, chunking constants (`CHUNK_THRESHOLD_BYTES`, `TARGET_CHUNK_SIZE_BYTES`), and chunk count calculation.
+- Built `src/manifest.rs` with `LogicalFileMetadata`, `ManifestV1`, full invariant validation, and deterministic JSON serialization.
+- Updated `src/lib.rs` with complete exports.
+- Executed full test suite (73 total workspace tests passing).
+
+### Files Created (5):
+- `crates/televault-manifest/src/chunk.rs`
+- `crates/televault-manifest/src/error.rs`
+- `crates/televault-manifest/src/manifest.rs`
+- `crates/televault-manifest/src/types.rs`
+- `crates/televault-manifest/src/version.rs`
 
 ### Files Modified (4):
-- `Cargo.toml`
+- `crates/televault-manifest/Cargo.toml`
+- `crates/televault-manifest/src/lib.rs`
 - `Cargo.lock`
-- `crates/televault-crypto/Cargo.toml`
-- `crates/televault-crypto/src/lib.rs`
-
-### Documentation Updated (3):
-- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-008, AD-009, AD-010)
-- `.antigravity/MISTAKES.md` (Recorded missing thiserror dependency resolution)
-- `.antigravity/PROGRESS_LOG.md` (Phase 3 completion log)
+- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-011, AD-012, AD-013, AD-014)
+- `.antigravity/MISTAKES.md` (Phase 4 record)
 
 ### Test & Validation Results:
 - `cargo check --workspace`: PASS (all 12 packages clean)
-- `cargo test --workspace`: PASS (53 tests passed, 0 failed, 0 ignored)
+- `cargo test --workspace`: PASS (73 tests passed, 0 failed, 0 ignored)
 - `cargo fmt --all -- --check`: PASS (clean formatting)
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
 - Architecture validation scan: PASS (0 forbidden patterns found)
 
 ### Commit:
-- Commit message: "Phase 3 complete - cryptographic foundation"
+- Commit message: "Phase 4 complete - manifest and metadata foundation"
 - Local commit only; NO push to GitHub.
 
 ### Remaining Work (Next Phases):
-- Phase 4: Manifest & Metadata Specification (`crates/televault-manifest`)
-- Subsequent phases: Database, Storage, Telegram, Transfer, Backup, Scheduler, Integrity, Tauri 2 UI.
+- Phase 5: Embedded SQLite Database & Schema (`crates/televault-db`)
+- Subsequent phases: Storage Provider, Telegram Integration, Transfer Workers, Backup Engine, Scheduler, Integrity, Tauri 2 UI.
