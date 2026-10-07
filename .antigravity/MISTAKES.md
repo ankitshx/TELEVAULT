@@ -42,3 +42,18 @@
 - Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings` passing with zero warnings.
 - Prevention Rule: Combine adjacent conditional filters and define type aliases for complex generic combinations exceeding Clippy thresholds.
 
+## Phase 7 — Clippy too_many_arguments on TransferJob and Progress Constructors
+- Mistake: Initial implementations of `TransferJob::new_upload`, `new_download`, `from_db_record`, `ProgressReader::new`, and `ProgressWriter::new` took 8 to 10 parameters, triggering `-D clippy::too_many_arguments`.
+- Root Cause: Directly passing all fields as function arguments rather than bundling them into domain parameter structs.
+- Fix: Grouped arguments into `UploadJobParams`, `DownloadJobParams`, `DbJobContext`, and `ProgressContext`, providing ergonomic builder patterns with <= 5 constructor parameters.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings` passing with zero warnings across all crates.
+- Prevention Rule: Never create constructors with > 6 parameters; introduce typed parameter or builder structs.
+
+## Phase 7 — Cargo Test Log Truncation Misleading Test Count
+- Mistake: In the Phase 6 summary report, stdout log truncation sliced the top output lines of `cargo test --workspace` (omitting `televault-backup`, `televault-cli`, `televault-core`), causing an apparent test count difference between Phase 5 report (86 tests) and Phase 6 report (73 tests).
+- Root Cause: Relying on the tail portion of terminal logs rather than using `cargo test --workspace -- --list` to enumerate every crate's test binary suite.
+- Fix: Audited every test across all 12 crates using `cargo test --workspace -- --list`, proving all Phase 1–5 tests (80 tests) plus Phase 6 tests (19 tests) + placeholder (1 test) were present and 100% active (100 total in Phase 6). With Phase 7's 27 tests replacing the 1 placeholder, workspace test count reached 126 tests.
+- Regression Test: `cargo test --workspace -- --list` enumerates all 126 tests.
+- Prevention Rule: Always audit test suite inventory with `cargo test --workspace -- --list` to avoid log truncation artifacts.
+
+

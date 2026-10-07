@@ -125,3 +125,29 @@
 - Reason: Enables catastrophic disaster recovery and independent validation of remote backup objects without relying on raw URLs or secret leakage
 - Date: 2026-10-07
 
+## AD-026: Transfer Engine Decoupled from Remote Storage Protocols
+- Decision: `TransferEngine`, `UploadWorker`, and `DownloadWorker` interact strictly through the generic `StorageProvider` trait. Zero Telegram APIs or provider-specific details are imported or referenced in `televault-transfer`
+- Reason: Enforces modular design, eliminates hardcoded dependencies on Telegram, and allows simple mock-driven testing and future multi-cloud extensibility
+- Date: 2026-10-07
+
+## AD-027: Bounded Transfer Concurrency and Demand-Driven Workers
+- Decision: Transfer execution concurrency is strictly constrained by `max_concurrent_transfers` (default 2), managed by `TransferQueue` using atomic capacity tracking. Workers and queues are completely idle with zero CPU or network polling when no jobs are active
+- Reason: Complies with the Permanent Resource Rule to minimize RAM and CPU, preventing thread explosions, memory spikes, and Telegram rate-limit penalties
+- Date: 2026-10-07
+
+## AD-028: Throttled Transfer Progress Notification Model
+- Decision: Streaming progress updates are coalesced and emitted only when the accumulated bytes cross a 256 KiB threshold or on explicit lifecycle state transitions (e.g., Transferring, Verifying, Completed, Failed)
+- Reason: Prevents event spamming, high CPU utilization, and IPC flooding when transferring large multi-gigabyte files
+- Date: 2026-10-07
+
+## AD-029: Idempotent Retries with Exponential Backoff
+- Decision: Transient network or storage errors trigger retries governed by `RetryPolicy` with bounded exponential backoff. Retries strictly preserve deterministic `FileId`, `ChunkId`, `chunk_index`, and `total_chunks`. Terminal failures (exhausted retries, cancellation, invalid requests) do not enter retry loops
+- Reason: Prevents retry storms while ensuring disaster-recovery manifests and chunks remain idempotent and consistent across retries
+- Date: 2026-10-07
+
+## AD-030: Single Embedded Database Synchronization
+- Decision: Transfer job execution state maps directly to the existing `transfer_jobs` table in `televault-db` using `upsert_transfer_job`. No secondary database or duplicate job tracking system is created
+- Reason: Prevents catalog fragmentation and maintains SQLite as the single local source of truth for job history
+- Date: 2026-10-07
+
+

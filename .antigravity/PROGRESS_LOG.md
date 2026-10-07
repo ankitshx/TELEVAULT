@@ -285,3 +285,72 @@
 - Phase 7: Transfer Engine & Upload/Download Workers (`crates/televault-transfer`)
 - Subsequent phases: Backup Engine, Scheduler, Integrity, Tauri 2 UI.
 
+---
+
+## Phase 7 - Transfer Engine & Upload/Download Workers
+- Started: 2026-10-07 15:45 IST
+- Completed: 2026-10-07 16:15 IST
+- Status: Completed
+
+### Objective:
+- Build the production-grade transfer engine in `crates/televault-transfer/`.
+- Provide `UploadWorker`, `DownloadWorker`, `TransferQueue` (bounded concurrency), `CancellationToken`, `TransferProgress` (throttled), `RetryPolicy` (exponential backoff), and `TransferEngine`.
+- Consume generic `StorageProvider` interface without direct coupling to Telegram APIs.
+- Enforce cloud-first architecture: transfers succeed only when remote object is uploaded and verified.
+- Zero whole-file memory buffering: bounded 64 KiB streams (`STREAM_CHUNK_BUFFER_SIZE`), constant bounded memory for 1.8 GB chunks and 5.2 GB multi-chunk files.
+- Integrate with Phase 6 temporary staging RAII lifecycle (`TempPayloadFile` cleanup on success/drop).
+- Integrate with Phase 5 `televault-db` `transfer_jobs` table without creating a second database.
+- Verify Phase 5 test regression: audited test-count continuity across phases (126 total tests passing).
+
+### Work Completed:
+- Added `televault-db` and `sha2` dependencies to `crates/televault-transfer/Cargo.toml`.
+- Built `crates/televault-transfer/src/error.rs` defining typed `TransferError` with retryability assessment and mapping to `televault_core::AppError`.
+- Built `crates/televault-transfer/src/state.rs` defining `TransferState` machine (`Pending`, `Preparing`, `Transferring`, `Verifying`, `Completed`, `Failed`, `Retrying`, `Cancelled`) with valid/invalid transition enforcement and bidirectional mapping to `televault_core::TransferStatus`.
+- Built `crates/televault-transfer/src/cancellation.rs` defining `CancellationToken`, `CancellingReader`, and `CancellingWriter` for cooperative cancellation without thread leaks.
+- Built `crates/televault-transfer/src/progress.rs` providing `TransferProgress`, `ProgressCallback`, `ProgressReader`, and `ProgressWriter` with 256 KiB throttling to prevent UI/CPU flooding.
+- Built `crates/televault-transfer/src/retry.rs` implementing `RetryPolicy` with bounded exponential backoff and max retry limits.
+- Built `crates/televault-transfer/src/job.rs` defining `TransferJob`, `UploadJobParams`, `DownloadJobParams`, `DbJobContext`, invariant validation, and mapping to `televault-db` `TransferJobRecord`.
+- Built `crates/televault-transfer/src/worker.rs` implementing `UploadWorker` and `DownloadWorker` operating over generic `StorageProvider` with bounded 64 KiB buffers and cooperative cancellation checks.
+- Built `crates/televault-transfer/src/queue.rs` implementing `TransferQueue` with bounded concurrency (`max_concurrent_transfers`), active job tracking, and safe job cancellation.
+- Built `crates/televault-transfer/src/engine.rs` implementing `TransferEngine` orchestrating upload streams, download streams, staged payload uploads, queue management, and SQLite database synchronization.
+- Added `upsert_transfer_job` and `create_manifest` helper methods to `crates/televault-db/src/db.rs`.
+- Built `crates/televault-transfer/tests/transfer_tests.rs` with 11 comprehensive integration tests covering upload success, download verification, retry backoff, retry exhaustion, cancellation, queue concurrency boundaries, 1.8 GB chunk bounded streaming, 5.2 GB multi-chunk logical file transfers, staged upload cleanup/drop, and DB synchronization.
+- Full workspace test suite passing (126 tests passed, 0 failed); formatting verified; zero Clippy warnings with `-D warnings`.
+
+### Files Created (10):
+- `crates/televault-transfer/src/error.rs`
+- `crates/televault-transfer/src/state.rs`
+- `crates/televault-transfer/src/cancellation.rs`
+- `crates/televault-transfer/src/progress.rs`
+- `crates/televault-transfer/src/retry.rs`
+- `crates/televault-transfer/src/job.rs`
+- `crates/televault-transfer/src/worker.rs`
+- `crates/televault-transfer/src/queue.rs`
+- `crates/televault-transfer/src/engine.rs`
+- `crates/televault-transfer/tests/transfer_tests.rs`
+
+### Files Modified (7):
+- `Cargo.lock`
+- `crates/televault-db/src/db.rs`
+- `crates/televault-transfer/Cargo.toml`
+- `crates/televault-transfer/src/lib.rs`
+- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-026 through AD-030)
+- `.antigravity/BUILD_RULES.md` (Rules 15 through 17)
+- `.antigravity/MISTAKES.md` (Phase 7 records)
+
+### Test & Validation Results:
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo test --workspace`: PASS (126 tests passed, 0 failed, 0 ignored)
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- Architecture validation scan: PASS (0 forbidden patterns: no Python, no HTTP/localhost, no sidecar, no whole-file RAM buffering)
+
+### Commit:
+- Commit message: "Phase 7 complete - transfer engine and workers"
+- Local commit only; NO push to GitHub.
+
+### Remaining Work (Next Phases):
+- Phase 8: Backup Engine & Snapshot Creation (`crates/televault-backup`)
+- Subsequent phases: Scheduler, Integrity, Tauri 2 UI.
+
+

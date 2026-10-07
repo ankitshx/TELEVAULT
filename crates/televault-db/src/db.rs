@@ -590,6 +590,25 @@ impl Database {
         })
     }
 
+    /// Inserts a raw manifest record.
+    pub fn create_manifest(&self, manifest: &ManifestRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO manifests (manifest_id, file_id, manifest_version, serialized_manifest, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6);",
+                params![
+                    manifest.manifest_id,
+                    manifest.file_id.as_str(),
+                    manifest.manifest_version,
+                    manifest.serialized_manifest,
+                    manifest.created_at,
+                    manifest.updated_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
     /// Retrieves and deserializes a [`ManifestV1`] by its manifest ID.
     pub fn get_manifest(&self, manifest_id: &str) -> Result<Option<ManifestV1>> {
         self.with_connection(|conn| {
@@ -1083,6 +1102,37 @@ impl Database {
                     job_id, file_id, chunk_id, direction, status, progress,
                     retry_count, error_message, created_at, updated_at
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10);",
+                params![
+                    job.job_id.as_str(),
+                    job.file_id.as_str(),
+                    job.chunk_id.as_ref().map(|c| c.as_str()),
+                    job.direction.to_string(),
+                    job.status.to_string(),
+                    job.progress as i64,
+                    job.retry_count as i64,
+                    job.error_message,
+                    job.created_at,
+                    job.updated_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Inserts or updates an existing transfer job record by its primary key.
+    pub fn upsert_transfer_job(&self, job: &TransferJobRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO transfer_jobs (
+                    job_id, file_id, chunk_id, direction, status, progress,
+                    retry_count, error_message, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 ON CONFLICT(job_id) DO UPDATE SET
+                    status = excluded.status,
+                    progress = excluded.progress,
+                    retry_count = excluded.retry_count,
+                    error_message = excluded.error_message,
+                    updated_at = excluded.updated_at;",
                 params![
                     job.job_id.as_str(),
                     job.file_id.as_str(),

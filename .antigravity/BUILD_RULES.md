@@ -14,3 +14,7 @@
 12. Permanent Resource Rule: Minimize idle RAM, CPU, disk, network, processes, and dependencies
 13. Streaming Rule: Zero whole-file memory buffering; all payload transfers use bounded 64 KiB streams
 14. Temporary Staging Rule: Temporary payload files must have explicit RAII lifecycle cleanup (`Drop`), bounded directories, and stale purge
+15. Bounded Concurrency Rule: Never spawn unbounded threads or tasks per transfer; always throttle via bounded queue (`max_concurrent_transfers`)
+16. Throttled Progress Rule: Never emit progress events on every stream buffer read; throttle progress notifications to avoid IPC/CPU flooding
+17. Single Catalog Rule: Transfer jobs must persist only to the existing embedded `transfer_jobs` database table
+
