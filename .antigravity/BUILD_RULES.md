@@ -27,4 +27,6 @@
 25. Single Desktop Process Invariant: The desktop application consists of exactly one process; zero localhost communication, zero HTTP servers, zero Python runtimes, zero backend sidecars
 26. IPC Untrusted Boundary Rule: Treat every frontend IPC request as untrusted; validate paths, IDs, enums, and destination directories using existing `PathManager` and domain validators before execution
 27. Secret Redaction Invariant: Never return API secrets, Telegram credentials, session secrets, or encryption keys in IPC DTOs or logs
-
+28. Zero Busy Loops for Background Daemons: Never poll in tight or frequent loops (`while true { check every ms }`); always sleep until the earliest event (`tokio::select!`) with wakeups via `Notify` or cancellation tokens.
+29. Per-Profile Backup Mutual Exclusion: Never run concurrent backups on the same profile; always synchronize manual and scheduled executions using `ExecutionGuard`.
+30. Single Backup Engine Rule: The scheduler must never implement its own backup logic; it must orchestrate the domain `BackupEngine`.

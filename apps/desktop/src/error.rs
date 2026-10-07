@@ -264,3 +264,42 @@ impl From<televault_transfer::error::TransferError> for IpcError {
         }
     }
 }
+
+impl From<televault_scheduler::SchedulerError> for IpcError {
+    fn from(err: televault_scheduler::SchedulerError) -> Self {
+        match err {
+            televault_scheduler::SchedulerError::Database(e) => e.into(),
+            televault_scheduler::SchedulerError::Backup(e) => e.into(),
+            televault_scheduler::SchedulerError::Core(e) => e.into(),
+            televault_scheduler::SchedulerError::ScheduleNotFound(id) => Self::new(
+                "SCHEDULE_NOT_FOUND",
+                format!("Schedule with ID '{id}' was not found"),
+            )
+            .with_details(id),
+            televault_scheduler::SchedulerError::ProfileNotFound(id) => Self::new(
+                "PROFILE_NOT_FOUND",
+                format!("Profile with ID '{id}' was not found"),
+            )
+            .with_details(id),
+            televault_scheduler::SchedulerError::InvalidSchedule(msg) => {
+                Self::new("INVALID_SCHEDULE", msg)
+            }
+            televault_scheduler::SchedulerError::InvalidExpression(msg) => {
+                Self::new("INVALID_EXPRESSION", msg)
+            }
+            televault_scheduler::SchedulerError::ScheduleConflict(msg) => {
+                Self::new("SCHEDULE_CONFLICT", msg)
+            }
+            televault_scheduler::SchedulerError::ProfileAlreadyRunning(id) => Self::new(
+                "SCHEDULE_ALREADY_RUNNING",
+                format!("Backup for profile '{id}' is already running"),
+            )
+            .with_details(id),
+            televault_scheduler::SchedulerError::Cancelled => Self::cancelled(),
+            televault_scheduler::SchedulerError::Unavailable(msg) => {
+                Self::new("SCHEDULER_UNAVAILABLE", msg)
+            }
+            televault_scheduler::SchedulerError::Internal(msg) => Self::internal(msg),
+        }
+    }
+}

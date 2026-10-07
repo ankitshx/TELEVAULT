@@ -20,3 +20,12 @@
 - Failure Mode: Startup failures, network port collisions, antivirus firewall blocks, packaging nightmare.
 - Protection in Phase 10: Enforced via `apps/desktop/tests/architecture_invariants.rs` (4 tests) permanently verifying: zero localhost / 127.0.0.1 references in frontend and IPC bindings, zero sidecars in `tauri.conf.json`, zero Python files or scripts, and single-process desktop architecture.
 
+## KF-005: Backup Storms After Long System Downtime
+- Risk: When the desktop application starts after being offline for days or weeks, multiple scheduled intervals have elapsed. Replaying every missed execution would trigger a storm of back-to-back backups, exhausting bandwidth and locking SQLite.
+- Mitigation in Phase 11: Bounded `MissedSchedulePolicy::RunOnce` policy. The scheduler executes at most ONE catch-up backup for an overdue schedule upon waking, and immediately advances `next_run_at` to the next scheduled interval in the future.
+
+## KF-006: Concurrency Collisions Between Manual and Scheduled Backups
+- Risk: A user manually triggers `start_backup` while a background scheduled backup for the same profile is already in flight, or the scheduler wakes up while a manual backup is executing.
+- Mitigation in Phase 11: Managed `ExecutionGuard` per-profile lock registry. Concurrent manual triggers immediately return structured `IpcError::conflict("SCHEDULE_ALREADY_RUNNING")`, while overlapping scheduled ticks record a `Skipped` execution history entry and advance to the next run date without racing.
+
+

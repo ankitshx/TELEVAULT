@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "televault-scheduler"
 version.workspace = true
 edition.workspace = true
@@ -8,3 +8,19 @@ repository.workspace = true
 
 [dependencies]
 televault-core = { workspace = true }
+televault-crypto = { workspace = true }
+televault-db = { workspace = true }
+televault-backup = { workspace = true }
+televault-transfer = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "time", "rt", "macros", "test-util"] }
+televault-storage = { workspace = true }
+
+

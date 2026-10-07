@@ -5,6 +5,7 @@ pub mod checker;
 pub mod common;
 pub mod events;
 pub mod restore;
+pub mod scheduler;
 pub mod transfer;
 
 pub use backup::*;
@@ -12,4 +13,5 @@ pub use checker::*;
 pub use common::*;
 pub use events::*;
 pub use restore::*;
+pub use scheduler::*;
 pub use transfer::*;

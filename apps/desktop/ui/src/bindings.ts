@@ -52,6 +52,26 @@ export const commands = {
 	getTransferStatus: () => typedError<TransferStatusDto, IpcError>(__TAURI_INVOKE("get_transfer_status")),
 	/**  Cooperatively cancels an active operation (backup, restore, transfer) via its registered cancellation token. */
 	cancelOperation: (request: CancelOperationRequest) => typedError<boolean, IpcError>(__TAURI_INVOKE("cancel_operation", { request })),
+	/**  Lists all configured backup schedules. */
+	listSchedules: () => typedError<ScheduleDto[], IpcError>(__TAURI_INVOKE("list_schedules")),
+	/**  Retrieves a specific backup schedule by ID. */
+	getSchedule: (scheduleId: string) => typedError<ScheduleDto, IpcError>(__TAURI_INVOKE("get_schedule", { scheduleId })),
+	/**  Creates a new recurring backup schedule. */
+	createSchedule: (request: CreateScheduleRequest) => typedError<ScheduleDto, IpcError>(__TAURI_INVOKE("create_schedule", { request })),
+	/**  Updates an existing backup schedule's expression or timing. */
+	updateSchedule: (request: UpdateScheduleRequest) => typedError<ScheduleDto, IpcError>(__TAURI_INVOKE("update_schedule", { request })),
+	/**  Deletes a backup schedule by its unique ID. */
+	deleteSchedule: (scheduleId: string) => typedError<boolean, IpcError>(__TAURI_INVOKE("delete_schedule", { scheduleId })),
+	/**  Enables a schedule and recalculates its next execution time. */
+	enableSchedule: (scheduleId: string) => typedError<ScheduleDto, IpcError>(__TAURI_INVOKE("enable_schedule", { scheduleId })),
+	/**  Disables a schedule and cancels pending executions. */
+	disableSchedule: (scheduleId: string) => typedError<ScheduleDto, IpcError>(__TAURI_INVOKE("disable_schedule", { scheduleId })),
+	/**  Triggers an immediate execution of a scheduled backup. */
+	runScheduleNow: (scheduleId: string) => typedError<string | null, IpcError>(__TAURI_INVOKE("run_schedule_now", { scheduleId })),
+	/**  Queries current operational status and active workers of the scheduler. */
+	getSchedulerStatus: () => typedError<SchedulerStatusDto, IpcError>(__TAURI_INVOKE("get_scheduler_status")),
+	/**  Retrieves execution history for a schedule. */
+	getScheduleHistory: (scheduleId: string, limit: number | null) => typedError<ScheduleHistoryDto[], IpcError>(__TAURI_INVOKE("get_schedule_history", { scheduleId, limit })),
 };
 
 /* Types */
@@ -129,6 +149,20 @@ export type CreateProfileRequest = {
 	description: string | null,
 	/**  Absolute local filesystem path to the folder to back up. */
 	source_path: string,
+};
+
+/**  Parameters for creating a new recurring backup schedule. */
+export type CreateScheduleRequest = {
+	/**  Target backup profile identifier. */
+	profile_id: string,
+	/**  Schedule type: 'interval', 'daily', 'weekly', 'cron'. */
+	schedule_type: string,
+	/**  Recurrence expression (e.g. "15m", "02:00", "Sun@03:00", "0 2 * * *"). */
+	expression: string,
+	/**  Timezone strategy: 'local' (default) or 'utc'. */
+	timezone: string | null,
+	/**  Whether the schedule is active upon creation. */
+	enabled: boolean | null,
 };
 
 /**  Resulting outcome of a file restore operation. */
@@ -235,6 +269,70 @@ export type RestoreSnapshotRequest = {
 	passphrase: string | null,
 };
 
+/**  User-facing representation of a recurring backup schedule. */
+export type ScheduleDto = {
+	/**  Unique schedule identifier. */
+	schedule_id: string,
+	/**  Associated backup profile identifier. */
+	profile_id: string,
+	/**  Schedule recurrence type. */
+	schedule_type: string,
+	/**  Schedule expression string. */
+	expression: string,
+	/**  Timezone calculation strategy. */
+	timezone: string,
+	/**  Whether the schedule is currently enabled. */
+	enabled: boolean,
+	/**  ISO-8601 UTC timestamp of next scheduled execution. */
+	next_run_at: string | null,
+	/**  ISO-8601 UTC timestamp of last executed run. */
+	last_run_at: string | null,
+	/**  Execution status from the last run. */
+	last_status: string | null,
+	/**  Error code if the last run failed. */
+	last_error_code: string | null,
+	/**  Schedule creation timestamp. */
+	created_at: string,
+	/**  Schedule last update timestamp. */
+	updated_at: string,
+};
+
+/**  Execution history record for a scheduled backup run. */
+export type ScheduleHistoryDto = {
+	/**  Unique execution history record identifier. */
+	history_id: string,
+	/**  Associated schedule identifier. */
+	schedule_id: string,
+	/**  Associated profile identifier. */
+	profile_id: string,
+	/**  Execution start timestamp. */
+	started_at: string,
+	/**  Execution completion timestamp, if finished. */
+	completed_at: string | null,
+	/**  Execution status ('completed', 'failed', 'cancelled', 'skipped'). */
+	status: string,
+	/**  Snapshot identifier if backup completed. */
+	snapshot_id: string | null,
+	/**  Total files processed. */
+	files_processed: number,
+	/**  Total payload bytes transferred. */
+	bytes_transferred: number,
+	/**  Error code if execution failed. */
+	error_code: string | null,
+	/**  Safe human-readable error message. */
+	error_message: string | null,
+};
+
+/**  Overall status and health of the scheduler subsystem. */
+export type SchedulerStatusDto = {
+	/**  Operational status: 'running', 'stopped', 'paused'. */
+	status: string,
+	/**  Number of configured enabled schedules. */
+	active_schedules_count: number,
+	/**  Profiles currently executing backups. */
+	running_profiles: string[],
+};
+
 /**  Historical snapshot metadata record. */
 export type SnapshotDto = {
 	snapshot_id: string,
@@ -320,6 +418,20 @@ export type UpdateProfileRequest = {
 	/**  New source directory path if modifying. */
 	source_path: string | null,
 	/**  Enable or disable profile. */
+	enabled: boolean | null,
+};
+
+/**  Parameters for updating an existing schedule configuration. */
+export type UpdateScheduleRequest = {
+	/**  Target schedule identifier. */
+	schedule_id: string,
+	/**  New schedule type, if updating. */
+	schedule_type: string | null,
+	/**  New recurrence expression, if updating. */
+	expression: string | null,
+	/**  New timezone strategy, if updating. */
+	timezone: string | null,
+	/**  New enabled state, if updating. */
 	enabled: boolean | null,
 };
 

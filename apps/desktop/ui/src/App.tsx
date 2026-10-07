@@ -9,19 +9,23 @@ interface AppInfo {
 
 export default function App() {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [schedulerStatus, setSchedulerStatus] = useState<string>("unknown");
   const [status, setStatus] = useState<string>("Initializing typed Tauri IPC connection...");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function testIpc() {
       try {
-        const res = await commands.getAppInfo();
-        if (res.status === "ok") {
-          setAppInfo(res.data);
-          setStatus("Connected to in-process Rust core via typed Tauri IPC");
+        const infoRes = await commands.getAppInfo();
+        const schedRes = await commands.getSchedulerStatus();
+
+        if (infoRes.status === "ok" && schedRes.status === "ok") {
+          setAppInfo(infoRes.data);
+          setSchedulerStatus(schedRes.data.status);
+          setStatus("Connected to in-process Rust core & Scheduler via typed Tauri IPC");
         } else {
-          setError(`[${res.error.code}] ${res.error.message}`);
-          setStatus("IPC returned error");
+          setError("IPC query returned error");
+          setStatus("IPC error encountered");
         }
       } catch (err: unknown) {
         setError(typeof err === "object" && err !== null ? JSON.stringify(err) : String(err));
@@ -42,6 +46,7 @@ export default function App() {
           <p style={{ margin: "0.25rem 0" }}><strong>Application:</strong> {appInfo.app_name}</p>
           <p style={{ margin: "0.25rem 0" }}><strong>Version:</strong> {appInfo.version}</p>
           <p style={{ margin: "0.25rem 0" }}><strong>Platform:</strong> {appInfo.platform}</p>
+          <p style={{ margin: "0.25rem 0" }}><strong>Scheduler Status:</strong> {schedulerStatus}</p>
         </div>
       )}
       {error && (

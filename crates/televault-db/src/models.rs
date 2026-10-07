@@ -185,3 +185,59 @@ pub struct HealthStatus {
     /// Whether foreign keys are actively enforced.
     pub foreign_keys_enabled: bool,
 }
+
+/// Stored recurring backup schedule record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleRecord {
+    /// Unique schedule identifier.
+    pub schedule_id: televault_core::ids::ScheduleId,
+    /// Associated backup profile identifier.
+    pub profile_id: ProfileId,
+    /// Type of schedule ('interval', 'daily', 'weekly', 'cron').
+    pub schedule_type: String,
+    /// Schedule recurrence expression.
+    pub expression: String,
+    /// Timezone strategy ('local' or 'utc').
+    pub timezone: String,
+    /// Whether the schedule is active.
+    pub enabled: bool,
+    /// ISO-8601 UTC timestamp of next scheduled execution.
+    pub next_run_at: Option<String>,
+    /// ISO-8601 UTC timestamp of last executed run.
+    pub last_run_at: Option<String>,
+    /// Last execution status.
+    pub last_status: Option<String>,
+    /// Last error code encountered, if any.
+    pub last_error_code: Option<String>,
+    /// Record creation timestamp.
+    pub created_at: String,
+    /// Record update timestamp.
+    pub updated_at: String,
+}
+
+/// Stored history execution record for a schedule run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleHistoryRecord {
+    /// Unique execution history record identifier.
+    pub history_id: String,
+    /// Associated schedule identifier.
+    pub schedule_id: televault_core::ids::ScheduleId,
+    /// Associated profile identifier.
+    pub profile_id: ProfileId,
+    /// Execution start timestamp.
+    pub started_at: String,
+    /// Execution completion timestamp, if finished.
+    pub completed_at: Option<String>,
+    /// Execution status ('completed', 'failed', 'cancelled', 'skipped').
+    pub status: String,
+    /// Snapshot identifier if backup completed.
+    pub snapshot_id: Option<SnapshotId>,
+    /// Total files processed.
+    pub files_processed: u64,
+    /// Total payload bytes transferred.
+    pub bytes_transferred: u64,
+    /// Error code if execution failed.
+    pub error_code: Option<String>,
+    /// Safe human-readable error message.
+    pub error_message: Option<String>,
+}

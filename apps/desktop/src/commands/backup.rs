@@ -208,6 +208,15 @@ pub async fn start_backup(
 
     let profile = BackupProfile::from_db_record(&record, None, encryption_policy);
 
+    // Coordinate with scheduler: prevent duplicate concurrent backup of the same profile
+    let _guard = state
+        .scheduler_service
+        .execution_guard()
+        .try_acquire(&pid)
+        .map_err(|e| {
+            IpcError::conflict(format!("Backup for profile is already in progress: {e}"))
+        })?;
+
     let cancel_token = state.register_cancellation(&request.profile_id);
     let backup_engine = Arc::clone(&state.backup_engine);
     let op_id = request.profile_id.clone();
@@ -221,6 +230,7 @@ pub async fn start_backup(
     .map_err(IpcError::from);
 
     state.unregister_cancellation(&op_id);
+    drop(_guard);
 
     let summary = res?;
     Ok(BackupSummaryDto {

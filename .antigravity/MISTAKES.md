@@ -112,5 +112,24 @@
 - Regression Test: `apps/desktop/tests/ipc_tests.rs` verifying all 8 command suites against live mock state.
 - Prevention Rule: Use `tauri::test::mock_app()` to test Tauri command handlers requiring `tauri::State`.
 
+## Phase 11 — DbError::NotFound Struct Variant Pattern
+- Mistake: In `crates/televault-db/src/db.rs`, attempted to construct `DbError::NotFound("schedule_not_found".into())` as a tuple variant, causing compilation error `expected struct variant, found tuple variant`.
+- Root Cause: Assumed `DbError::NotFound` was a single-string tuple variant without checking its declaration in `crates/televault-db/src/error.rs`.
+- Fix: Constructed `DbError::NotFound { entity: "Schedule", id: schedule_id }` matching the actual struct variant schema.
+- Regression Test: `cargo check --workspace` and `cargo test -p televault-db`.
+- Prevention Rule: Always check the declaration of error variants before instantiating them, especially in domain and database layers.
 
+## Phase 11 — Clippy Assign Op Pattern on MockClock Advance
+- Mistake: In `MockClock::advance`, wrote `*current = *current + duration`, triggering `-D clippy::assign_op_pattern`.
+- Root Cause: Used explicit binary addition assignment rather than compound assignment operator.
+- Fix: Replaced with `*current += duration`.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Prevention Rule: Prefer compound assignment operators (`+=`, `-=`) on dereferenced types to satisfy Clippy.
+
+## Phase 11 — CreateProfileRequest DTO Schema Mismatch in Test Fixture
+- Mistake: In `apps/desktop/tests/scheduler_ipc_tests.rs`, constructed `CreateProfileRequest` with `passphrase: None`, failing compilation with `no field 'passphrase' on type 'CreateProfileRequest'`.
+- Root Cause: Inferred DTO fields from memory rather than inspecting `apps/desktop/src/dto/backup.rs`.
+- Fix: Constructed `CreateProfileRequest` using actual fields: `name`, `description`, `backup_directory`, `encryption_enabled`, `compression_enabled`, and `path_filter_rules`.
+- Regression Test: `cargo test -p televault-desktop --test scheduler_ipc_tests`.
+- Prevention Rule: Always reference DTO struct definitions directly when assembling test payload fixtures.
 

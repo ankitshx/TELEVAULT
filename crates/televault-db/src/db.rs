@@ -3,13 +3,13 @@
 use crate::error::{DbError, Result};
 use crate::migrations::run_migrations;
 use crate::models::{
-    ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, SearchResult,
-    SnapshotRecord, TransferJobRecord, VersionRecord,
+    ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, ScheduleHistoryRecord,
+    ScheduleRecord, SearchResult, SnapshotRecord, TransferJobRecord, VersionRecord,
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use televault_core::ids::{ChunkId, FileId, JobId, ProfileId, SnapshotId, VersionId};
+use televault_core::ids::{ChunkId, FileId, JobId, ProfileId, ScheduleId, SnapshotId, VersionId};
 use televault_core::models::{BackupStatus, TransferDirection, TransferStatus};
 use televault_core::paths::PathManager;
 use televault_manifest::ManifestV1;
@@ -1525,6 +1525,330 @@ impl Database {
             Ok(results)
         })
     }
+
+    // =========================================================================
+    // Recurring Schedules & Execution History
+    // =========================================================================
+
+    /// Inserts a new recurring backup schedule.
+    pub fn create_schedule(&self, schedule: &ScheduleRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO schedules (
+                    schedule_id, profile_id, schedule_type, expression, timezone,
+                    enabled, next_run_at, last_run_at, last_status, last_error_code,
+                    created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12);",
+                params![
+                    schedule.schedule_id.as_str(),
+                    schedule.profile_id.as_str(),
+                    schedule.schedule_type,
+                    schedule.expression,
+                    schedule.timezone,
+                    if schedule.enabled { 1 } else { 0 },
+                    schedule.next_run_at,
+                    schedule.last_run_at,
+                    schedule.last_status,
+                    schedule.last_error_code,
+                    schedule.created_at,
+                    schedule.updated_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Retrieves a schedule by its unique ID.
+    pub fn get_schedule(&self, id: &ScheduleId) -> Result<Option<ScheduleRecord>> {
+        self.with_connection(|conn| {
+            conn.query_row(
+                "SELECT schedule_id, profile_id, schedule_type, expression, timezone,
+                        enabled, next_run_at, last_run_at, last_status, last_error_code,
+                        created_at, updated_at
+                 FROM schedules WHERE schedule_id = ?1;",
+                params![id.as_str()],
+                map_schedule_row,
+            )
+            .optional()
+            .map_err(DbError::from)
+        })
+    }
+
+    /// Lists all configured backup schedules.
+    pub fn list_schedules(&self) -> Result<Vec<ScheduleRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT schedule_id, profile_id, schedule_type, expression, timezone,
+                        enabled, next_run_at, last_run_at, last_status, last_error_code,
+                        created_at, updated_at
+                 FROM schedules ORDER BY created_at ASC;",
+            )?;
+            let rows = stmt.query_map([], map_schedule_row)?;
+            let mut schedules = Vec::new();
+            for r in rows {
+                schedules.push(r?);
+            }
+            Ok(schedules)
+        })
+    }
+
+    /// Lists all schedules configured for a specific profile.
+    pub fn list_schedules_for_profile(
+        &self,
+        profile_id: &ProfileId,
+    ) -> Result<Vec<ScheduleRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT schedule_id, profile_id, schedule_type, expression, timezone,
+                        enabled, next_run_at, last_run_at, last_status, last_error_code,
+                        created_at, updated_at
+                 FROM schedules WHERE profile_id = ?1 ORDER BY created_at ASC;",
+            )?;
+            let rows = stmt.query_map(params![profile_id.as_str()], map_schedule_row)?;
+            let mut schedules = Vec::new();
+            for r in rows {
+                schedules.push(r?);
+            }
+            Ok(schedules)
+        })
+    }
+
+    /// Lists all enabled schedules that are due to execute at or before `max_timestamp`.
+    pub fn list_due_schedules(&self, max_timestamp: &str) -> Result<Vec<ScheduleRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT schedule_id, profile_id, schedule_type, expression, timezone,
+                        enabled, next_run_at, last_run_at, last_status, last_error_code,
+                        created_at, updated_at
+                 FROM schedules
+                 WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?1
+                 ORDER BY next_run_at ASC;",
+            )?;
+            let rows = stmt.query_map(params![max_timestamp], map_schedule_row)?;
+            let mut schedules = Vec::new();
+            for r in rows {
+                schedules.push(r?);
+            }
+            Ok(schedules)
+        })
+    }
+
+    /// Updates an existing schedule's configuration and properties.
+    pub fn update_schedule(&self, schedule: &ScheduleRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            let rows_affected = conn.execute(
+                "UPDATE schedules
+                 SET profile_id = ?2, schedule_type = ?3, expression = ?4, timezone = ?5,
+                     enabled = ?6, next_run_at = ?7, last_run_at = ?8, last_status = ?9,
+                     last_error_code = ?10, updated_at = ?11
+                 WHERE schedule_id = ?1;",
+                params![
+                    schedule.schedule_id.as_str(),
+                    schedule.profile_id.as_str(),
+                    schedule.schedule_type,
+                    schedule.expression,
+                    schedule.timezone,
+                    if schedule.enabled { 1 } else { 0 },
+                    schedule.next_run_at,
+                    schedule.last_run_at,
+                    schedule.last_status,
+                    schedule.last_error_code,
+                    schedule.updated_at,
+                ],
+            )?;
+            if rows_affected == 0 {
+                return Err(DbError::NotFound {
+                    entity: "Schedule",
+                    id: schedule.schedule_id.to_string(),
+                });
+            }
+            Ok(())
+        })
+    }
+
+    /// Updates execution status and timing for a schedule.
+    pub fn update_schedule_status(
+        &self,
+        id: &ScheduleId,
+        next_run_at: Option<&str>,
+        last_run_at: Option<&str>,
+        last_status: Option<&str>,
+        last_error_code: Option<&str>,
+    ) -> Result<()> {
+        self.with_connection(|conn| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+                .to_string();
+            let rows_affected = conn.execute(
+                "UPDATE schedules
+                 SET next_run_at = ?2, last_run_at = ?3, last_status = ?4,
+                     last_error_code = ?5, updated_at = ?6
+                 WHERE schedule_id = ?1;",
+                params![
+                    id.as_str(),
+                    next_run_at,
+                    last_run_at,
+                    last_status,
+                    last_error_code,
+                    now
+                ],
+            )?;
+            if rows_affected == 0 {
+                return Err(DbError::NotFound {
+                    entity: "Schedule",
+                    id: id.to_string(),
+                });
+            }
+            Ok(())
+        })
+    }
+
+    /// Deletes a schedule by its unique ID. Returns true if a record was removed.
+    pub fn delete_schedule(&self, id: &ScheduleId) -> Result<bool> {
+        self.with_connection(|conn| {
+            let affected = conn.execute(
+                "DELETE FROM schedules WHERE schedule_id = ?1;",
+                params![id.as_str()],
+            )?;
+            Ok(affected > 0)
+        })
+    }
+
+    /// Records an execution history entry for a schedule run.
+    pub fn record_schedule_history(&self, record: &ScheduleHistoryRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO schedule_history (
+                    history_id, schedule_id, profile_id, started_at, completed_at,
+                    status, snapshot_id, files_processed, bytes_transferred,
+                    error_code, error_message
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);",
+                params![
+                    record.history_id,
+                    record.schedule_id.as_str(),
+                    record.profile_id.as_str(),
+                    record.started_at,
+                    record.completed_at,
+                    record.status,
+                    record.snapshot_id.as_ref().map(|s| s.as_str()),
+                    record.files_processed as i64,
+                    record.bytes_transferred as i64,
+                    record.error_code,
+                    record.error_message,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Lists execution history for a schedule, ordered by descending start time.
+    pub fn list_schedule_history(
+        &self,
+        schedule_id: &ScheduleId,
+        limit: usize,
+    ) -> Result<Vec<ScheduleHistoryRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT history_id, schedule_id, profile_id, started_at, completed_at,
+                        status, snapshot_id, files_processed, bytes_transferred,
+                        error_code, error_message
+                 FROM schedule_history
+                 WHERE schedule_id = ?1
+                 ORDER BY started_at DESC
+                 LIMIT ?2;",
+            )?;
+            let rows = stmt.query_map(
+                params![schedule_id.as_str(), limit as i64],
+                map_schedule_history_row,
+            )?;
+            let mut history = Vec::new();
+            for r in rows {
+                history.push(r?);
+            }
+            Ok(history)
+        })
+    }
+}
+
+fn map_schedule_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ScheduleRecord> {
+    let sid_str: String = r.get(0)?;
+    let pid_str: String = r.get(1)?;
+    let schedule_type: String = r.get(2)?;
+    let expression: String = r.get(3)?;
+    let timezone: String = r.get(4)?;
+    let enabled_num: i64 = r.get(5)?;
+    let next_run_at: Option<String> = r.get(6)?;
+    let last_run_at: Option<String> = r.get(7)?;
+    let last_status: Option<String> = r.get(8)?;
+    let last_error_code: Option<String> = r.get(9)?;
+    let created_at: String = r.get(10)?;
+    let updated_at: String = r.get(11)?;
+
+    let schedule_id = ScheduleId::new(sid_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    let profile_id = ProfileId::new(pid_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+
+    Ok(ScheduleRecord {
+        schedule_id,
+        profile_id,
+        schedule_type,
+        expression,
+        timezone,
+        enabled: enabled_num != 0,
+        next_run_at,
+        last_run_at,
+        last_status,
+        last_error_code,
+        created_at,
+        updated_at,
+    })
+}
+
+fn map_schedule_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ScheduleHistoryRecord> {
+    let history_id: String = r.get(0)?;
+    let sid_str: String = r.get(1)?;
+    let pid_str: String = r.get(2)?;
+    let started_at: String = r.get(3)?;
+    let completed_at: Option<String> = r.get(4)?;
+    let status: String = r.get(5)?;
+    let snap_str: Option<String> = r.get(6)?;
+    let files_processed: i64 = r.get(7)?;
+    let bytes_transferred: i64 = r.get(8)?;
+    let error_code: Option<String> = r.get(9)?;
+    let error_message: Option<String> = r.get(10)?;
+
+    let schedule_id = ScheduleId::new(sid_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    let profile_id = ProfileId::new(pid_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    let snapshot_id = if let Some(s) = snap_str {
+        Some(SnapshotId::new(s).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+        })?)
+    } else {
+        None
+    };
+
+    Ok(ScheduleHistoryRecord {
+        history_id,
+        schedule_id,
+        profile_id,
+        started_at,
+        completed_at,
+        status,
+        snapshot_id,
+        files_processed: files_processed as u64,
+        bytes_transferred: bytes_transferred as u64,
+        error_code,
+        error_message,
+    })
 }
 
 /// Sanitizes user queries for safe execution inside SQLite FTS5 MATCH expressions.

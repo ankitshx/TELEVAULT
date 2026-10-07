@@ -3669,6 +3669,7 @@ dependencies = [
  "televault-crypto",
  "televault-db",
  "televault-manifest",
+ "televault-scheduler",
  "televault-storage",
  "televault-transfer",
  "thiserror 2.0.21",
@@ -3697,7 +3698,18 @@ dependencies = [
 name = "televault-scheduler"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "televault-backup",
  "televault-core",
+ "televault-crypto",
+ "televault-db",
+ "televault-storage",
+ "televault-transfer",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

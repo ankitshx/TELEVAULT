@@ -37,6 +37,8 @@ pub struct DesktopAppState {
     pub temp_manager: Arc<TempPayloadManager>,
     /// Remote storage abstraction provider.
     pub storage_provider: Arc<dyn StorageProvider + Send + Sync>,
+    /// Production background scheduler service coordinating automated backups.
+    pub scheduler_service: Arc<televault_scheduler::SchedulerService>,
     /// Registry mapping in-flight operation IDs to cooperative cancellation tokens.
     pub cancellation_registry: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
@@ -86,6 +88,11 @@ impl DesktopAppState {
         ));
 
         let checker = Arc::new(BackupChecker::new(Arc::clone(&db)));
+        let scheduler_service = Arc::new(televault_scheduler::SchedulerService::new(
+            Arc::clone(&db),
+            Arc::clone(&backup_engine),
+            None,
+        ));
 
         Ok(Self {
             db,
@@ -96,6 +103,7 @@ impl DesktopAppState {
             paths,
             temp_manager,
             storage_provider,
+            scheduler_service,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -134,6 +142,11 @@ impl DesktopAppState {
         ));
 
         let checker = Arc::new(BackupChecker::new(Arc::clone(&db)));
+        let scheduler_service = Arc::new(televault_scheduler::SchedulerService::new(
+            Arc::clone(&db),
+            Arc::clone(&backup_engine),
+            None,
+        ));
 
         Self {
             db,
@@ -144,6 +157,7 @@ impl DesktopAppState {
             paths,
             temp_manager,
             storage_provider,
+            scheduler_service,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         }
     }

@@ -562,7 +562,64 @@
 
 ### Commit:
 - Commit message: "Phase 10 complete - Tauri IPC command surface"
+- Commit hash: `dcedf8a`
 - Local commit only; NO push to GitHub.
+
+---
+
+## Phase 11 - Background Scheduler & Automated Backup Engine
+- Started: 2026-10-07 18:38 IST
+- Completed: 2026-10-07 19:35 IST
+- Status: Completed
+
+### Objective:
+- Build the Background Scheduler and Automated Backup Engine in `crates/televault-scheduler`.
+- Allow TELEVAULT to automatically trigger existing backup profiles according to user-defined schedules.
+- Support Interval, Daily, Weekly, and standard 5-part Cron recurrence patterns.
+- Ensure scheduling is deterministic and timezone-aware (Local system timezone with DST handling or UTC).
+- Persist scheduler configuration and execution history in SQLite via migration `V2__schedules.sql`.
+- Event-driven, non-busy scheduler loop sleeping until the next required execution or event notification (0% idle CPU).
+- Prevent duplicate concurrent execution of the same profile across scheduled and manual backups via `ExecutionGuard`.
+- Bounded catch-up for missed schedules without unlimited backlogs or backup storms.
+- Resilient failure isolation: Profile A failure does not affect Profile B or crash the scheduler.
+- Expose typed scheduler commands through Tauri IPC surface via `tauri-specta` and export updated TypeScript bindings.
+- Graceful lifecycle shutdown support via cancellation tokens.
+
+### Work Completed:
+- Created SQLite schema migration `crates/televault-db/migrations/V2__schedules.sql` establishing `schedules` and `schedule_history` tables with foreign key cascades on `profiles`.
+- Implemented `ScheduleRecord` and `ScheduleHistoryRecord` in `crates/televault-db/src/models.rs`.
+- Implemented schedule CRUD methods in `crates/televault-db/src/db.rs`: `create_schedule`, `get_schedule`, `list_schedules`, `list_schedules_for_profile`, `list_due_schedules`, `update_schedule`, `update_schedule_status`, `delete_schedule`, `record_schedule_history`, `list_schedule_history`.
+- Built `crates/televault-scheduler`:
+  - `clock.rs`: Testable time abstraction with `Clock` trait, `SystemClock`, and `MockClock`.
+  - `error.rs`: Typed `SchedulerError` and structured conversions to `AppError`.
+  - `types.rs`: `ScheduleType` (`Interval`, `Daily`, `Weekly`, `Cron`), `TimezoneStrategy` (`Local`, `Utc`), `MissedSchedulePolicy`, `Schedule`, and status types.
+  - `expression.rs`: Expression validation, parsers for interval ("15m", "1h", "24h"), daily ("02:00"), weekly ("Sun@03:00"), 5-part cron ("*/15 * * * *", "0 2 * * *"), and deterministic `calculate_next_run`.
+  - `guard.rs`: Thread-safe per-profile `ExecutionGuard` and RAII `ProfileGuard` preventing concurrent backup execution on the same profile.
+  - `service.rs`: `SchedulerService` orchestrating the background loop, automated backup planning/execution via existing `BackupEngine`, history recording, and CRUD operations.
+- Connected scheduler to `DesktopAppState` in `apps/desktop/src/state.rs` (`scheduler_service: Arc<SchedulerService>`).
+- Coordinated manual `start_backup` in `apps/desktop/src/commands/backup.rs` with `state.scheduler_service.execution_guard()`, returning `IpcError::conflict` if a backup is already active.
+- Added scheduler DTOs in `apps/desktop/src/dto/scheduler.rs`: `CreateScheduleRequest`, `UpdateScheduleRequest`, `ScheduleDto`, `ScheduleHistoryDto`, `SchedulerStatusDto`.
+- Added 10 typed Tauri commands in `apps/desktop/src/commands/scheduler.rs`: `list_schedules`, `get_schedule`, `create_schedule`, `update_schedule`, `delete_schedule`, `enable_schedule`, `disable_schedule`, `run_schedule_now`, `get_scheduler_status`, `get_schedule_history`.
+- Registered all scheduler commands in `apps/desktop/src/builder.rs` (32 total commands now registered).
+- Added `SchedulerError` mapping in `apps/desktop/src/error.rs` with machine-readable error codes (`SCHEDULE_NOT_FOUND`, `INVALID_SCHEDULE`, `INVALID_EXPRESSION`, `PROFILE_NOT_FOUND`, `SCHEDULE_CONFLICT`, `SCHEDULE_ALREADY_RUNNING`, `SCHEDULER_UNAVAILABLE`).
+- Exported updated TypeScript bindings to `apps/desktop/ui/src/bindings.ts` (453 lines) via `cargo run -p televault-desktop -- --export-types`.
+- Updated React smoke test in `apps/desktop/ui/src/App.tsx` verifying scheduler status query.
+- Implemented unit and integration test suites:
+  - `crates/televault-scheduler/tests/scheduler_tests.rs`: 8 integration tests covering expression validation, persistence lifecycle, duplicate execution prevention, real automated backup execution and history tracking, multiple schedules, clock advancement / missed schedule recovery, profile deletion cascade, and graceful shutdown.
+  - `apps/desktop/tests/scheduler_ipc_tests.rs`: 5 tests covering IPC status, schedule CRUD lifecycle, immediate manual trigger and history, manual backup coordination conflict, and error code mapping.
+
+### Test & Validation Results:
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- `cargo test --workspace`: PASS (189 tests passed, 0 failed, 0 ignored)
+- Test count continuity: 170 Phase 10 baseline tests verified + 19 new Phase 11 tests = 189 total workspace tests passing. Zero regressions.
+- Architecture regression validation: PASS (0 localhost occurrences, 0 backend sidecars, 0 Python files, 0 HTTP endpoints, single-process desktop runtime).
+
+### Commit:
+- Commit message: "Phase 11 complete - background scheduler and automated backup engine"
+- Local commit only; NO push to GitHub.
+
 
 
 

@@ -230,6 +230,32 @@
 - Reason: Connects frontend abort actions to the existing Phase 7/8/9 cancellation mechanism without creating an unrelated abort system.
 - Date: 2026-10-07
 
+## AD-047: Database Migration V2 for Durable Scheduler State and Execution History
+- Decision: Implemented `V2__schedules.sql` in `crates/televault-db/migrations/` defining `schedules` and `schedule_history` tables. The `schedules` table includes `schedule_id`, `profile_id`, `schedule_type`, `expression`, `timezone_strategy`, `enabled`, `missed_policy`, `next_run_at`, `last_run_at`, `last_status`, `last_error_code`, `created_at`, `updated_at`, with `FOREIGN KEY (profile_id) REFERENCES profiles(profile_id) ON DELETE CASCADE`. `schedule_history` stores `history_id`, `schedule_id`, `profile_id`, `started_at`, `completed_at`, `status`, `snapshot_id`, `files_processed`, `bytes_uploaded`, `error_code`, `error_message`.
+- Reason: Guarantees schedule configurations and execution logs survive desktop application restarts and prevent orphan schedule records when profiles are deleted.
+- Date: 2026-10-07
+
+## AD-048: Mutual Exclusion via Shared ExecutionGuard for Scheduled and Manual Backups
+- Decision: Created `ExecutionGuard` in `crates/televault-scheduler/src/guard.rs` maintaining a per-profile lock registry (`Arc<Mutex<HashSet<ProfileId>>>`). Both scheduled backup executions in `SchedulerService` and manual backup invocations via `start_backup` in `apps/desktop/src/commands/backup.rs` must acquire a RAII `ProfileGuard`. If an execution is in progress for Profile A, manual triggers fail immediately with `IpcError::conflict("SCHEDULE_ALREADY_RUNNING")`, and scheduled ticks are safely coalesced/skipped with status `Skipped` and rescheduled.
+- Reason: Guarantees no two backup processes ever run concurrently on the same profile, preventing SQLite lock contention, duplicate Telegram chunk uploads, or manifest race conditions.
+- Date: 2026-10-07
+
+## AD-049: Event-Driven, Non-Busy Scheduler Loop with Zero Idle CPU
+- Decision: Implemented `SchedulerService::run_loop` using `tokio::select!` over an asynchronous sleep duration (`calculate_sleep_duration` targeting the earliest `next_run_at`), a wakeup notification (`Arc<tokio::sync::Notify>`), and a cancellation token (`CancellationToken`). The loop sleeps completely until the next scheduled event or until schedule creation, update, deletion, or shutdown wakes it immediately.
+- Reason: Eliminates polling and busy loops, ensuring idle CPU utilization remains strictly 0% on Windows desktop environments.
+- Date: 2026-10-07
+
+## AD-050: Bounded Single Catch-Up Policy for Missed Runs
+- Decision: When TELEVAULT starts up or wakes after dormancy, schedules whose `next_run_at` elapsed in the past are evaluated with `MissedSchedulePolicy::RunOnce` by default. At most one catch-up execution is triggered, immediately after which `next_run_at` advances to the next future recurrence.
+- Reason: Prevents backup storms and cascading executions if the user's machine was powered off for weeks.
+- Date: 2026-10-07
+
+## AD-051: Testable Clock Abstraction for Deterministic Scheduling Testing
+- Decision: Introduced `Clock` trait in `crates/televault-scheduler/src/clock.rs` implemented by `SystemClock` for production and `MockClock` (`Arc<RwLock<DateTime<Utc>>>`) for testing. Tests can advance simulated time by arbitrary intervals (hours, days, DST shifts) and verify next-run calculations and recovery instantly without wall-clock sleeps.
+- Reason: Guarantees fast, robust, and deterministic tests while preserving real system time in production.
+- Date: 2026-10-07
+
+
 
 
 
