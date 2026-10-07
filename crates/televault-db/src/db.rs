@@ -3,8 +3,9 @@
 use crate::error::{DbError, Result};
 use crate::migrations::run_migrations;
 use crate::models::{
-    ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, ScheduleHistoryRecord,
-    ScheduleRecord, SearchResult, SnapshotRecord, TransferJobRecord, VersionRecord,
+    ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, RetentionHistoryRecord,
+    RetentionPolicyRecord, ScheduleHistoryRecord, ScheduleRecord, SearchResult, SnapshotRecord,
+    TransferJobRecord, VersionRecord,
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::Path;
@@ -1770,6 +1771,224 @@ impl Database {
             Ok(history)
         })
     }
+
+    // =========================================================================
+    // Retention Policies and Snapshot Pruning
+    // =========================================================================
+
+    /// Deletes a snapshot and its associated file versions atomically in a transaction.
+    ///
+    /// Preserves manifest, file, and chunk records.
+    /// Returns the number of version records deleted.
+    pub fn delete_snapshot(&self, snapshot_id: &SnapshotId) -> Result<usize> {
+        self.with_transaction(|tx| {
+            let versions_deleted = tx.execute(
+                "DELETE FROM versions WHERE snapshot_id = ?1;",
+                params![snapshot_id.as_str()],
+            )?;
+            let snaps_deleted = tx.execute(
+                "DELETE FROM snapshots WHERE snapshot_id = ?1;",
+                params![snapshot_id.as_str()],
+            )?;
+            if snaps_deleted == 0 {
+                return Err(DbError::NotFound {
+                    entity: "Snapshot",
+                    id: snapshot_id.to_string(),
+                });
+            }
+            Ok(versions_deleted)
+        })
+    }
+
+    /// Prunes multiple snapshots and their associated version records in a single atomic transaction.
+    ///
+    /// Optionally records a [`RetentionHistoryRecord`] audit log within the same transaction.
+    /// Returns total number of version records pruned.
+    pub fn prune_snapshots_transactional(
+        &self,
+        snapshot_ids: &[SnapshotId],
+        history_record: Option<&RetentionHistoryRecord>,
+    ) -> Result<usize> {
+        self.with_transaction(|tx| {
+            let mut total_versions_deleted = 0;
+            for sid in snapshot_ids {
+                let versions_deleted = tx.execute(
+                    "DELETE FROM versions WHERE snapshot_id = ?1;",
+                    params![sid.as_str()],
+                )?;
+                total_versions_deleted += versions_deleted;
+                let snaps_deleted = tx.execute(
+                    "DELETE FROM snapshots WHERE snapshot_id = ?1;",
+                    params![sid.as_str()],
+                )?;
+                if snaps_deleted == 0 {
+                    return Err(DbError::NotFound {
+                        entity: "Snapshot",
+                        id: sid.to_string(),
+                    });
+                }
+            }
+
+            if let Some(history) = history_record {
+                tx.execute(
+                    "INSERT INTO retention_history (
+                        history_id, profile_id, executed_at, dry_run,
+                        snapshots_evaluated, snapshots_kept, snapshots_pruned,
+                        pruned_snapshot_ids, decisions_summary, status, error_message
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);",
+                    params![
+                        history.history_id,
+                        history.profile_id.as_str(),
+                        history.executed_at,
+                        if history.dry_run { 1 } else { 0 },
+                        history.snapshots_evaluated,
+                        history.snapshots_kept,
+                        history.snapshots_pruned,
+                        history.pruned_snapshot_ids,
+                        history.decisions_summary,
+                        history.status,
+                        history.error_message,
+                    ],
+                )?;
+            }
+
+            Ok(total_versions_deleted)
+        })
+    }
+
+    /// Counts the number of active file versions associated with a snapshot.
+    pub fn count_versions_by_snapshot(&self, snapshot_id: &SnapshotId) -> Result<usize> {
+        self.with_connection(|conn| {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM versions WHERE snapshot_id = ?1;",
+                params![snapshot_id.as_str()],
+                |row| row.get(0),
+            )?;
+            Ok(count as usize)
+        })
+    }
+
+    /// Creates or updates a retention policy for a profile.
+    pub fn save_retention_policy(&self, policy: &RetentionPolicyRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO retention_policies (
+                    policy_id, profile_id, keep_latest_n, keep_newer_than_secs,
+                    keep_latest_successful, keep_latest_always, prune_failed, prune_empty,
+                    enabled, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                 ON CONFLICT(profile_id) DO UPDATE SET
+                    keep_latest_n = excluded.keep_latest_n,
+                    keep_newer_than_secs = excluded.keep_newer_than_secs,
+                    keep_latest_successful = excluded.keep_latest_successful,
+                    keep_latest_always = excluded.keep_latest_always,
+                    prune_failed = excluded.prune_failed,
+                    prune_empty = excluded.prune_empty,
+                    enabled = excluded.enabled,
+                    updated_at = excluded.updated_at;",
+                params![
+                    policy.policy_id,
+                    policy.profile_id.as_str(),
+                    policy.keep_latest_n,
+                    policy.keep_newer_than_secs.map(|s| s as i64),
+                    if policy.keep_latest_successful { 1 } else { 0 },
+                    if policy.keep_latest_always { 1 } else { 0 },
+                    if policy.prune_failed { 1 } else { 0 },
+                    if policy.prune_empty { 1 } else { 0 },
+                    if policy.enabled { 1 } else { 0 },
+                    policy.created_at,
+                    policy.updated_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Retrieves the retention policy for a profile, if configured.
+    pub fn get_retention_policy(
+        &self,
+        profile_id: &ProfileId,
+    ) -> Result<Option<RetentionPolicyRecord>> {
+        self.with_connection(|conn| {
+            conn.query_row(
+                "SELECT policy_id, profile_id, keep_latest_n, keep_newer_than_secs,
+                        keep_latest_successful, keep_latest_always, prune_failed, prune_empty,
+                        enabled, created_at, updated_at
+                 FROM retention_policies
+                 WHERE profile_id = ?1;",
+                params![profile_id.as_str()],
+                map_retention_policy_row,
+            )
+            .optional()
+            .map_err(DbError::from)
+        })
+    }
+
+    /// Deletes the retention policy for a profile.
+    pub fn delete_retention_policy(&self, profile_id: &ProfileId) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "DELETE FROM retention_policies WHERE profile_id = ?1;",
+                params![profile_id.as_str()],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Records an execution audit log entry in the retention history table.
+    pub fn record_retention_history(&self, record: &RetentionHistoryRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO retention_history (
+                    history_id, profile_id, executed_at, dry_run,
+                    snapshots_evaluated, snapshots_kept, snapshots_pruned,
+                    pruned_snapshot_ids, decisions_summary, status, error_message
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);",
+                params![
+                    record.history_id,
+                    record.profile_id.as_str(),
+                    record.executed_at,
+                    if record.dry_run { 1 } else { 0 },
+                    record.snapshots_evaluated,
+                    record.snapshots_kept,
+                    record.snapshots_pruned,
+                    record.pruned_snapshot_ids,
+                    record.decisions_summary,
+                    record.status,
+                    record.error_message,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Lists retention execution history for a profile, ordered newest first.
+    pub fn list_retention_history(
+        &self,
+        profile_id: &ProfileId,
+        limit: usize,
+    ) -> Result<Vec<RetentionHistoryRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT history_id, profile_id, executed_at, dry_run,
+                        snapshots_evaluated, snapshots_kept, snapshots_pruned,
+                        pruned_snapshot_ids, decisions_summary, status, error_message
+                 FROM retention_history
+                 WHERE profile_id = ?1
+                 ORDER BY executed_at DESC
+                 LIMIT ?2;",
+            )?;
+            let rows = stmt.query_map(
+                params![profile_id.as_str(), limit as i64],
+                map_retention_history_row,
+            )?;
+            let mut history = Vec::new();
+            for r in rows {
+                history.push(r?);
+            }
+            Ok(history)
+        })
+    }
 }
 
 fn map_schedule_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ScheduleRecord> {
@@ -1847,6 +2066,70 @@ fn map_schedule_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ScheduleH
         files_processed: files_processed as u64,
         bytes_transferred: bytes_transferred as u64,
         error_code,
+        error_message,
+    })
+}
+
+fn map_retention_policy_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RetentionPolicyRecord> {
+    let policy_id: String = r.get(0)?;
+    let profile_id_str: String = r.get(1)?;
+    let keep_latest_n: Option<i64> = r.get(2)?;
+    let keep_newer_than_secs: Option<i64> = r.get(3)?;
+    let keep_latest_successful: i64 = r.get(4)?;
+    let keep_latest_always: i64 = r.get(5)?;
+    let prune_failed: i64 = r.get(6)?;
+    let prune_empty: i64 = r.get(7)?;
+    let enabled: i64 = r.get(8)?;
+    let created_at: String = r.get(9)?;
+    let updated_at: String = r.get(10)?;
+
+    let profile_id = ProfileId::new(profile_id_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+
+    Ok(RetentionPolicyRecord {
+        policy_id,
+        profile_id,
+        keep_latest_n: keep_latest_n.map(|n| n as u32),
+        keep_newer_than_secs: keep_newer_than_secs.map(|s| s as u64),
+        keep_latest_successful: keep_latest_successful != 0,
+        keep_latest_always: keep_latest_always != 0,
+        prune_failed: prune_failed != 0,
+        prune_empty: prune_empty != 0,
+        enabled: enabled != 0,
+        created_at,
+        updated_at,
+    })
+}
+
+fn map_retention_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RetentionHistoryRecord> {
+    let history_id: String = r.get(0)?;
+    let profile_id_str: String = r.get(1)?;
+    let executed_at: String = r.get(2)?;
+    let dry_run: i64 = r.get(3)?;
+    let snapshots_evaluated: i64 = r.get(4)?;
+    let snapshots_kept: i64 = r.get(5)?;
+    let snapshots_pruned: i64 = r.get(6)?;
+    let pruned_snapshot_ids: String = r.get(7)?;
+    let decisions_summary: String = r.get(8)?;
+    let status: String = r.get(9)?;
+    let error_message: Option<String> = r.get(10)?;
+
+    let profile_id = ProfileId::new(profile_id_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+
+    Ok(RetentionHistoryRecord {
+        history_id,
+        profile_id,
+        executed_at,
+        dry_run: dry_run != 0,
+        snapshots_evaluated: snapshots_evaluated as u32,
+        snapshots_kept: snapshots_kept as u32,
+        snapshots_pruned: snapshots_pruned as u32,
+        pruned_snapshot_ids,
+        decisions_summary,
+        status,
         error_message,
     })
 }

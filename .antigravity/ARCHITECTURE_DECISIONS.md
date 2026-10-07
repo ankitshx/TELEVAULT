@@ -255,6 +255,27 @@
 - Reason: Guarantees fast, robust, and deterministic tests while preserving real system time in production.
 - Date: 2026-10-07
 
+## AD-052: Local Metadata-Only Retention with Remote Telegram Immutability
+- Decision: Retention pruning is strictly an embedded SQLite metadata operation. Local snapshot records and their version associations are pruned locally, while remote Telegram Cloud documents, messages, chunks, and manifests remain completely untouched and immutable.
+- Reason: Enforces the core Cloud-First architecture rule: remote backups are immutable and permanent unless an explicit, future remote deletion feature is introduced.
+- Date: 2026-10-07
+
+## AD-053: Deterministic Union Retention Evaluation with Safety Invariants
+- Decision: The `RetentionEvaluator` combines multiple retention strategies (Keep Latest N, keep within age window, keep latest successful, unconditional latest preservation) using a union model: if any enabled retention criterion marks a completed snapshot to be kept, it is preserved. Active snapshots, the sole snapshot of a profile, and the latest successful snapshot are protected by invariant safeguards.
+- Reason: Prevents catastrophic metadata loss, guarantees that a failed backup never prunes the user's only good recovery point, and provides deterministic, explainable reasons for every retention decision.
+- Date: 2026-10-07
+
+## AD-054: Database Migration V3 for Durable Retention Policies and Audit History
+- Decision: Created `V3__retention.sql` defining `retention_policies` (custom per-profile configuration) and `retention_history` (audit logs of pruning operations). Foreign keys cascade from `profiles(profile_id)`.
+- Reason: Persists profile retention configuration and enables auditable historical tracking of snapshot pruning runs across application restarts.
+- Date: 2026-10-07
+
+## AD-055: Transaction-Safe Atomic Pruning with Referential Integrity
+- Decision: Pruning operations execute within an embedded SQLite transaction (`db.transaction()`). The transaction unlinks version records associated with the pruned snapshots, deletes the snapshot records, writes the audit history record, and commits atomically. Any failure triggers a complete rollback.
+- Reason: Prevents partial metadata pruning and avoids foreign-key constraint violations or dangling version references.
+- Date: 2026-10-07
+
+
 
 
 

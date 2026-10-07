@@ -1,11 +1,12 @@
 //! Shared Desktop application state managed across Tauri IPC commands.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use televault_backup::checker::BackupChecker;
 use televault_backup::engine::BackupEngine;
 use televault_backup::restore::RestoreEngine;
+use televault_backup::retention::RetentionEngine;
 use televault_core::error::AppError;
 use televault_core::paths::PathManager;
 use televault_db::Database;
@@ -39,6 +40,8 @@ pub struct DesktopAppState {
     pub storage_provider: Arc<dyn StorageProvider + Send + Sync>,
     /// Production background scheduler service coordinating automated backups.
     pub scheduler_service: Arc<televault_scheduler::SchedulerService>,
+    /// Production retention policy engine coordinating snapshot metadata pruning.
+    pub retention_engine: Arc<RetentionEngine>,
     /// Registry mapping in-flight operation IDs to cooperative cancellation tokens.
     pub cancellation_registry: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
@@ -93,6 +96,7 @@ impl DesktopAppState {
             Arc::clone(&backup_engine),
             None,
         ));
+        let retention_engine = Arc::new(RetentionEngine::new(Arc::clone(&db)));
 
         Ok(Self {
             db,
@@ -104,6 +108,7 @@ impl DesktopAppState {
             temp_manager,
             storage_provider,
             scheduler_service,
+            retention_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -147,6 +152,7 @@ impl DesktopAppState {
             Arc::clone(&backup_engine),
             None,
         ));
+        let retention_engine = Arc::new(RetentionEngine::new(Arc::clone(&db)));
 
         Self {
             db,
@@ -158,8 +164,24 @@ impl DesktopAppState {
             temp_manager,
             storage_provider,
             scheduler_service,
+            retention_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    /// Inspects the in-flight operations registry to identify snapshot IDs currently active.
+    pub fn active_snapshots(&self) -> HashSet<televault_core::ids::SnapshotId> {
+        let mut set = HashSet::new();
+        if let Ok(reg) = self.cancellation_registry.lock() {
+            for key in reg.keys() {
+                if let Some(sid_str) = key.strip_prefix("snap-") {
+                    if let Ok(sid) = televault_core::ids::SnapshotId::new(sid_str) {
+                        set.insert(sid);
+                    }
+                }
+            }
+        }
+        set
     }
 
     /// Registers a new active cancellation token for an operation ID.

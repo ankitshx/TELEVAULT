@@ -28,4 +28,20 @@
 - Risk: A user manually triggers `start_backup` while a background scheduled backup for the same profile is already in flight, or the scheduler wakes up while a manual backup is executing.
 - Mitigation in Phase 11: Managed `ExecutionGuard` per-profile lock registry. Concurrent manual triggers immediately return structured `IpcError::conflict("SCHEDULE_ALREADY_RUNNING")`, while overlapping scheduled ticks record a `Skipped` execution history entry and advance to the next run date without racing.
 
+## KF-007: Accidental Remote Payload Deletion During Retention Pruning
+- Risk: A retention policy engine attempting to free space calls storage deletion against Telegram messages, documents, or chunks.
+- Failure Mode: Irrevocable destruction of the user's remote cloud backup data.
+- Mitigation in Phase 12: Absolute Cloud-First Retention Rule. Pruning operations are strictly limited to local SQLite `snapshots` and `versions` metadata. The `RetentionEngine` contains ZERO calls to `StorageProvider`, `TelegramClient`, or remote delete methods. Remote Telegram storage remains completely immutable.
+
+## KF-008: Premature Pruning of In-Progress Backup or In-Flight Restore Snapshots
+- Risk: A retention pruning pass runs while a backup or restore is currently writing to or reading from a snapshot.
+- Failure Mode: Dangling manifest pointers, partial snapshot corruption, or failed restores.
+- Mitigation in Phase 12: Active snapshot protection and `ExecutionGuard` synchronization. The retention engine takes an `active_snapshots: &HashSet<SnapshotId>` set and checks `execution_guard().is_running(&pid)`. Any snapshot currently active or in-progress is unconditionally protected (`ProtectedActive`).
+
+## KF-009: Pruning the Sole Recovery Point via Incomplete or Failed Snapshots
+- Risk: If an old successful snapshot is expired by age, and the latest backup failed, pruning the old snapshot would leave the user with zero restorable snapshots.
+- Failure Mode: Complete loss of restorable recovery points.
+- Mitigation in Phase 12: Invariant protection for `keep_latest_successful` (preserving the most recent completed snapshot regardless of age) and `ProtectedSoleSnapshot` (preventing deletion of the only remaining snapshot for a profile).
+
+
 

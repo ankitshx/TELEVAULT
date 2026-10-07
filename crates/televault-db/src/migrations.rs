@@ -28,7 +28,7 @@ mod tests {
     fn test_migrations_embedded_and_run() {
         let mut conn = Connection::open_in_memory().expect("open in memory");
         let report = run_migrations(&mut conn).expect("run migrations");
-        assert_eq!(report.applied_migrations().len(), 2);
+        assert_eq!(report.applied_migrations().len(), 3);
 
         // Second run should apply 0 migrations (idempotent)
         let second_report = run_migrations(&mut conn).expect("second run");

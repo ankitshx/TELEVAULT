@@ -303,3 +303,34 @@ impl From<televault_scheduler::SchedulerError> for IpcError {
         }
     }
 }
+
+impl From<televault_backup::RetentionError> for IpcError {
+    fn from(err: televault_backup::RetentionError) -> Self {
+        match err {
+            televault_backup::RetentionError::ProfileNotFound(id) => Self::new(
+                "PROFILE_NOT_FOUND",
+                format!("Profile with ID '{id}' was not found"),
+            )
+            .with_details(id),
+            televault_backup::RetentionError::SnapshotNotFound(id) => Self::new(
+                "SNAPSHOT_NOT_FOUND",
+                format!("Snapshot with ID '{id}' was not found"),
+            )
+            .with_details(id),
+            televault_backup::RetentionError::InvalidPolicy(msg) => {
+                Self::new("INVALID_POLICY", msg)
+            }
+            televault_backup::RetentionError::ProfileBusy(msg) => {
+                Self::new("OPERATION_CONFLICT", msg)
+            }
+            televault_backup::RetentionError::SnapshotProtected(id, reason) => Self::new(
+                "SNAPSHOT_PROTECTED",
+                format!("Snapshot '{id}' is protected: {reason}"),
+            )
+            .with_details(id),
+            televault_backup::RetentionError::Database(e) => Self::new("DATABASE_ERROR", e),
+            televault_backup::RetentionError::Cancelled => Self::cancelled(),
+            televault_backup::RetentionError::Internal(msg) => Self::internal(msg),
+        }
+    }
+}

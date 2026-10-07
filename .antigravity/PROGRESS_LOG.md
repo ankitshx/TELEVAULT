@@ -621,6 +621,62 @@
 - Commit hash: `7b66c79`
 - Local commit only; NO push to GitHub.
 
+---
+
+## Phase 12 - Retention Policy Engine & Snapshot Pruning
+- Started: 2026-10-07 22:20 IST
+- Completed: 2026-10-07 23:05 IST
+- Status: Completed
+
+### Objective:
+- Build a production-grade Retention Policy Engine and local snapshot pruning subsystem in `crates/televault-backup/src/retention/`.
+- Support typed retention rules: keep latest N snapshots, age-based retention window (`keep_newer_than_secs`), latest successful snapshot preservation, unconditional latest snapshot preservation, failed snapshot pruning, and empty snapshot pruning.
+- Strictly enforce the Cloud-First Retention Rule: local retention operates exclusively on local SQLite snapshot and version metadata; zero remote Telegram calls, zero message/document deletion, zero chunk invalidation. Remote Telegram backups remain immutable.
+- Implement deterministic evaluation (`RetentionEvaluator`), dry-run preview capability (`preview_retention`), and transactional pruning (`prune_snapshots_transactional`).
+- Protect active in-progress snapshots, prevent pruning the sole recovery point, and enforce mutual exclusion with active backups via `ExecutionGuard`.
+- Persist retention policies and audit execution history in SQLite via migration `V3__retention.sql`.
+- Expose typed Tauri commands via `tauri-specta` and export updated TypeScript bindings to `apps/desktop/ui/src/bindings.ts`.
+
+### Work Completed:
+- Created SQLite schema migration `crates/televault-db/migrations/V3__retention.sql` defining `retention_policies` and `retention_history` tables with cascading foreign keys to `profiles`.
+- Implemented `RetentionPolicyRecord` and `RetentionHistoryRecord` models in `crates/televault-db/src/models.rs`.
+- Added retention database methods to `Database` in `crates/televault-db/src/db.rs`:
+  - `save_retention_policy`, `get_retention_policy`, `delete_retention_policy`
+  - `record_retention_history`, `list_retention_history`
+  - `delete_snapshot`, `count_versions_by_snapshot`, `prune_snapshots_transactional` (atomic SQLite transaction pruning version records, then snapshot metadata).
+- Implemented domain retention subsystem in `crates/televault-backup/src/retention/`:
+  - `types.rs`: Strongly-typed `RetentionAction` (`Keep`, `Prune`), `RetentionReason` (`KeepLatest`, `KeepWithinRetentionWindow`, `KeepLatestSuccessful`, `ProtectedActive`, `ProtectedSoleSnapshot`, `ProtectedPolicyDisabled`, `PruneExcessSnapshot`, `PruneExpired`, `PruneFailed`, `PruneEmpty`), `RetentionCandidate`, `RetentionDecision`, `RetentionEvaluation`, `RetentionResult`.
+  - `policy.rs`: `RetentionPolicy` domain model with validation, fluent builders, and DB record mappings.
+  - `evaluator.rs`: Pure deterministic `RetentionEvaluator` implementing union retention logic, latest successful protection, boundary evaluation, and active snapshot protection.
+  - `engine.rs`: `RetentionEngine` coordinating policy retrieval, evaluation, dry-run simulation, and transactional local execution with audit logging.
+  - `mod.rs`: Clean re-exports.
+- Added `SnapshotManager` methods in `crates/televault-backup/src/snapshot.rs`: `delete_snapshot`, `delete_snapshots_batch`, `count_snapshot_versions`, `prune_snapshots_transactional`.
+- Added `RetentionError` and mappings in `crates/televault-backup/src/error.rs`.
+- Connected `RetentionEngine` to `DesktopAppState` in `apps/desktop/src/state.rs` (`new`, `new_in_memory`, and `active_snapshots()`).
+- Added DTOs in `apps/desktop/src/dto/retention.rs`: `SetRetentionPolicyRequest`, `RetentionPolicyDto`, `RetentionDecisionDto`, `RetentionEvaluationDto`, `RetentionResultDto`, `RetentionHistoryDto`.
+- Added 5 typed Tauri commands in `apps/desktop/src/commands/retention.rs`: `get_retention_policy`, `set_retention_policy`, `preview_retention`, `execute_retention`, `get_retention_history`.
+- Registered all 5 retention commands in `apps/desktop/src/builder.rs` (37 total IPC commands now registered).
+- Exported updated TypeScript bindings to `apps/desktop/ui/src/bindings.ts` (585 lines) via `cargo run -p televault-desktop -- --export-types`.
+- Implemented comprehensive unit and integration test suites:
+  - `crates/televault-db/tests/db_tests.rs`: 2 tests covering retention policy/history CRUD and transactional snapshot/version pruning with rollback.
+  - `crates/televault-backup/tests/retention_tests.rs`: 19 tests covering Keep Latest N, age-based retention, latest successful snapshot protection, active snapshot protection, failed snapshot handling, incomplete snapshot handling, deterministic ordering, dry-run no-op, approved local records pruning only, remote Telegram reference immutability, transaction failure rollback, idempotent repeated retention, profile isolation, 100-snapshot history performance (< 100ms), empty history, fewer snapshots than limit, exactly N snapshots, boundary timestamp behavior, and concurrent operation safety.
+  - `apps/desktop/tests/retention_ipc_tests.rs`: 6 tests covering default policy retrieval, set/persist policy, dry-run preview IPC, execute pruning and history IPC, active backup conflict detection, and validation errors.
+
+### Test & Validation Results:
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- `cargo test --workspace`: PASS (214 tests passed, 0 failed, 0 ignored)
+- Test count continuity:
+  - Previous authoritative baseline (Phase 11): 187 tests
+  - Phase 12 added: 27 new tests (2 in `televault-db`, 19 in `televault-backup`, 6 in `televault-desktop`)
+  - Authoritative total: 214 tests (187 passed + 27 passed = 214 passed, 0 failed, 0 ignored). Zero regressions.
+- Architecture audit: PASS (0 localhost occurrences, 0 backend sidecars, 0 Python files, 0 HTTP endpoints, zero Telegram deletion calls, single-process desktop runtime).
+
+### Commit:
+- Commit message: "Phase 12 complete - retention policy and snapshot pruning"
+- Local commit only; NO push to GitHub.
+
+
 
 
 

@@ -62,6 +62,43 @@ impl SnapshotManager {
             .map_err(BackupError::from)
     }
 
+    /// Retrieves a specific snapshot by ID.
+    pub fn get_snapshot(&self, snapshot_id: &SnapshotId) -> Result<Option<SnapshotRecord>> {
+        self.db.get_snapshot(snapshot_id).map_err(BackupError::from)
+    }
+
+    /// Lists all snapshots for a profile, sorted newest first.
+    pub fn list_snapshots(&self, profile_id: &ProfileId) -> Result<Vec<SnapshotRecord>> {
+        self.db
+            .list_snapshots_by_profile(profile_id)
+            .map_err(BackupError::from)
+    }
+
+    /// Counts associated file versions for a snapshot.
+    pub fn count_snapshot_versions(&self, snapshot_id: &SnapshotId) -> Result<usize> {
+        self.db
+            .count_versions_by_snapshot(snapshot_id)
+            .map_err(BackupError::from)
+    }
+
+    /// Atomically deletes a snapshot and its versions from the local database.
+    pub fn delete_snapshot(&self, snapshot_id: &SnapshotId) -> Result<usize> {
+        self.db
+            .delete_snapshot(snapshot_id)
+            .map_err(BackupError::from)
+    }
+
+    /// Atomically prunes a batch of snapshots and records retention audit history.
+    pub fn prune_snapshots_transactional(
+        &self,
+        snapshot_ids: &[SnapshotId],
+        history_record: Option<&televault_db::RetentionHistoryRecord>,
+    ) -> Result<usize> {
+        self.db
+            .prune_snapshots_transactional(snapshot_ids, history_record)
+            .map_err(BackupError::from)
+    }
+
     /// Retrieves all files and version records associated with a snapshot.
     pub fn list_snapshot_files(
         &self,

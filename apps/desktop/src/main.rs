@@ -9,7 +9,11 @@ fn main() {
 
     // Check if invoked with --export-types flag to generate TypeScript contract
     if args.iter().any(|a| a == "--export-types") {
-        let out_path = PathBuf::from("ui/src/bindings.ts");
+        let out_path = if std::path::Path::new("apps/desktop/ui/src").exists() {
+            PathBuf::from("apps/desktop/ui/src/bindings.ts")
+        } else {
+            PathBuf::from("ui/src/bindings.ts")
+        };
         if let Some(parent) = out_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }

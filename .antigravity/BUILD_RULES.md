@@ -30,3 +30,7 @@
 28. Zero Busy Loops for Background Daemons: Never poll in tight or frequent loops (`while true { check every ms }`); always sleep until the earliest event (`tokio::select!`) with wakeups via `Notify` or cancellation tokens.
 29. Per-Profile Backup Mutual Exclusion: Never run concurrent backups on the same profile; always synchronize manual and scheduled executions using `ExecutionGuard`.
 30. Single Backup Engine Rule: The scheduler must never implement its own backup logic; it must orchestrate the domain `BackupEngine`.
+31. Cloud-First Retention Rule: Local retention controls local SQLite snapshot and version metadata only; never delete remote Telegram messages, documents, or chunks during retention pruning. Remote cloud backups remain immutable.
+32. Snapshot Retention Safety Rule: Retention pruning must never delete active in-progress snapshots, snapshots from unrelated profiles, or the sole recovery point for a profile.
+33. Dry-Run Zero-Mutation Rule: Retention preview/dry-run must be strictly non-destructive; it must never perform database mutations or remote network calls.
+34. Transaction-Safe Metadata Pruning Rule: Snapshot and version metadata pruning must execute inside an atomic SQLite transaction and maintain referential integrity.

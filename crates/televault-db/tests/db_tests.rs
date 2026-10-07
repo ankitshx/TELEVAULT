@@ -3,8 +3,8 @@
 use televault_core::ids::{ChunkId, FileId, JobId, ProfileId, SnapshotId, VersionId};
 use televault_core::models::{BackupStatus, TransferDirection, TransferStatus};
 use televault_db::{
-    ChunkRecord, Database, FileRecord, HealthStatus, ProfileRecord, SnapshotRecord,
-    TransferJobRecord, VersionRecord,
+    ChunkRecord, Database, FileRecord, HealthStatus, ProfileRecord, RetentionHistoryRecord,
+    RetentionPolicyRecord, SnapshotRecord, TransferJobRecord, VersionRecord,
 };
 use televault_manifest::{
     calculate_expected_chunk_count, ChunkManifest, CompressionMetadata, EncryptionMetadata,
@@ -903,4 +903,235 @@ fn test_file_backed_database_lifecycle_and_reopen() {
 
     // Clean up
     let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_retention_policy_and_history_crud() {
+    let db = Database::open_in_memory().expect("open memory db");
+    let pid = ProfileId::new("prof-retention").unwrap();
+
+    db.create_profile(&ProfileRecord {
+        profile_id: pid.clone(),
+        name: "Retention Profile".into(),
+        description: None,
+        source_path: "D:\\Retention".into(),
+        enabled: true,
+        created_at: "2026-10-07T10:00:00Z".into(),
+        updated_at: "2026-10-07T10:00:00Z".into(),
+    })
+    .expect("create profile");
+
+    // 1. Initial get is None
+    let none_policy = db.get_retention_policy(&pid).expect("query policy");
+    assert!(none_policy.is_none());
+
+    // 2. Save policy
+    let policy = RetentionPolicyRecord {
+        policy_id: "pol-1".into(),
+        profile_id: pid.clone(),
+        keep_latest_n: Some(5),
+        keep_newer_than_secs: Some(86400 * 7),
+        keep_latest_successful: true,
+        keep_latest_always: true,
+        prune_failed: false,
+        prune_empty: false,
+        enabled: true,
+        created_at: "2026-10-07T12:00:00Z".into(),
+        updated_at: "2026-10-07T12:00:00Z".into(),
+    };
+    db.save_retention_policy(&policy).expect("save policy");
+
+    let fetched = db
+        .get_retention_policy(&pid)
+        .expect("query")
+        .expect("found");
+    assert_eq!(fetched.policy_id, "pol-1");
+    assert_eq!(fetched.keep_latest_n, Some(5));
+    assert_eq!(fetched.keep_newer_than_secs, Some(86400 * 7));
+    assert!(fetched.keep_latest_successful);
+    assert!(fetched.keep_latest_always);
+
+    // 3. Upsert (update on conflict)
+    let updated_policy = RetentionPolicyRecord {
+        policy_id: "pol-1-updated".into(),
+        profile_id: pid.clone(),
+        keep_latest_n: Some(10),
+        keep_newer_than_secs: Some(86400 * 14),
+        keep_latest_successful: true,
+        keep_latest_always: true,
+        prune_failed: true,
+        prune_empty: true,
+        enabled: true,
+        created_at: "2026-10-07T12:00:00Z".into(),
+        updated_at: "2026-10-07T13:00:00Z".into(),
+    };
+    db.save_retention_policy(&updated_policy)
+        .expect("update policy");
+    let fetched_updated = db
+        .get_retention_policy(&pid)
+        .expect("query")
+        .expect("found");
+    assert_eq!(fetched_updated.keep_latest_n, Some(10));
+    assert!(fetched_updated.prune_failed);
+
+    // 4. Record retention history
+    let history = RetentionHistoryRecord {
+        history_id: "hist-001".into(),
+        profile_id: pid.clone(),
+        executed_at: "2026-10-07T14:00:00Z".into(),
+        dry_run: false,
+        snapshots_evaluated: 12,
+        snapshots_kept: 10,
+        snapshots_pruned: 2,
+        pruned_snapshot_ids: "[\"snap-old-1\", \"snap-old-2\"]".into(),
+        decisions_summary: "{\"pruned\": 2}".into(),
+        status: "completed".into(),
+        error_message: None,
+    };
+    db.record_retention_history(&history)
+        .expect("record history");
+
+    let history_list = db.list_retention_history(&pid, 10).expect("list history");
+    assert_eq!(history_list.len(), 1);
+    assert_eq!(history_list[0].history_id, "hist-001");
+    assert_eq!(history_list[0].snapshots_pruned, 2);
+
+    // 5. Delete policy
+    db.delete_retention_policy(&pid).expect("delete policy");
+    assert!(db.get_retention_policy(&pid).expect("query").is_none());
+}
+
+#[test]
+fn test_snapshot_and_version_pruning_transactional() {
+    let db = Database::open_in_memory().expect("open memory db");
+    let pid = ProfileId::new("prof-prune").unwrap();
+
+    db.create_profile(&ProfileRecord {
+        profile_id: pid.clone(),
+        name: "Prune Profile".into(),
+        description: None,
+        source_path: "D:\\Prune".into(),
+        enabled: true,
+        created_at: "2026-10-07T10:00:00Z".into(),
+        updated_at: "2026-10-07T10:00:00Z".into(),
+    })
+    .expect("create profile");
+
+    let fid = FileId::new("f-prune-1").unwrap();
+    db.create_file(&FileRecord {
+        file_id: fid.clone(),
+        profile_id: Some(pid.clone()),
+        file_name: "test.txt".into(),
+        relative_path: "test.txt".into(),
+        original_size: 100,
+        mime_type: None,
+        status: "backed_up".into(),
+        logical_file_hash: None,
+        created_at: "2026-10-07T10:00:00Z".into(),
+        modified_at: None,
+        created_timestamp: "2026-10-07T10:00:00Z".into(),
+        updated_timestamp: "2026-10-07T10:00:00Z".into(),
+    })
+    .expect("create file");
+
+    let man_id = "man-prune-1".to_string();
+    let manifest = ManifestV1 {
+        manifest_version: ManifestVersion::V1,
+        manifest_id: man_id.clone(),
+        logical_file: LogicalFileMetadata {
+            file_id: fid.clone(),
+            file_name: "test.txt".into(),
+            relative_path: "test.txt".into(),
+            original_size: 100,
+            created_at: None,
+            modified_at: None,
+            mime_type: None,
+        },
+        encryption: None,
+        compression: CompressionMetadata::none(),
+        integrity: IntegrityMetadata::sha256(
+            "4444444444444444444444444444444444444444444444444444444444444444",
+        ),
+        chunks: vec![ChunkManifest {
+            chunk_id: ChunkId::new("chunk-prune-c0").unwrap(),
+            index: 0,
+            plaintext_size: 100,
+            stored_size: 100,
+            integrity: IntegrityMetadata::sha256(
+                "4444444444444444444444444444444444444444444444444444444444444444",
+            ),
+            storage_reference: StorageReference::Pending,
+        }],
+    };
+    db.save_manifest(&manifest).expect("save manifest");
+
+    // Create 3 snapshots with versions
+    let s1 = SnapshotId::new("snap-prune-1").unwrap();
+    let s2 = SnapshotId::new("snap-prune-2").unwrap();
+    let s3 = SnapshotId::new("snap-prune-3").unwrap();
+
+    for (s, created_at) in [
+        (&s1, "2026-10-01T10:00:00Z"),
+        (&s2, "2026-10-02T10:00:00Z"),
+        (&s3, "2026-10-03T10:00:00Z"),
+    ] {
+        db.create_snapshot(&SnapshotRecord {
+            snapshot_id: s.clone(),
+            profile_id: pid.clone(),
+            status: BackupStatus::Completed,
+            metadata: None,
+            created_at: created_at.into(),
+        })
+        .expect("create snapshot");
+
+        let vid = VersionId::new(format!("ver-{}", s.as_str())).unwrap();
+        db.create_version(&VersionRecord {
+            version_id: vid,
+            file_id: fid.clone(),
+            snapshot_id: s.clone(),
+            manifest_id: man_id.clone(),
+            status: "active".into(),
+            created_at: created_at.into(),
+        })
+        .expect("create version");
+    }
+
+    assert_eq!(db.list_snapshots_by_profile(&pid).unwrap().len(), 3);
+    assert_eq!(db.count_versions_by_snapshot(&s1).unwrap(), 1);
+
+    // 1. Single snapshot deletion
+    let deleted_versions = db.delete_snapshot(&s1).expect("delete s1");
+    assert_eq!(deleted_versions, 1);
+    assert!(db.get_snapshot(&s1).unwrap().is_none());
+    assert_eq!(db.count_versions_by_snapshot(&s1).unwrap(), 0);
+    assert_eq!(db.list_snapshots_by_profile(&pid).unwrap().len(), 2);
+
+    // 2. Batch transactional pruning with history record
+    let history = RetentionHistoryRecord {
+        history_id: "hist-prune-batch".into(),
+        profile_id: pid.clone(),
+        executed_at: "2026-10-07T15:00:00Z".into(),
+        dry_run: false,
+        snapshots_evaluated: 2,
+        snapshots_kept: 1,
+        snapshots_pruned: 1,
+        pruned_snapshot_ids: "[\"snap-prune-2\"]".into(),
+        decisions_summary: "{\"pruned\": 1}".into(),
+        status: "completed".into(),
+        error_message: None,
+    };
+    let pruned_versions = db
+        .prune_snapshots_transactional(std::slice::from_ref(&s2), Some(&history))
+        .expect("batch prune");
+    assert_eq!(pruned_versions, 1);
+    assert!(db.get_snapshot(&s2).unwrap().is_none());
+    assert!(db.get_snapshot(&s3).unwrap().is_some());
+
+    // 3. Rollback on failure (attempt to prune non-existent snapshot in batch)
+    let bad_snap = SnapshotId::new("snap-does-not-exist").unwrap();
+    let res = db.prune_snapshots_transactional(&[s3.clone(), bad_snap], None);
+    assert!(res.is_err());
+    // Verify s3 was rolled back and is STILL in database
+    assert!(db.get_snapshot(&s3).unwrap().is_some());
+    assert_eq!(db.count_versions_by_snapshot(&s3).unwrap(), 1);
 }

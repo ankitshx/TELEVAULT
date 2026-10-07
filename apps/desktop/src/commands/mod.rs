@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod checker;
 pub mod restore;
+pub mod retention;
 pub mod scheduler;
 pub mod system;
 pub mod transfer;
@@ -10,6 +11,7 @@ pub mod transfer;
 pub use backup::*;
 pub use checker::*;
 pub use restore::*;
+pub use retention::*;
 pub use scheduler::*;
 pub use system::*;
 pub use transfer::*;

@@ -133,3 +133,25 @@
 - Regression Test: `cargo test -p televault-desktop --test scheduler_ipc_tests`.
 - Prevention Rule: Always reference DTO struct definitions directly when assembling test payload fixtures.
 
+## Phase 12 — Specta BigInt Constraint on Retention Duration Fields
+- Mistake: In `apps/desktop/src/dto/retention.rs`, fields `keep_newer_than_secs: Option<u64>` and `age_secs: u64` caused `--export-types` to fail with `Specta forbids exporting BigInt-style types (usize, isize, i64, u64, i128, u128) to avoid precision loss`.
+- Root Cause: Exported raw 64-bit integer fields without considering Specta's restriction for TypeScript number safety.
+- Fix: Typed duration and age fields as `u32` in DTOs (which supports up to ~136 years in seconds), converting cleanly between domain `u64` and DTO `u32`.
+- Regression Test: `cargo run -p televault-desktop -- --export-types` exports cleanly to `apps/desktop/ui/src/bindings.ts`.
+- Prevention Rule: Use `u32` for time intervals in seconds and human counts in IPC DTOs to avoid BigInt export issues.
+
+## Phase 12 — Clippy redundant_guards on DbError Match Arm
+- Mistake: In `crates/televault-backup/src/error.rs`, wrote `televault_db::DbError::NotFound { entity, id } if entity == "Snapshot"`, triggering `-D clippy::redundant_guards`.
+- Root Cause: Used conditional `if` guard instead of direct pattern matching on the static string literal field.
+- Fix: Replaced with `televault_db::DbError::NotFound { entity: "Snapshot", id } => ...`.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Prevention Rule: Pattern match directly against string literals in struct match arms rather than using guards on string comparisons.
+
+## Phase 12 — Clippy unnecessary_unwrap in Retention Evaluator
+- Mistake: In `crates/televault-backup/src/retention/evaluator.rs`, wrote `if policy.keep_latest_n.is_some() { ... policy.keep_latest_n.unwrap() }`, triggering `-D clippy::unnecessary_unwrap`.
+- Root Cause: Checked option presence imperatively before unwrapping rather than using idiomatic pattern matching.
+- Fix: Replaced with `match (policy.keep_newer_than_secs, policy.keep_latest_n) { (Some(_), Some(max_n)) => ..., ... }`.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Prevention Rule: Use `match` or `if let` pattern matching on `Option` types instead of `is_some()` followed by `.unwrap()`.
+
+

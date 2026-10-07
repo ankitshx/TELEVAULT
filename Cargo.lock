@@ -3598,6 +3598,7 @@ dependencies = [
 name = "televault-backup"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "serde_json",
  "sha2",
@@ -3657,6 +3658,7 @@ dependencies = [
 name = "televault-desktop"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "serde_json",
  "sha2",

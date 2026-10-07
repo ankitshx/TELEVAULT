@@ -34,6 +34,7 @@ thiserror = { workspace = true }
 tokio = { version = "1", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
 sha2 = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 tauri = { version = "2", default-features = false, features = ["wry", "test"] }

@@ -333,6 +333,105 @@ impl From<RestoreError> for AppError {
     }
 }
 
+/// Strongly typed errors encountered during retention policy evaluation and snapshot pruning.
+#[derive(Debug, thiserror::Error)]
+pub enum RetentionError {
+    /// Specified backup profile does not exist.
+    #[error("Profile '{0}' not found")]
+    ProfileNotFound(String),
+
+    /// Invalid retention policy configuration.
+    #[error("Invalid retention policy: {0}")]
+    InvalidPolicy(String),
+
+    /// Profile is currently busy with an active backup or restore operation.
+    #[error("Profile '{0}' is currently busy with an active operation")]
+    ProfileBusy(String),
+
+    /// Snapshot is currently active or protected from pruning.
+    #[error("Snapshot '{0}' is currently active or protected: {1}")]
+    SnapshotProtected(String, String),
+
+    /// Snapshot was not found in catalog.
+    #[error("Snapshot '{0}' not found in catalog")]
+    SnapshotNotFound(String),
+
+    /// Database persistence or transaction error.
+    #[error("Database error: {0}")]
+    Database(String),
+
+    /// Retention operation was cancelled.
+    #[error("Retention operation was cancelled")]
+    Cancelled,
+
+    /// Internal retention failure.
+    #[error("Retention internal error: {0}")]
+    Internal(String),
+}
+
+impl From<televault_db::DbError> for RetentionError {
+    fn from(err: televault_db::DbError) -> Self {
+        match err {
+            televault_db::DbError::NotFound {
+                entity: "Snapshot",
+                id,
+            } => Self::SnapshotNotFound(id),
+            televault_db::DbError::NotFound {
+                entity: "Profile",
+                id,
+            } => Self::ProfileNotFound(id),
+            other => Self::Database(other.to_string()),
+        }
+    }
+}
+
+impl From<RetentionError> for AppError {
+    fn from(err: RetentionError) -> Self {
+        match err {
+            RetentionError::ProfileNotFound(msg) => AppError::NotFound {
+                entity: "Profile",
+                id: msg,
+            },
+            RetentionError::SnapshotNotFound(msg) => AppError::NotFound {
+                entity: "Snapshot",
+                id: msg,
+            },
+            RetentionError::InvalidPolicy(msg) => AppError::Validation {
+                field: "retention_policy",
+                message: msg,
+            },
+            RetentionError::ProfileBusy(msg) => AppError::Conflict {
+                entity: "Profile",
+                reason: msg,
+            },
+            RetentionError::SnapshotProtected(id, reason) => AppError::Conflict {
+                entity: "Snapshot",
+                reason: format!("Snapshot '{id}' is protected: {reason}"),
+            },
+            RetentionError::Database(msg) => AppError::Internal(format!("Database error: {msg}")),
+            RetentionError::Cancelled => {
+                AppError::Internal("Retention operation was cancelled".into())
+            }
+            RetentionError::Internal(msg) => AppError::Internal(msg),
+        }
+    }
+}
+
+impl From<RetentionError> for BackupError {
+    fn from(err: RetentionError) -> Self {
+        match err {
+            RetentionError::ProfileNotFound(msg) => BackupError::ProfileNotFound(msg),
+            RetentionError::SnapshotNotFound(msg) => {
+                BackupError::SnapshotError(format!("Snapshot not found: {msg}"))
+            }
+            RetentionError::InvalidPolicy(msg) => BackupError::InvalidProfile(msg),
+            RetentionError::Database(msg) => BackupError::DatabaseError(msg),
+            RetentionError::Cancelled => BackupError::Cancelled,
+            other => BackupError::SnapshotError(other.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

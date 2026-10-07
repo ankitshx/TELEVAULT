@@ -241,3 +241,57 @@ pub struct ScheduleHistoryRecord {
     /// Safe human-readable error message.
     pub error_message: Option<String>,
 }
+
+/// Stored retention policy configuration record for a backup profile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetentionPolicyRecord {
+    /// Unique retention policy identifier.
+    pub policy_id: String,
+    /// Associated profile identifier.
+    pub profile_id: ProfileId,
+    /// Maximum count of recent snapshots to retain.
+    pub keep_latest_n: Option<u32>,
+    /// Retention window in seconds; snapshots newer than this age are kept.
+    pub keep_newer_than_secs: Option<u64>,
+    /// Unconditional preservation of the latest successful (Completed) snapshot.
+    pub keep_latest_successful: bool,
+    /// Unconditional preservation of the most recent snapshot regardless of age or status.
+    pub keep_latest_always: bool,
+    /// Whether failed or incomplete snapshots should be pruned.
+    pub prune_failed: bool,
+    /// Whether snapshots with zero versions should be pruned.
+    pub prune_empty: bool,
+    /// Whether the retention policy is actively enabled.
+    pub enabled: bool,
+    /// Record creation timestamp (ISO-8601).
+    pub created_at: String,
+    /// Record update timestamp (ISO-8601).
+    pub updated_at: String,
+}
+
+/// Stored retention audit history execution record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetentionHistoryRecord {
+    /// Unique execution history record identifier.
+    pub history_id: String,
+    /// Associated profile identifier.
+    pub profile_id: ProfileId,
+    /// Execution timestamp (ISO-8601).
+    pub executed_at: String,
+    /// Whether this execution was a dry-run evaluation.
+    pub dry_run: bool,
+    /// Total snapshots evaluated.
+    pub snapshots_evaluated: u32,
+    /// Total snapshots kept.
+    pub snapshots_kept: u32,
+    /// Total snapshots pruned.
+    pub snapshots_pruned: u32,
+    /// Serialized JSON array of pruned snapshot IDs.
+    pub pruned_snapshot_ids: String,
+    /// Serialized JSON summary of retention decisions.
+    pub decisions_summary: String,
+    /// Execution status ("completed" or "failed").
+    pub status: String,
+    /// Optional error message if execution failed.
+    pub error_message: Option<String>,
+}

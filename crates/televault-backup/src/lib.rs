@@ -10,13 +10,14 @@ pub mod pipeline;
 pub mod plan;
 pub mod profile;
 pub mod restore;
+pub mod retention;
 pub mod scanner;
 pub mod snapshot;
 
 pub use change_detector::{ChangeDetector, ChangeKind, ChangeSet, FileChange};
 pub use checker::{BackupChecker, FileBackupStatus};
 pub use engine::BackupEngine;
-pub use error::{BackupError, RestoreError, RestoreOpResult, Result};
+pub use error::{BackupError, RestoreError, RestoreOpResult, Result, RetentionError};
 pub use pipeline::{PayloadPipeline, ProcessedChunk, ProcessedFile, ProcessingOptions};
 pub use plan::{BackupPlan, BackupSummary};
 pub use profile::{BackupProfile, ProfileConfig};
@@ -24,6 +25,10 @@ pub use restore::{
     generate_alternate_path, resolve_collision, CollisionPolicy, CollisionResolution,
     FileRestoreOutcome, FullVerificationReport, ManifestVerificationReport, RestoreEngine,
     RestorePipeline, RestoreRequest, RestoreResult, SnapshotRestoreRequest, SnapshotRestoreResult,
+};
+pub use retention::{
+    RetentionAction, RetentionCandidate, RetentionDecision, RetentionEngine, RetentionEvaluation,
+    RetentionEvaluator, RetentionPolicy, RetentionReason, RetentionResult,
 };
 pub use scanner::{FileScanner, ScanResult, ScannedFile};
 pub use snapshot::SnapshotManager;

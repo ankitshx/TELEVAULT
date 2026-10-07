@@ -72,6 +72,16 @@ export const commands = {
 	getSchedulerStatus: () => typedError<SchedulerStatusDto, IpcError>(__TAURI_INVOKE("get_scheduler_status")),
 	/**  Retrieves execution history for a schedule. */
 	getScheduleHistory: (scheduleId: string, limit: number | null) => typedError<ScheduleHistoryDto[], IpcError>(__TAURI_INVOKE("get_schedule_history", { scheduleId, limit })),
+	/**  Retrieves the configured retention policy for a backup profile. */
+	getRetentionPolicy: (profileId: string) => typedError<RetentionPolicyDto, IpcError>(__TAURI_INVOKE("get_retention_policy", { profileId })),
+	/**  Updates and persists the retention policy configuration for a profile. */
+	setRetentionPolicy: (request: SetRetentionPolicyRequest) => typedError<RetentionPolicyDto, IpcError>(__TAURI_INVOKE("set_retention_policy", { request })),
+	/**  Previews retention policy evaluation (dry-run) without modifying database records. */
+	previewRetention: (profileId: string) => typedError<RetentionEvaluationDto, IpcError>(__TAURI_INVOKE("preview_retention", { profileId })),
+	/**  Executes retention pruning on local metadata for a profile. */
+	executeRetention: (profileId: string) => typedError<RetentionResultDto, IpcError>(__TAURI_INVOKE("execute_retention", { profileId })),
+	/**  Retrieves retention execution audit history for a profile. */
+	getRetentionHistory: (profileId: string, limit: number | null) => typedError<RetentionHistoryDto[], IpcError>(__TAURI_INVOKE("get_retention_history", { profileId, limit })),
 };
 
 /* Types */
@@ -269,6 +279,108 @@ export type RestoreSnapshotRequest = {
 	passphrase: string | null,
 };
 
+/**  Retention decision for an individual snapshot. */
+export type RetentionDecisionDto = {
+	/**  Target snapshot identifier. */
+	snapshot_id: string,
+	/**  Action: 'KEEP' or 'PRUNE'. */
+	action: string,
+	/**  Explicit machine-readable reason (e.g. 'KEEP_LATEST', 'PRUNE_EXCESS_SNAPSHOT'). */
+	reason: string,
+	/**  Human-readable explanation. */
+	description: string,
+	/**  Snapshot execution status. */
+	snapshot_status: string,
+	/**  Snapshot creation timestamp (ISO-8601). */
+	snapshot_created_at: string,
+	/**  Calculated snapshot age in seconds. */
+	age_secs: number,
+	/**  Associated file versions count. */
+	version_count: number,
+};
+
+/**  Deterministic evaluation report for a profile. */
+export type RetentionEvaluationDto = {
+	/**  Target backup profile identifier. */
+	profile_id: string,
+	/**  Timestamp when evaluation was computed. */
+	evaluated_at: string,
+	/**  Effective retention policy applied. */
+	policy: RetentionPolicyDto,
+	/**  Itemized decisions for each snapshot evaluated. */
+	decisions: RetentionDecisionDto[],
+	/**  Total snapshots evaluated. */
+	snapshots_evaluated: number,
+	/**  Total snapshots determined to KEEP. */
+	snapshots_kept: number,
+	/**  Total snapshots determined to PRUNE. */
+	snapshots_pruned: number,
+};
+
+/**  Execution history audit entry for a retention pruning run. */
+export type RetentionHistoryDto = {
+	/**  Unique history identifier. */
+	history_id: string,
+	/**  Associated backup profile identifier. */
+	profile_id: string,
+	/**  Timestamp of execution. */
+	executed_at: string,
+	/**  Whether this was a dry-run execution. */
+	dry_run: boolean,
+	/**  Total snapshots evaluated. */
+	snapshots_evaluated: number,
+	/**  Total snapshots kept. */
+	snapshots_kept: number,
+	/**  Total snapshots pruned. */
+	snapshots_pruned: number,
+	/**  List of snapshot IDs pruned during this run. */
+	pruned_snapshot_ids: string[],
+	/**  Execution status ("completed" or "failed"). */
+	status: string,
+	/**  Error message if execution failed. */
+	error_message: string | null,
+};
+
+/**  User-facing representation of a backup profile's retention policy. */
+export type RetentionPolicyDto = {
+	/**  Associated backup profile identifier. */
+	profile_id: string,
+	/**  Maximum count of recent snapshots to retain. */
+	keep_latest_n: number | null,
+	/**  Retention window in seconds. */
+	keep_newer_than_secs: number | null,
+	/**  Whether the latest successful snapshot is unconditionally preserved. */
+	keep_latest_successful: boolean,
+	/**  Whether the latest snapshot is unconditionally preserved. */
+	keep_latest_always: boolean,
+	/**  Whether failed or incomplete snapshots are pruned. */
+	prune_failed: boolean,
+	/**  Whether completed snapshots with zero files are pruned. */
+	prune_empty: boolean,
+	/**  Whether this retention policy is actively enabled. */
+	enabled: boolean,
+};
+
+/**  Comprehensive outcome of a retention operation (dry-run or real execution). */
+export type RetentionResultDto = {
+	/**  Target backup profile identifier. */
+	profile_id: string,
+	/**  Timestamp of execution. */
+	executed_at: string,
+	/**  Whether this was a dry-run evaluation with zero changes applied. */
+	dry_run: boolean,
+	/**  Detailed retention evaluation report. */
+	evaluation: RetentionEvaluationDto,
+	/**  List of snapshot IDs that were pruned. */
+	pruned_snapshots: string[],
+	/**  Total file version records pruned. */
+	pruned_versions_count: number,
+	/**  Whether the operation succeeded. */
+	success: boolean,
+	/**  Error message if the operation failed. */
+	error_message: string | null,
+};
+
 /**  User-facing representation of a recurring backup schedule. */
 export type ScheduleDto = {
 	/**  Unique schedule identifier. */
@@ -331,6 +443,26 @@ export type SchedulerStatusDto = {
 	active_schedules_count: number,
 	/**  Profiles currently executing backups. */
 	running_profiles: string[],
+};
+
+/**  Parameters for configuring or updating a profile's retention policy. */
+export type SetRetentionPolicyRequest = {
+	/**  Target backup profile identifier. */
+	profile_id: string,
+	/**  Maximum count of recent snapshots to retain. */
+	keep_latest_n: number | null,
+	/**  Retention window in seconds; snapshots newer than this age are kept. */
+	keep_newer_than_secs: number | null,
+	/**  Whether to unconditionally preserve the latest successful snapshot. */
+	keep_latest_successful: boolean | null,
+	/**  Whether to unconditionally preserve the latest snapshot regardless of age or status. */
+	keep_latest_always: boolean | null,
+	/**  Whether failed or incomplete snapshots should be pruned. */
+	prune_failed: boolean | null,
+	/**  Whether completed snapshots with zero files should be pruned. */
+	prune_empty: boolean | null,
+	/**  Whether the retention policy is actively enabled. */
+	enabled: boolean | null,
 };
 
 /**  Historical snapshot metadata record. */
