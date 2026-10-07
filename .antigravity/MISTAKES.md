@@ -56,4 +56,25 @@
 - Regression Test: `cargo test --workspace -- --list` enumerates all 126 tests.
 - Prevention Rule: Always audit test suite inventory with `cargo test --workspace -- --list` to avoid log truncation artifacts.
 
+## Phase 8 — Manifest StorageReference Placeholder Validation Failure
+- Mistake: In `PayloadPipeline::process_file`, staging chunks were initially populated with `StorageReference::Telegram { chat_id: 0, message_id: 0, file_id: "" }`. When saving the manifest to SQLite, `manifest.validate()` rejected `chat_id == 0`.
+- Root Cause: Used zeroed Telegram values as a placeholder prior to upload rather than using the dedicated `StorageReference::Pending` variant designed for in-flight chunks.
+- Fix: Set `storage_reference: StorageReference::Pending` during initial chunk manifest generation, updated chunk manifests with verified storage references returned by `execute_staged_upload`, and saved the updated manifest to SQLite.
+- Regression Test: `test_incremental_backup_regression_scenario` in `crates/televault-backup/tests/backup_tests.rs`.
+- Prevention Rule: Always use `StorageReference::Pending` for in-flight/staged chunks prior to upload verification.
+
+## Phase 8 — Chunk Unique Constraint Violation on Modified File
+- Mistake: In `execute_backup`, updating a modified file with a new version failed with `SQLite error: UNIQUE constraint failed: chunks.file_id, chunks.chunk_index`.
+- Root Cause: `V1__initial_schema.sql` enforces `UNIQUE(file_id, chunk_index)`. When `file2.txt` was modified, chunk 0 of the new version conflicted with chunk 0 of the initial backup version in the `chunks` table.
+- Fix: Added `delete_chunks_by_file` method to `televault-db` and called it when updating modified files to clear old physical chunk rows from the active chunk index before inserting the new version's chunks. All historical versions remain fully preserved in `manifests.serialized_manifest` linked to `versions`.
+- Regression Test: `test_incremental_backup_regression_scenario` in `crates/televault-backup/tests/backup_tests.rs`.
+- Prevention Rule: When updating physical chunks for an active file version, delete superseded chunk index rows for that `file_id` before inserting new chunk records.
+
+## Phase 8 — Clippy needless_late_init on chunk_stored_bytes
+- Mistake: Declared `let chunk_stored_bytes: u64;` and assigned in match arms, triggering `-D clippy::needless_late_init`.
+- Root Cause: Wrote imperative late assignment pattern instead of idiomatic Rust expression return.
+- Fix: Refactored to `let chunk_stored_bytes = match options.encryption_policy { ... };` returning the byte count from each match arm.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Prevention Rule: Bind variables directly from match expressions rather than using uninitialized late binding.
+
 

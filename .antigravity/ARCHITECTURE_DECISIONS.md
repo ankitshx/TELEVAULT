@@ -150,4 +150,30 @@
 - Reason: Prevents catalog fragmentation and maintains SQLite as the single local source of truth for job history
 - Date: 2026-10-07
 
+## AD-031: Metadata-First Change Detection Strategy
+- Decision: Routine incremental backup scans inspect file metadata (size and modification timestamp) against previously recorded catalog versions to identify changes. Files with matching size and timestamp are marked `Unchanged` without reading disk contents or hashing
+- Reason: Enforces high scan speed, minimizes idle CPU and disk I/O, and complies with the permanent resource-efficiency architecture
+- Date: 2026-10-07
+
+## AD-032: Deterministic Logical File Identity Across Snapshots
+- Decision: Logical file identity (`FileId`) is computed deterministically from the normalized relative path (`sha256(relative_path)[..16]`) upon initial discovery and preserved across subsequent snapshots and modifications
+- Reason: Ensures stable versioning history, predictable catalog queries, and clean snapshot differential comparisons without relying on filesystem enumeration order or random IDs
+- Date: 2026-10-07
+
+## AD-033: Cloud-First Retention Invariant on Deleted Local Files
+- Decision: When a tracked file is deleted from local disk, the backup engine marks the file status as `deleted` in snapshot metadata, but NEVER automatically deletes or prunes the remote backup payload in Telegram Cloud. Retention policies decide payload cleanup during dedicated retention maintenance
+- Reason: Prevents accidental data loss, maintains point-in-time snapshot recovery, and protects against malicious local file destruction
+- Date: 2026-10-07
+
+## AD-034: Two-Stage Manifest Storage Reference Lifecycle
+- Decision: During initial payload staging, chunk manifests use `StorageReference::Pending` so that `ManifestV1` satisfies schema validation. Upon completion of each staged upload via `execute_staged_upload`, the chunk is updated with the verified remote reference (`StorageReference::Telegram` or `LocalStaging`) and saved to SQLite
+- Reason: Satisfies strict database foreign key relationships and schema validation rules at all stages without dummy or zeroed identifiers
+- Date: 2026-10-07
+
+## AD-035: Staged Upload Handoff to Phase 7 TransferEngine
+- Decision: The backup engine plans and coordinates, but delegates all payload transfers to the Phase 7 `TransferEngine` through `execute_staged_upload`. Temporary staged chunk files are unlinked immediately after upload verification via explicit cleanup, with RAII `Drop` fallback on cancellation or error
+- Reason: Eliminates duplicate upload logic, enforces bounded concurrency, and guarantees zero orphaned staging files
+- Date: 2026-10-07
+
+
 

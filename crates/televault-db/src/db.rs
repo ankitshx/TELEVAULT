@@ -463,6 +463,26 @@ impl Database {
         })
     }
 
+    /// Retrieves a file record by profile ID and relative path.
+    pub fn get_file_by_relative_path(
+        &self,
+        profile_id: &ProfileId,
+        relative_path: &str,
+    ) -> Result<Option<FileRecord>> {
+        self.with_connection(|conn| {
+            conn.query_row(
+                "SELECT file_id, profile_id, file_name, relative_path, original_size,
+                        mime_type, status, logical_file_hash, created_at, modified_at,
+                        created_timestamp, updated_timestamp
+                 FROM files WHERE profile_id = ?1 AND relative_path = ?2;",
+                params![profile_id.as_str(), relative_path],
+                Self::map_file_row,
+            )
+            .optional()
+            .map_err(DbError::from)
+        })
+    }
+
     /// Helper for mapping a file row to [`FileRecord`].
     fn map_file_row(r: &rusqlite::Row) -> rusqlite::Result<FileRecord> {
         let fid_str: String = r.get(0)?;
@@ -881,6 +901,17 @@ impl Database {
         })
     }
 
+    /// Deletes all physical chunks associated with a logical file.
+    pub fn delete_chunks_by_file(&self, file_id: &FileId) -> Result<usize> {
+        self.with_connection(|conn| {
+            let affected = conn.execute(
+                "DELETE FROM chunks WHERE file_id = ?1;",
+                params![file_id.as_str()],
+            )?;
+            Ok(affected)
+        })
+    }
+
     // =========================================================================
     // Snapshots
     // =========================================================================
@@ -933,6 +964,87 @@ impl Database {
         })
     }
 
+    /// Retrieves the most recent snapshot for a profile.
+    pub fn get_latest_snapshot(&self, profile_id: &ProfileId) -> Result<Option<SnapshotRecord>> {
+        self.with_connection(|conn| {
+            conn.query_row(
+                "SELECT snapshot_id, profile_id, status, metadata, created_at
+                 FROM snapshots WHERE profile_id = ?1 ORDER BY created_at DESC LIMIT 1;",
+                params![profile_id.as_str()],
+                Self::map_snapshot_row,
+            )
+            .optional()
+            .map_err(DbError::from)
+        })
+    }
+
+    /// Lists all file records and their versions associated with a snapshot.
+    pub fn list_files_by_snapshot(
+        &self,
+        snapshot_id: &SnapshotId,
+    ) -> Result<Vec<(FileRecord, VersionRecord)>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT f.file_id, f.profile_id, f.file_name, f.relative_path, f.original_size,
+                        f.mime_type, f.status, f.logical_file_hash, f.created_at, f.modified_at,
+                        f.created_timestamp, f.updated_timestamp,
+                        v.version_id, v.file_id, v.snapshot_id, v.manifest_id, v.status, v.created_at
+                 FROM versions v
+                 INNER JOIN files f ON v.file_id = f.file_id
+                 WHERE v.snapshot_id = ?1
+                 ORDER BY f.relative_path ASC;",
+            )?;
+            let rows = stmt.query_map(params![snapshot_id.as_str()], |row| {
+                let file = Self::map_file_row(row)?;
+                let vid_str: String = row.get(12)?;
+                let fid_str: String = row.get(13)?;
+                let sid_str: String = row.get(14)?;
+                let mid: String = row.get(15)?;
+                let vstatus: String = row.get(16)?;
+                let vcat: String = row.get(17)?;
+
+                let vid = VersionId::new(vid_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        12,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+                let fid = FileId::new(fid_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        13,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+                let sid = SnapshotId::new(sid_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        14,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+
+                let version = VersionRecord {
+                    version_id: vid,
+                    file_id: fid,
+                    snapshot_id: sid,
+                    manifest_id: mid,
+                    status: vstatus,
+                    created_at: vcat,
+                };
+
+                Ok((file, version))
+            })?;
+
+            let mut results = Vec::new();
+            for r in rows {
+                results.push(r?);
+            }
+            Ok(results)
+        })
+    }
+
     /// Helper for mapping a snapshot row to [`SnapshotRecord`].
     fn map_snapshot_row(r: &rusqlite::Row) -> rusqlite::Result<SnapshotRecord> {
         let sid_str: String = r.get(0)?;
@@ -974,10 +1086,20 @@ impl Database {
 
     /// Updates status of a snapshot.
     pub fn update_snapshot_status(&self, id: &SnapshotId, status: BackupStatus) -> Result<()> {
+        self.update_snapshot_status_and_metadata(id, status, None)
+    }
+
+    /// Updates status and metadata of a snapshot.
+    pub fn update_snapshot_status_and_metadata(
+        &self,
+        id: &SnapshotId,
+        status: BackupStatus,
+        metadata: Option<&str>,
+    ) -> Result<()> {
         self.with_connection(|conn| {
             let affected = conn.execute(
-                "UPDATE snapshots SET status = ?2 WHERE snapshot_id = ?1;",
-                params![id.as_str(), status.to_string()],
+                "UPDATE snapshots SET status = ?2, metadata = ?3 WHERE snapshot_id = ?1;",
+                params![id.as_str(), status.to_string(), metadata],
             )?;
             if affected == 0 {
                 return Err(DbError::NotFound {

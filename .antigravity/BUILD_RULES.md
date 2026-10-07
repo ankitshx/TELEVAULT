@@ -17,4 +17,7 @@
 15. Bounded Concurrency Rule: Never spawn unbounded threads or tasks per transfer; always throttle via bounded queue (`max_concurrent_transfers`)
 16. Throttled Progress Rule: Never emit progress events on every stream buffer read; throttle progress notifications to avoid IPC/CPU flooding
 17. Single Catalog Rule: Transfer jobs must persist only to the existing embedded `transfer_jobs` database table
+18. Metadata-First Scan Rule: Never hash entire files during routine scans; use size and modification timestamp to detect unchanged files and reuse prior manifests/versions
+19. Remote Retention Invariant Rule: Never delete remote backups when a file is deleted locally; record deletion logically in snapshot metadata and delegate retention to the retention policy engine
+20. No Premature Component Rule: Do not implement background recurring backup scheduling (Phase 11) or React UI before their designated phases
 

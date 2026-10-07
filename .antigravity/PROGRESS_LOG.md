@@ -350,7 +350,88 @@
 - Local commit only; NO push to GitHub.
 
 ### Remaining Work (Next Phases):
-- Phase 8: Backup Engine & Snapshot Creation (`crates/televault-backup`)
+- Phase 8: Backup Engine & Snapshot Creation (`crates/televault-backup`) — COMPLETE
+- Phase 9: Restore Engine & Verification
 - Subsequent phases: Scheduler, Integrity, Tauri 2 UI.
+
+---
+
+## Phase 8 - Backup Engine & Snapshot Creation
+- Started: 2026-10-07 16:15 IST
+- Completed: 2026-10-07 16:45 IST
+- Status: Completed
+
+### Objective:
+- Implement production-grade backup engine in `crates/televault-backup`.
+- Reconstruct core backup behavior from previous TELEVAULT architecture using the clean Rust domain model:
+  - File discovery and recursive filesystem scanning with include/exclude rules and path traversal protection.
+  - Resource-efficient change detection strategy (New, Modified, Unchanged, Deleted) avoiding whole-file reads or unnecessary hashing on unchanged files.
+  - Deterministic logical file identity preservation across snapshots.
+  - Point-in-time snapshot creation and deterministic differential comparison.
+  - Logical file version creation and manifest generation (< 2 GB single chunk, >= 2 GB 1.8 GB chunks).
+  - Optional AES-256-GCM encryption with chunk-specific authenticated data (`ChunkAad`).
+  - Independent optional compression.
+  - Bounded streaming processing pipeline with temporary staging lifecycle.
+  - Handoff to Phase 7 `TransferEngine` for staged upload execution and verified remote reference recording.
+  - Preserved backup checker compatibility service (`BackupChecker`).
+  - Cloud-first architecture: no permanent local backup copies; local computer stores SQLite metadata, logs, and bounded staging only.
+  - Zero whole-file memory buffering; verified 5.2 GB 3-chunk logical file pipeline without multi-gigabyte RAM allocation.
+  - No background scheduler yet (Phase 11); no frontend UI yet (Phase 13+).
+
+### Work Completed:
+- Added `televault-core`, `televault-crypto`, `televault-manifest`, `televault-db`, `televault-storage`, `televault-transfer`, `sha2`, `serde`, `serde_json`, `thiserror`, `tracing` to `crates/televault-backup/Cargo.toml`.
+- Built `src/error.rs` defining typed `BackupError` mapping cleanly to `AppError` and handling domain errors.
+- Built `src/profile.rs` defining `BackupProfile`, `ProfileConfig`, path filtering rules, and SQLite record conversion.
+- Built `src/scanner.rs` implementing `FileScanner`, `ScannedFile`, `ScanResult`, recursive traversal, path traversal validation, and graceful handling of inaccessible files.
+- Built `src/change_detector.rs` implementing `ChangeDetector`, `ChangeSet`, `FileChange`, `ChangeKind` (`New`, `Modified`, `Unchanged`, `Deleted`), and stable deterministic `FileId` derivation.
+- Built `src/snapshot.rs` implementing `SnapshotManager` for snapshot records, status transitions, JSON metadata summaries, and differential comparisons.
+- Built `src/pipeline.rs` implementing `PayloadPipeline`, `ProcessedChunk`, `ProcessedFile`, `ProcessingOptions`, streaming SHA-256 integrity calculation, optional AES-256-GCM encryption, chunk partitioning (`TARGET_CHUNK_SIZE_BYTES`), and staging in `TempPayloadFile`.
+- Built `src/plan.rs` defining `BackupPlan` and `BackupSummary`.
+- Built `src/engine.rs` implementing `BackupEngine` coordinating scanning, planning, pipelining, DB catalog recording, and staged upload execution through Phase 7 `TransferEngine`.
+- Built `src/checker.rs` implementing `BackupChecker` compatibility service (`check_file_status`, `is_incremental_backup_needed`, version history).
+- Added `get_file_by_relative_path`, `get_latest_snapshot`, `list_files_by_snapshot`, `update_snapshot_status_and_metadata`, and `delete_chunks_by_file` helper methods in `crates/televault-db/src/db.rs`.
+- Built `tests/backup_tests.rs` containing 5 comprehensive integration tests:
+  - Incremental backup regression test (`file1` unchanged/reused, `file2` modified/uploaded, `file3` deleted/retained remotely, `file4` new/uploaded).
+  - 5.2 GB 3-chunk logical file pipeline test (1.8 GB, 1.8 GB, 1.6 GB) via `VirtualZeroAllocStream`.
+  - All 4 encryption/compression combinations test (None+None, None+AesGcm, Zstd+None, Zstd+AesGcm).
+  - Empty file (0 bytes -> 1 chunk of 0 bytes) and boundary cases test.
+  - Cooperative cancellation test.
+- Audited test-count continuity across phases: 126 Phase 7 tests + 14 Phase 8 tests = 140 total workspace tests passing. Zero regressions.
+
+### Files Created (10):
+- `crates/televault-backup/src/error.rs`
+- `crates/televault-backup/src/profile.rs`
+- `crates/televault-backup/src/scanner.rs`
+- `crates/televault-backup/src/change_detector.rs`
+- `crates/televault-backup/src/snapshot.rs`
+- `crates/televault-backup/src/pipeline.rs`
+- `crates/televault-backup/src/plan.rs`
+- `crates/televault-backup/src/engine.rs`
+- `crates/televault-backup/src/checker.rs`
+- `crates/televault-backup/tests/backup_tests.rs`
+
+### Files Modified (6):
+- `Cargo.lock`
+- `crates/televault-backup/Cargo.toml`
+- `crates/televault-backup/src/lib.rs`
+- `crates/televault-db/src/db.rs`
+- `.antigravity/MISTAKES.md` (Phase 8 records)
+- `.antigravity/PROGRESS_LOG.md` (Phase 8 entry)
+
+### Test & Validation Results:
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo test --workspace`: PASS (140 tests passed, 0 failed, 0 ignored)
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- Architecture validation scan: PASS (0 forbidden patterns: no Python, no HTTP/localhost, no sidecar, no whole-file RAM buffering)
+
+### Commit:
+- Commit message: "Phase 8 complete - backup engine and snapshot creation"
+- Local commit only; NO push to GitHub.
+
+### Remaining Work (Next Phases):
+- Phase 9: Restore Engine & Verification (`crates/televault-backup` restore workflows)
+- Subsequent phases: Scheduler, Integrity, Tauri 2 UI.
+
 
 
