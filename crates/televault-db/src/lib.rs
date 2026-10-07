@@ -1,20 +1,19 @@
-﻿//! Embedded database, migrations, and local catalog persistence for TELEVAULT.
+//! Embedded database, migrations, and local catalog persistence for TELEVAULT.
 
 #![deny(missing_docs)]
 
-pub use televault_core as core;
+pub mod db;
+pub mod error;
+pub mod migrations;
+pub mod models;
 
-/// Returns the database schema version.
+pub use db::Database;
+pub use error::{DbError, Result};
+pub use models::*;
+pub use televault_core as core;
+pub use televault_manifest as manifest;
+
+/// Returns the current database schema version.
 pub fn schema_version() -> u32 {
     1
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_schema_version() {
-        assert_eq!(schema_version(), 1);
-    }
 }

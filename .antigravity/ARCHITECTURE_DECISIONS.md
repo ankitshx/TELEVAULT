@@ -1,4 +1,4 @@
-﻿# ARCHITECTURE DECISIONS
+# ARCHITECTURE DECISIONS
 
 ## AD-001: Rust-Only Architecture
 - Decision: TELEVAULT uses Rust-only architecture with Tauri 2
@@ -68,4 +68,29 @@
 ## AD-014: Explicit Optional Encryption in Manifest Metadata
 - Decision: Manifest metadata represents encryption as `Option<EncryptionMetadata>`. When encryption is disabled, the field is `None` with zero synthetic or dummy encryption parameters
 - Reason: Enforces the optional encryption contract, ensuring unencrypted files do not carry misleading or redundant cryptographic headers
+- Date: 2026-10-07
+
+## AD-015: Embedded SQLite Catalog and Refinery Versioned Migrations
+- Decision: Local persistence is handled by an embedded SQLite database managed via `rusqlite` and `refinery`. Schema migrations are stored as versioned SQL files (`V1__initial_schema.sql`) and run deterministically upon database initialization
+- Reason: Eliminates external database services, network listeners, and schema drift while enabling robust transactional upgrades
+- Date: 2026-10-07
+
+## AD-016: Strict Foreign Key Referential Integrity and Protected Historical Retention
+- Decision: `PRAGMA foreign_keys = ON;` is enforced unconditionally. Historical snapshots and version associations use `ON DELETE RESTRICT` rather than cascading deletes, preventing accidental destruction of backup history when editing profiles or files
+- Reason: Guarantees catalog consistency and protects point-in-time restore history from inadvertent deletion
+- Date: 2026-10-07
+
+## AD-017: Logical File Primacy and Physical Chunk Storage Transparency in SQLite
+- Decision: The `files` table stores single logical file entities (e.g., 5.2 GB), while the `chunks` table stores physical storage units (e.g., three 1.8 GB chunks). Chunks are never exposed as files, and queries always maintain `(file_id, chunk_index) UNIQUE` with strict index ordering
+- Reason: Enforces product rule that physical chunking is an internal transport implementation detail and keeps user file tracking unified
+- Date: 2026-10-07
+
+## AD-018: Trigger-Synchronized FTS5 Full-Text Search Engine
+- Decision: Full-text search is implemented using SQLite's FTS5 extension (`files_fts`), synchronized automatically via `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` database triggers on the `files` table. Search queries are sanitized to prevent FTS5 syntax errors
+- Reason: Delivers instant, typo-tolerant search across logical filenames and relative paths without manual application-layer synchronization logic
+- Date: 2026-10-07
+
+## AD-019: SQLite Pragmas for High Performance and Concurrency
+- Decision: Database connections configure `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA foreign_keys = ON;`, and `PRAGMA busy_timeout = 5000;`. The database handle is wrapped in `Arc<Mutex<Connection>>` for safe sharing across concurrent desktop workers
+- Reason: Enables high write concurrency, fast commits, resilient crash recovery, and thread-safe desktop application access
 - Date: 2026-10-07

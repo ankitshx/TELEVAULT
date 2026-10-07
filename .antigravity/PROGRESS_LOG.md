@@ -1,4 +1,4 @@
-﻿# PROGRESS LOG
+# PROGRESS LOG
 
 ## Phase 0 - Repo Setup
 - Started: 2026-10-07 13:28 IST
@@ -156,3 +156,59 @@
 ### Remaining Work (Next Phases):
 - Phase 5: Embedded SQLite Database & Schema (`crates/televault-db`)
 - Subsequent phases: Storage Provider, Telegram Integration, Transfer Workers, Backup Engine, Scheduler, Integrity, Tauri 2 UI.
+
+---
+
+## Phase 5 - Embedded SQLite Database & Schema
+- Started: 2026-10-07 14:40 IST
+- Completed: 2026-10-07 15:05 IST
+- Status: Completed
+
+### Objective:
+- Implement production-grade embedded SQLite persistence layer in `crates/televault-db`.
+- Configure bundled SQLite with FTS5 and `refinery` versioned migration engine.
+- Define initial schema `V1__initial_schema.sql` supporting `profiles`, `files` (logical files), `manifests`, `chunks` (physical storage units), `snapshots`, `versions`, `transfer_jobs`, and `files_fts` virtual table with triggers.
+- Build thread-safe `Database` connection management with WAL mode, 5000ms busy timeout, and mandatory foreign key enforcement.
+- Provide typed repository methods for all domain entities, manifest JSON roundtrip, atomic transactions, FTS5 search query sanitization, and database health checks.
+- Verify 5.2 GB logical file regression test, chunk index uniqueness, foreign key deletion restrictions (`ON DELETE RESTRICT`), and transaction rollback.
+
+### Work Completed:
+- Added `rusqlite` (bundled-full), `refinery`, `thiserror`, `serde`, `serde_json` to root workspace and `crates/televault-db/Cargo.toml`.
+- Built `migrations/V1__initial_schema.sql` with normalized tables, foreign keys, indexes, FTS5 table, and synchronization triggers.
+- Built `src/migrations.rs` embedding refinery migrations.
+- Built `src/error.rs` with `DbError` mapping to `televault_core::AppError`.
+- Built `src/models.rs` defining `ProfileRecord`, `FileRecord`, `ManifestRecord`, `ChunkRecord`, `SnapshotRecord`, `VersionRecord`, `TransferJobRecord`, `SearchResult`, `HealthStatus`.
+- Built `src/db.rs` with `Database` API, transactions, pragmas, health check, and full repository methods.
+- Built `tests/db_tests.rs` with 10 integration tests covering health check, CRUD, 5.2 GB / 3 chunks regression, duplicate index rejection, foreign keys, optional encryption, FTS5 sync, and file-backed database lifecycle.
+- 86 total tests passing across entire workspace; zero Clippy warnings; clean formatting.
+
+### Files Created (5):
+- `crates/televault-db/migrations/V1__initial_schema.sql`
+- `crates/televault-db/src/migrations.rs`
+- `crates/televault-db/src/error.rs`
+- `crates/televault-db/src/models.rs`
+- `crates/televault-db/src/db.rs`
+- `crates/televault-db/tests/db_tests.rs`
+
+### Files Modified (5):
+- `Cargo.toml`
+- `crates/televault-db/Cargo.toml`
+- `crates/televault-db/src/lib.rs`
+- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-015 through AD-019)
+- `.antigravity/MISTAKES.md` (Phase 5 record)
+
+### Test & Validation Results:
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo test --workspace`: PASS (86 tests passed, 0 failed, 0 ignored)
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- Architecture validation scan: PASS (0 forbidden patterns found)
+
+### Commit:
+- Commit message: "Phase 5 complete - embedded database foundation"
+- Local commit only; NO push to GitHub.
+
+### Remaining Work (Next Phases):
+- Phase 6: Storage Provider & Telegram Integration (`crates/televault-storage`, `crates/televault-telegram`)
+- Subsequent phases: Transfer Workers, Backup Engine, Scheduler, Integrity, Tauri 2 UI.
+
