@@ -5,7 +5,7 @@ use crate::migrations::run_migrations;
 use crate::models::{
     ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, RetentionHistoryRecord,
     RetentionPolicyRecord, ScheduleHistoryRecord, ScheduleRecord, SearchResult, SnapshotRecord,
-    TransferJobRecord, VersionRecord,
+    TransferJobRecord, VerificationHistoryRecord, VersionRecord,
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::Path;
@@ -829,6 +829,27 @@ impl Database {
                  FROM chunks WHERE manifest_id = ?1 ORDER BY chunk_index ASC;",
             )?;
             let rows = stmt.query_map(params![manifest_id], Self::map_chunk_row)?;
+            let mut chunks = Vec::new();
+            for r in rows {
+                chunks.push(r?);
+            }
+            Ok(chunks)
+        })
+    }
+
+    /// Finds chunks matching a given storage reference string.
+    pub fn find_chunks_by_storage_reference(
+        &self,
+        storage_reference: &str,
+    ) -> Result<Vec<ChunkRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT chunk_id, file_id, manifest_id, chunk_index, plaintext_size,
+                        stored_size, integrity_hash, storage_reference, status,
+                        created_at, updated_at
+                 FROM chunks WHERE storage_reference = ?1;",
+            )?;
+            let rows = stmt.query_map(params![storage_reference], Self::map_chunk_row)?;
             let mut chunks = Vec::new();
             for r in rows {
                 chunks.push(r?);
@@ -1989,6 +2010,95 @@ impl Database {
             Ok(history)
         })
     }
+
+    /// Records a verification audit history entry.
+    pub fn record_verification_history(&self, record: &VerificationHistoryRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO verification_history (
+                    history_id, profile_id, target_type, target_id,
+                    level, status, is_restore_ready,
+                    total_files, total_manifests, total_chunks,
+                    healthy_chunks, corrupted_chunks, missing_chunks,
+                    ownership_violations, duration_ms, findings_json, verified_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17);",
+                params![
+                    record.history_id,
+                    record.profile_id.as_str(),
+                    record.target_type,
+                    record.target_id,
+                    record.level as i64,
+                    record.status,
+                    if record.is_restore_ready { 1 } else { 0 },
+                    record.total_files as i64,
+                    record.total_manifests as i64,
+                    record.total_chunks as i64,
+                    record.healthy_chunks as i64,
+                    record.corrupted_chunks as i64,
+                    record.missing_chunks as i64,
+                    record.ownership_violations as i64,
+                    record.duration_ms as i64,
+                    record.findings_json,
+                    record.verified_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Lists verification audit history for a profile, ordered newest first.
+    pub fn list_verification_history(
+        &self,
+        profile_id: &ProfileId,
+        limit: usize,
+    ) -> Result<Vec<VerificationHistoryRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT history_id, profile_id, target_type, target_id,
+                        level, status, is_restore_ready,
+                        total_files, total_manifests, total_chunks,
+                        healthy_chunks, corrupted_chunks, missing_chunks,
+                        ownership_violations, duration_ms, findings_json, verified_at
+                 FROM verification_history
+                 WHERE profile_id = ?1
+                 ORDER BY verified_at DESC
+                 LIMIT ?2;",
+            )?;
+            let rows = stmt.query_map(
+                params![profile_id.as_str(), limit as i64],
+                map_verification_history_row,
+            )?;
+            let mut history = Vec::new();
+            for r in rows {
+                history.push(r?);
+            }
+            Ok(history)
+        })
+    }
+
+    /// Retrieves a single verification history record by ID.
+    pub fn get_verification_history(
+        &self,
+        history_id: &str,
+    ) -> Result<Option<VerificationHistoryRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT history_id, profile_id, target_type, target_id,
+                        level, status, is_restore_ready,
+                        total_files, total_manifests, total_chunks,
+                        healthy_chunks, corrupted_chunks, missing_chunks,
+                        ownership_violations, duration_ms, findings_json, verified_at
+                 FROM verification_history
+                 WHERE history_id = ?1;",
+            )?;
+            let mut rows = stmt.query_map(params![history_id], map_verification_history_row)?;
+            if let Some(r) = rows.next() {
+                Ok(Some(r?))
+            } else {
+                Ok(None)
+            }
+        })
+    }
 }
 
 fn map_schedule_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ScheduleRecord> {
@@ -2131,6 +2241,52 @@ fn map_retention_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Retentio
         decisions_summary,
         status,
         error_message,
+    })
+}
+
+fn map_verification_history_row(
+    r: &rusqlite::Row<'_>,
+) -> rusqlite::Result<VerificationHistoryRecord> {
+    let history_id: String = r.get(0)?;
+    let profile_id_str: String = r.get(1)?;
+    let target_type: String = r.get(2)?;
+    let target_id: String = r.get(3)?;
+    let level: i64 = r.get(4)?;
+    let status: String = r.get(5)?;
+    let is_restore_ready: i64 = r.get(6)?;
+    let total_files: i64 = r.get(7)?;
+    let total_manifests: i64 = r.get(8)?;
+    let total_chunks: i64 = r.get(9)?;
+    let healthy_chunks: i64 = r.get(10)?;
+    let corrupted_chunks: i64 = r.get(11)?;
+    let missing_chunks: i64 = r.get(12)?;
+    let ownership_violations: i64 = r.get(13)?;
+    let duration_ms: i64 = r.get(14)?;
+    let findings_json: String = r.get(15)?;
+    let verified_at: String = r.get(16)?;
+
+    let profile_id = ProfileId::new(profile_id_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+
+    Ok(VerificationHistoryRecord {
+        history_id,
+        profile_id,
+        target_type,
+        target_id,
+        level: level as u32,
+        status,
+        is_restore_ready: is_restore_ready != 0,
+        total_files: total_files as u32,
+        total_manifests: total_manifests as u32,
+        total_chunks: total_chunks as u32,
+        healthy_chunks: healthy_chunks as u32,
+        corrupted_chunks: corrupted_chunks as u32,
+        missing_chunks: missing_chunks as u32,
+        ownership_violations: ownership_violations as u32,
+        duration_ms: duration_ms as u64,
+        findings_json,
+        verified_at,
     })
 }
 

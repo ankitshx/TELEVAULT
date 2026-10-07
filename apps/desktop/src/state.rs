@@ -7,6 +7,7 @@ use televault_backup::checker::BackupChecker;
 use televault_backup::engine::BackupEngine;
 use televault_backup::restore::RestoreEngine;
 use televault_backup::retention::RetentionEngine;
+use televault_backup::verification::VerificationEngine;
 use televault_core::error::AppError;
 use televault_core::paths::PathManager;
 use televault_db::Database;
@@ -42,6 +43,8 @@ pub struct DesktopAppState {
     pub scheduler_service: Arc<televault_scheduler::SchedulerService>,
     /// Production retention policy engine coordinating snapshot metadata pruning.
     pub retention_engine: Arc<RetentionEngine>,
+    /// Production remote backup verification and integrity-audit subsystem.
+    pub verification_engine: Arc<VerificationEngine>,
     /// Registry mapping in-flight operation IDs to cooperative cancellation tokens.
     pub cancellation_registry: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
@@ -97,6 +100,11 @@ impl DesktopAppState {
             None,
         ));
         let retention_engine = Arc::new(RetentionEngine::new(Arc::clone(&db)));
+        let verification_engine = Arc::new(VerificationEngine::new(
+            Arc::clone(&db),
+            Arc::clone(&storage_provider),
+            Arc::clone(&temp_manager),
+        ));
 
         Ok(Self {
             db,
@@ -109,6 +117,7 @@ impl DesktopAppState {
             storage_provider,
             scheduler_service,
             retention_engine,
+            verification_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -153,6 +162,11 @@ impl DesktopAppState {
             None,
         ));
         let retention_engine = Arc::new(RetentionEngine::new(Arc::clone(&db)));
+        let verification_engine = Arc::new(VerificationEngine::new(
+            Arc::clone(&db),
+            Arc::clone(&storage_provider),
+            Arc::clone(&temp_manager),
+        ));
 
         Self {
             db,
@@ -165,6 +179,7 @@ impl DesktopAppState {
             storage_provider,
             scheduler_service,
             retention_engine,
+            verification_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         }
     }

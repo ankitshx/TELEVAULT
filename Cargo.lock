@@ -3605,6 +3605,7 @@ dependencies = [
  "televault-core",
  "televault-crypto",
  "televault-db",
+ "televault-integrity",
  "televault-manifest",
  "televault-storage",
  "televault-transfer",
@@ -3670,6 +3671,7 @@ dependencies = [
  "televault-core",
  "televault-crypto",
  "televault-db",
+ "televault-integrity",
  "televault-manifest",
  "televault-scheduler",
  "televault-storage",
@@ -3683,7 +3685,12 @@ dependencies = [
 name = "televault-integrity"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "sha2",
  "televault-core",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

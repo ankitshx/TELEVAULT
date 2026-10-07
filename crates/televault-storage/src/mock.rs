@@ -76,6 +76,47 @@ impl MockStorageProvider {
         self.objects.lock().unwrap().len()
     }
 
+    /// Inserts a virtual mock object with specified fill byte and precomputed hash.
+    /// Used for testing gigabyte-scale payloads (e.g. 1.8 GB chunks) with zero RAM allocation.
+    pub fn insert_virtual_object(
+        &self,
+        reference: StorageReference,
+        size_bytes: u64,
+        fill_byte: u8,
+        sha256_hex: String,
+    ) -> Result<()> {
+        let key = Self::reference_key(&reference)?;
+        let stored_obj = MockStoredObject {
+            payload: MockPayload::VirtualLarge { fill_byte },
+            sha256_hex,
+            size_bytes,
+            created_at: "2026-10-07T12:00:00Z".into(),
+        };
+        self.objects.lock().unwrap().insert(key, stored_obj);
+        Ok(())
+    }
+
+    /// Inserts an in-memory mock object with payload bytes and calculated hash.
+    pub fn insert_in_memory_object(
+        &self,
+        reference: StorageReference,
+        data: Vec<u8>,
+    ) -> Result<String> {
+        let key = Self::reference_key(&reference)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&data);
+        let sha256_hex = format!("{:x}", hasher.finalize());
+        let size_bytes = data.len() as u64;
+        let stored_obj = MockStoredObject {
+            payload: MockPayload::InMemory(data),
+            sha256_hex: sha256_hex.clone(),
+            size_bytes,
+            created_at: "2026-10-07T12:00:00Z".into(),
+        };
+        self.objects.lock().unwrap().insert(key, stored_obj);
+        Ok(sha256_hex)
+    }
+
     /// Formats a mock storage reference key.
     fn reference_key(reference: &StorageReference) -> Result<String> {
         match reference {

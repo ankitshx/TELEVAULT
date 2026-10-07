@@ -295,3 +295,42 @@ pub struct RetentionHistoryRecord {
     /// Optional error message if execution failed.
     pub error_message: Option<String>,
 }
+
+/// Stored verification history audit record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerificationHistoryRecord {
+    /// Unique verification record identifier.
+    pub history_id: String,
+    /// Associated profile identifier.
+    pub profile_id: ProfileId,
+    /// Target entity type ("file", "manifest", "snapshot", "profile").
+    pub target_type: String,
+    /// Target entity identifier string.
+    pub target_id: String,
+    /// Verification depth level (1, 2, 3, 4).
+    pub level: u32,
+    /// Overall verification status string ("healthy", "warning", "corrupted", "failed").
+    pub status: String,
+    /// Whether the backup is confirmed ready for restore.
+    pub is_restore_ready: bool,
+    /// Total files evaluated.
+    pub total_files: u32,
+    /// Total manifests evaluated.
+    pub total_manifests: u32,
+    /// Total chunks evaluated.
+    pub total_chunks: u32,
+    /// Healthy chunks verified.
+    pub healthy_chunks: u32,
+    /// Corrupted chunks detected.
+    pub corrupted_chunks: u32,
+    /// Missing chunks detected.
+    pub missing_chunks: u32,
+    /// Ownership violations detected.
+    pub ownership_violations: u32,
+    /// Execution duration in milliseconds.
+    pub duration_ms: u64,
+    /// Serialized JSON array of itemized findings.
+    pub findings_json: String,
+    /// Timestamp of verification execution (ISO-8601).
+    pub verified_at: String,
+}

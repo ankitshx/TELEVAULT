@@ -82,6 +82,16 @@ export const commands = {
 	executeRetention: (profileId: string) => typedError<RetentionResultDto, IpcError>(__TAURI_INVOKE("execute_retention", { profileId })),
 	/**  Retrieves retention execution audit history for a profile. */
 	getRetentionHistory: (profileId: string, limit: number | null) => typedError<RetentionHistoryDto[], IpcError>(__TAURI_INVOKE("get_retention_history", { profileId, limit })),
+	/**  Verifies a tracked file in a profile by auditing its latest backup manifest and chunks. */
+	verifyFileBackup: (request: VerifyTargetRequest) => typedError<VerificationResultDto, IpcError>(__TAURI_INVOKE("verify_file_backup", { request })),
+	/**  Verifies a specific backup manifest record by its manifest identifier. */
+	verifyManifest: (request: VerifyTargetRequest) => typedError<VerificationResultDto, IpcError>(__TAURI_INVOKE("verify_manifest", { request })),
+	/**  Verifies all file manifests comprising an entire snapshot. */
+	verifySnapshot: (request: VerifyTargetRequest) => typedError<VerificationResultDto, IpcError>(__TAURI_INVOKE("verify_snapshot", { request })),
+	/**  Verifies all tracked files and snapshots across an entire backup profile. */
+	verifyProfile: (request: VerifyTargetRequest) => typedError<VerificationResultDto, IpcError>(__TAURI_INVOKE("verify_profile", { request })),
+	/**  Retrieves persisted historical verification records for a profile. */
+	getVerificationHistory: (profileId: string, limit: number | null) => typedError<VerificationHistoryRecordDto[], IpcError>(__TAURI_INVOKE("get_verification_history", { profileId, limit })),
 };
 
 /* Types */
@@ -567,9 +577,87 @@ export type UpdateScheduleRequest = {
 	enabled: boolean | null,
 };
 
+/**  Structured finding identifying a specific issue discovered during verification. */
+export type VerificationFindingDto = {
+	level: string,
+	severity: string,
+	code: string,
+	description: string,
+	restore_impact: string,
+	profile_id: string | null,
+	snapshot_id: string | null,
+	file_id: string | null,
+	chunk_id: string | null,
+	chunk_index: number | null,
+};
+
+/**  Persisted audit history entry from SQLite verification_history table. */
+export type VerificationHistoryRecordDto = {
+	history_id: string,
+	profile_id: string,
+	target_type: string,
+	target_id: string,
+	level: number,
+	status: string,
+	is_restore_ready: boolean,
+	total_files: number,
+	total_manifests: number,
+	total_chunks: number,
+	healthy_chunks: number,
+	missing_chunks: number,
+	corrupted_chunks: number,
+	ownership_violations: number,
+	findings_json: string,
+	duration_ms: number,
+	verified_at: string,
+};
+
+/**  Comprehensive verification audit result for a target object. */
+export type VerificationResultDto = {
+	target_type: string,
+	target_id: string,
+	profile_id: string,
+	level: string,
+	status: string,
+	is_restore_ready: boolean,
+	findings: VerificationFindingDto[],
+	summary: VerificationSummaryDto,
+	verified_at: string,
+};
+
+/**  Quantitative summary counts of verification results. */
+export type VerificationSummaryDto = {
+	total_files: number,
+	total_manifests: number,
+	total_chunks: number,
+	healthy_chunks: number,
+	missing_chunks: number,
+	corrupted_chunks: number,
+	ownership_violations: number,
+	is_restore_ready: boolean,
+	status: string,
+	duration_ms: number,
+};
+
 /**  Request to verify metadata of a manifest by FileId. */
 export type VerifyManifestRequest = {
 	file_id: string,
+};
+
+/**  Request parameters for scoped remote backup verification. */
+export type VerifyTargetRequest = {
+	/**  Associated profile identifier enforcing ownership isolation. */
+	profile_id: string,
+	/**  Target identifier (file_id, manifest_id, or snapshot_id depending on command). */
+	target_id: string | null,
+	/**  Verification scope level: 1 (MetadataOnly), 2 (RemoteAvailability), 3 (RemoteIntegrity), 4 (RestoreReadiness). */
+	level: number | null,
+	/**  Whether to force streaming byte integrity hash calculation. */
+	full_hash_check: boolean | null,
+	/**  Whether to attempt decryption and authentication verification. */
+	decrypt_check: boolean | null,
+	/**  Optional operation tracking identifier for cooperative cancellation. */
+	operation_id: string | null,
 };
 
 /* Tauri Specta runtime */

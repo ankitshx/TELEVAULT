@@ -13,6 +13,7 @@ pub mod restore;
 pub mod retention;
 pub mod scanner;
 pub mod snapshot;
+pub mod verification;
 
 pub use change_detector::{ChangeDetector, ChangeKind, ChangeSet, FileChange};
 pub use checker::{BackupChecker, FileBackupStatus};
@@ -32,6 +33,7 @@ pub use retention::{
 };
 pub use scanner::{FileScanner, ScanResult, ScannedFile};
 pub use snapshot::SnapshotManager;
+pub use verification::{OwnershipValidator, VerificationEngine};
 
 pub use televault_core as core;
 pub use televault_manifest as manifest;

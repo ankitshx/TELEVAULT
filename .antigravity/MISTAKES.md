@@ -154,4 +154,26 @@
 - Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 - Prevention Rule: Use `match` or `if let` pattern matching on `Option` types instead of `is_some()` followed by `.unwrap()`.
 
+## Phase 13 — Integer Subtraction Underflow on Extra Chunk Size Boundary Check
+- Mistake: In `VerificationEngine::verify_manifest`, computing expected chunk size for index `i >= chunk_count - 1` evaluated `manifest.logical_file.original_size - (i as u64 * TARGET_CHUNK_SIZE_BYTES)`, causing integer underflow panic when verifying a manifest with an extra unexpected chunk (`i = 3`).
+- Root Cause: Direct unchecked subtraction on `u64` when `i * TARGET_CHUNK_SIZE_BYTES` exceeded `original_size`.
+- Fix: Replaced with `manifest.logical_file.original_size.saturating_sub(i as u64 * TARGET_CHUNK_SIZE_BYTES)`.
+- Regression Test: `test_24_large_file_extra_unexpected_chunk` in `crates/televault-backup/tests/verification_tests.rs`.
+- Prevention Rule: Always use saturating arithmetic (`.saturating_sub(...)`) when calculating expected chunk boundaries from untrusted or malicious manifest structures.
+
+## Phase 13 — Omitted Audit History Persistence on Early Verification Exits
+- Mistake: Early exit points in `verify_manifest` (MetadataOnly, RemoteAvailability, profile validation failure, cancellation) returned without calling `self.persist_history(&res)`, causing audit history records to be skipped.
+- Root Cause: Only placed `self.persist_history(&res)` at the terminal Level 4 completion point rather than on all successful exits.
+- Fix: Ensured `self.persist_history(&res)` is consistently executed before returning on all verification exit paths.
+- Regression Test: `test_39_repeated_verification_is_idempotent` in `crates/televault-backup/tests/verification_tests.rs`.
+- Prevention Rule: Consistently persist structured audit records across all verification levels and early exits before returning.
+
+## Phase 13 — Hex Digest Character Constraint in Test Fixtures
+- Mistake: Synthesized test fixtures used mock hash strings like `"hash0000..."` and `"whole000..."`, which failed `IntegrityMetadata.validate()` with `contains non-hex characters`.
+- Root Cause: Manifest integrity validation strictly requires 64-character lowercase ASCII hexadecimal characters (`0-9`, `a-f`).
+- Fix: Replaced mock digests with valid 64-character lowercase hex strings (e.g., `"a000000000000000000000000000000000000000000000000000000000000000"`).
+- Regression Test: `test_02_healthy_multi_chunk_backup` and `test_21_large_file_5_2gb_three_chunks_healthy` in `crates/televault-backup/tests/verification_tests.rs`.
+- Prevention Rule: Ensure all synthesized hash fixtures in tests conform to strict 64-character lowercase hex validation.
+
+
 

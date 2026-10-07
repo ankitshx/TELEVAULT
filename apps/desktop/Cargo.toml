@@ -22,6 +22,7 @@ televault-db = { workspace = true }
 televault-storage = { workspace = true }
 televault-transfer = { workspace = true }
 televault-backup = { workspace = true }
+televault-integrity = { workspace = true }
 televault-scheduler = { workspace = true }
 
 tauri = { version = "2", default-features = false, features = ["wry"] }

@@ -13,6 +13,7 @@ televault-manifest = { workspace = true }
 televault-storage = { workspace = true }
 televault-transfer = { workspace = true }
 televault-db = { workspace = true }
+televault-integrity = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -83,6 +83,11 @@ define_id!(
     "Version",
     "Unique identifier for a file or snapshot version."
 );
+define_id!(
+    ManifestId,
+    "Manifest",
+    "Unique identifier for a chunk manifest."
+);
 
 #[cfg(test)]
 mod tests {

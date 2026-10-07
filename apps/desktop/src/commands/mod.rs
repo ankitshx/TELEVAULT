@@ -7,6 +7,7 @@ pub mod retention;
 pub mod scheduler;
 pub mod system;
 pub mod transfer;
+pub mod verification;
 
 pub use backup::*;
 pub use checker::*;
@@ -15,3 +16,4 @@ pub use retention::*;
 pub use scheduler::*;
 pub use system::*;
 pub use transfer::*;
+pub use verification::*;

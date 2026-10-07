@@ -4,7 +4,8 @@ use televault_core::ids::{ChunkId, FileId, JobId, ProfileId, SnapshotId, Version
 use televault_core::models::{BackupStatus, TransferDirection, TransferStatus};
 use televault_db::{
     ChunkRecord, Database, FileRecord, HealthStatus, ProfileRecord, RetentionHistoryRecord,
-    RetentionPolicyRecord, SnapshotRecord, TransferJobRecord, VersionRecord,
+    RetentionPolicyRecord, SnapshotRecord, TransferJobRecord, VerificationHistoryRecord,
+    VersionRecord,
 };
 use televault_manifest::{
     calculate_expected_chunk_count, ChunkManifest, CompressionMetadata, EncryptionMetadata,
@@ -1134,4 +1135,65 @@ fn test_snapshot_and_version_pruning_transactional() {
     // Verify s3 was rolled back and is STILL in database
     assert!(db.get_snapshot(&s3).unwrap().is_some());
     assert_eq!(db.count_versions_by_snapshot(&s3).unwrap(), 1);
+}
+
+#[test]
+fn test_verification_history_persistence_and_profile_cascade() {
+    let db = Database::open_in_memory().expect("open db");
+    let pid = ProfileId::new("prof-verify-audit").unwrap();
+
+    db.create_profile(&ProfileRecord {
+        profile_id: pid.clone(),
+        name: "Verify Audit Profile".into(),
+        description: None,
+        source_path: "D:\\Data".into(),
+        enabled: true,
+        created_at: "2026-10-07T12:00:00Z".into(),
+        updated_at: "2026-10-07T12:00:00Z".into(),
+    })
+    .expect("create profile");
+
+    let record = VerificationHistoryRecord {
+        history_id: "vh-test-01".into(),
+        profile_id: pid.clone(),
+        target_type: "file".into(),
+        target_id: "file-xyz".into(),
+        level: 3,
+        status: "healthy".into(),
+        is_restore_ready: true,
+        total_files: 1,
+        total_manifests: 1,
+        total_chunks: 3,
+        healthy_chunks: 3,
+        corrupted_chunks: 0,
+        missing_chunks: 0,
+        ownership_violations: 0,
+        duration_ms: 125,
+        findings_json: "[]".into(),
+        verified_at: "2026-10-07T16:00:00Z".into(),
+    };
+
+    db.record_verification_history(&record)
+        .expect("record verification history");
+
+    let history_list = db.list_verification_history(&pid, 10).expect("list");
+    assert_eq!(history_list.len(), 1);
+    assert_eq!(history_list[0].history_id, "vh-test-01");
+    assert_eq!(history_list[0].status, "healthy");
+    assert!(history_list[0].is_restore_ready);
+    assert_eq!(history_list[0].total_chunks, 3);
+    assert_eq!(history_list[0].healthy_chunks, 3);
+
+    let retrieved = db
+        .get_verification_history("vh-test-01")
+        .expect("get")
+        .expect("some");
+    assert_eq!(retrieved.history_id, "vh-test-01");
+    assert_eq!(retrieved.target_type, "file");
+    assert_eq!(retrieved.target_id, "file-xyz");
+
+    // Cascading deletion on profile delete
+    db.delete_profile(&pid).expect("delete profile");
+    assert!(db.get_verification_history("vh-test-01").unwrap().is_none());
+    assert_eq!(db.list_verification_history(&pid, 10).unwrap().len(), 0);
 }

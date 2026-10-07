@@ -674,7 +674,74 @@
 
 ### Commit:
 - Commit message: "Phase 12 complete - retention policy and snapshot pruning"
+- Commit hash: `1c18185`
 - Local commit only; NO push to GitHub.
+
+---
+
+## Phase 13 - Remote Backup Verification, Large-File Integrity & Ownership Isolation
+- Started: 2026-10-07 23:15 IST
+- Completed: 2026-10-08 00:05 IST
+- Status: Completed
+
+### Objective:
+- Implement a production-grade remote backup verification, large-file integrity, and ownership-isolation audit subsystem for TELEVAULT.
+- Enforce the 4 hierarchical verification levels:
+  - Level 1: Local SQLite metadata and manifest structure validation (contiguous chunk indexes, uniqueness, size boundaries, ownership chain).
+  - Level 2: Remote object availability verification via `StorageProvider::get_metadata` without full payload download.
+  - Level 3: Streaming remote integrity verification calculating SHA-256 running digests using bounded 64 KiB memory buffers.
+  - Level 4: Restore-readiness synthesis validating end-to-end restorability (encryption metadata, compression metadata, chunk presence, ownership integrity).
+- Enforce strict Ownership & Profile Isolation: ensure the chain `Profile -> Snapshot -> File -> Manifest -> Chunk -> StorageReference` is strictly exclusive; prevent cross-profile, cross-snapshot, or cross-file substitution attacks.
+- Verify 5.2 GB large logical files split into 1.8 GB physical chunks (`TARGET_CHUNK_SIZE_BYTES = 1_800 * 1024 * 1024`) with zero large allocations and zero permanent payload copies.
+- Enforce the Critical Read-Only Rule: remote Telegram storage is strictly immutable during verification (no deletions, modifications, re-uploads, or repairs).
+- Expose typed Tauri commands via `tauri-specta` and export updated TypeScript bindings to `apps/desktop/ui/src/bindings.ts`.
+
+### Work Completed:
+- `crates/televault-core`:
+  - Added `ManifestId` strongly-typed identifier macro to `src/ids.rs` and re-exported in `src/lib.rs`.
+- `crates/televault-integrity`:
+  - Implemented `error.rs`: `IntegrityError` with clean mapping to `AppError`.
+  - Implemented `types.rs`: `VerificationLevel` (Levels 1–4), `VerificationStatus` (`Healthy`, `Warning`, `Corrupted`, `Failed`), `VerificationSeverity` (`Info`, `Warning`, `Error`, `Critical`), `RestoreImpact` (`None`, `Degraded`, `Fatal`), `VerificationIssueCode` (38 granular error variants), `VerificationFinding`, `VerificationSummary`, `VerificationResult`, `VerificationOptions`.
+  - Implemented `hasher.rs`: `NullHashWriter`, `HashWriter`, `StreamHasher`, and bounded 64 KiB streaming buffer (`STREAM_BUFFER_SIZE = 64 * 1024`).
+  - Added 5 unit tests validating streaming hash calculation, writer passthrough, and reader mismatch detection.
+- `crates/televault-db`:
+  - Created SQLite schema migration `migrations/V4__verification.sql` adding `verification_history` table with indexes on `profile_id` and `verified_at`, cascading foreign key to `profiles(profile_id)`.
+  - Implemented `VerificationHistoryRecord` model in `src/models.rs`.
+  - Added database audit methods: `record_verification_history`, `list_verification_history`, `get_verification_history`, and `find_chunks_by_storage_reference`.
+  - Added integration test `test_verification_history_persistence_and_profile_cascade` in `tests/db_tests.rs`.
+- `crates/televault-storage`:
+  - Added `insert_virtual_object` and `insert_in_memory_object` to `MockStorageProvider` in `src/mock.rs` enabling high-throughput virtual verification tests without RAM allocation.
+- `crates/televault-backup`:
+  - Implemented `src/verification/ownership.rs`: `OwnershipValidator` enforcing strict profile isolation, cross-profile foreign key validation, chunk reuse detection, and Telegram reference validation (`chat_id`, `message_id`, `file_id`).
+  - Implemented `src/verification/engine.rs`: `VerificationEngine` coordinating Levels 1–4 verification, cooperative cancellation, bounded streaming verification, and SQLite history persistence.
+  - Created integration test suite `tests/verification_tests.rs` with 41 tests covering:
+    - Basic verification (1–11): healthy single/multi chunk, invalid manifest, missing remote object, metadata mismatch, pending storage reference, chunk size mismatch, index order discontinuity, duplicate chunk index, hash mismatch, whole-file size mismatch.
+    - Ownership isolation (12–20): cross-profile attack, wrong snapshot, wrong file, wrong manifest, wrong chunk, remote reference reuse, wrong Telegram chat ID, wrong message ID, wrong file ID.
+    - 5.2 GB large files (21–30): 3-chunk 5.2 GB healthy, missing middle chunk, missing final chunk, extra unexpected chunk, chunk size mismatch, chunk hash mismatch, large-file cross-profile attack, large-file cancellation, bounded memory (< 5s, zero huge allocation), zero permanent payload copies.
+    - Crypto & compression combinations (31–35): unencrypted + uncompressed, unencrypted + compressed, encrypted + uncompressed, encrypted + compressed, authentication tag failure detection.
+    - Operational behaviors (36–41): transient remote failure differentiation, restore-readiness synthesis, deterministic findings, idempotent repeated verification, read-only remote storage guarantee, profile-wide verification isolation.
+- `apps/desktop`:
+  - Integrated `VerificationEngine` into `DesktopAppState` in `src/state.rs` (`new` and `new_in_memory`).
+  - Implemented Specta DTOs in `src/dto/verification.rs`: `VerifyTargetRequest`, `VerificationFindingDto`, `VerificationSummaryDto`, `VerificationResultDto`, `VerificationHistoryRecordDto`.
+  - Implemented typed Tauri IPC commands in `src/commands/verification.rs`: `verify_file_backup`, `verify_manifest`, `verify_snapshot`, `verify_profile`, `get_verification_history`.
+  - Registered all 5 verification commands in `src/builder.rs` (42 total IPC commands now registered).
+  - Exported updated TypeScript bindings to `apps/desktop/ui/src/bindings.ts` (670 lines).
+  - Added 4 IPC tests in `tests/verification_ipc_tests.rs`.
+
+### Test & Validation Results:
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- `cargo test --workspace`: PASS (264 passed, 0 failed, 0 ignored)
+- Test count continuity:
+  - Previous authoritative baseline (Phase 12): 214 tests
+  - Phase 13 added: 50 new tests (5 in `televault-integrity`, 1 in `televault-db`, 41 in `televault-backup`, 4 in `televault-desktop`)
+  - Authoritative total: 264 tests (214 passed + 50 passed = 264 passed, 0 failed, 0 ignored). Zero regressions.
+- Architecture audit: PASS (0 localhost occurrences, 0 backend sidecars, 0 Python files, 0 HTTP endpoints, zero Telegram deletion calls, single-process desktop runtime, bounded streaming buffers).
+
+### Commit:
+- Commit message: "Phase 13 complete - remote verification integrity and ownership audit"
+- Local commit only; NO push to GitHub.
+
 
 
 
