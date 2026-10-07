@@ -20,4 +20,6 @@
 18. Metadata-First Scan Rule: Never hash entire files during routine scans; use size and modification timestamp to detect unchanged files and reuse prior manifests/versions
 19. Remote Retention Invariant Rule: Never delete remote backups when a file is deleted locally; record deletion logically in snapshot metadata and delegate retention to the retention policy engine
 20. No Premature Component Rule: Do not implement background recurring backup scheduling (Phase 11) or React UI before their designated phases
-
+21. Verify Before Final Destination Rule: Never write unverified, partially decrypted, or partially downloaded data to the user destination path; stage in temporary storage, verify whole-file hash and size, and atomically move
+22. Remote Data Read-Only Restore Rule: Restore operations are strictly read-only against Telegram Cloud storage; remote chunks, messages, and historical manifests must never be mutated or deleted by restore
+23. Deterministic Collision Resolution Rule: `KeepBoth` must deterministically inspect destination presence and generate `(1)`, `(2)` suffixes without relying on directory iteration order

@@ -430,8 +430,68 @@
 - Local commit only; NO push to GitHub.
 
 ### Remaining Work (Next Phases):
-- Phase 9: Restore Engine & Verification (`crates/televault-backup` restore workflows)
-- Subsequent phases: Scheduler, Integrity, Tauri 2 UI.
+- Phase 10: Desktop UI Core / Tauri IPC Command Surface
+- Subsequent phases: Scheduler, Retention Policies, Integrity Monitor.
+
+---
+
+## Phase 9 - Restore Engine & Backup Verification
+- Started: 2026-10-07 16:55 IST
+- Completed: 2026-10-07 17:25 IST
+- Status: Completed
+
+### Objective:
+- Implement production-grade restore engine and backup verification in `crates/televault-backup`.
+- Safe restoration of backed-up files from Telegram Cloud back to user-selected local destinations.
+- Domain models: `RestoreRequest`, `RestoreResult`, `SnapshotRestoreRequest`, `SnapshotRestoreResult`, `FileRestoreOutcome`.
+- Collision handling policies: `Overwrite`, `Skip`, `KeepBoth` (deterministic numbering `file (1).ext`, `file (2).ext`).
+- Manifest pre-validation before download (version support, path safety, chunk ordering, chunk count, integrity metadata, rejection of `StorageReference::Pending`).
+- Incomplete backup detection (missing chunks, pending references, corrupted manifests).
+- Deterministic chunk ordering reconstruction strictly by `ChunkManifest.index`.
+- Download through Phase 7 `TransferEngine` / `DownloadWorker` / `StorageProvider` (zero direct Telegram API calls).
+- Memory-bounded streaming restore in 64 KiB buffers (zero whole-file or 1.8 GB chunk allocations).
+- Optional AES-256-GCM decryption with `ChunkAad` authentication.
+- Optional decompression reversing the backup pipeline.
+- End-to-end whole-file size & SHA-256 integrity verification against `manifest.logical_file.original_size` and `manifest.integrity.digest`.
+- Staging and verification before destination finalization (verified temporary file atomically committed; clean cleanup on failure or cancellation).
+- Cooperative cancellation support via `CancellationToken`.
+- Backup verification queries in `BackupChecker`: fast metadata verification (`verify_manifest_metadata`) and full trial restore verification (`verify_full_restore`).
+- Remote data immutability: restore is read-only against remote storage.
+
+### Work Completed:
+- Built `src/restore/collision.rs` implementing `CollisionPolicy`, `CollisionResolution`, `resolve_collision`, and `generate_alternate_path` with unit tests for `Overwrite`, `Skip`, and `KeepBoth`.
+- Built `src/restore/types.rs` defining `FileRestoreOutcome`, `RestoreRequest`, `RestoreResult`, `SnapshotRestoreRequest`, `SnapshotRestoreResult`, `ManifestVerificationReport`, and `FullVerificationReport`.
+- Built `src/restore/pipeline.rs` implementing `RestorePipeline` with `validate_manifest_for_restore` and `restore_file` featuring reverse pipeline: streaming 64 KiB download, per-chunk SHA-256 verification, `decrypt_chunk` with `ChunkAad`, temporary file staging, whole-file SHA-256 verification, collision resolution, and atomic destination commit with `staging_file.disown()`.
+- Built `src/restore/mod.rs` providing `RestoreEngine` coordinating single file, manifest, and snapshot tree restoration.
+- Extended `src/error.rs` with `RestoreError`, `RestoreOpResult`, and mappings to `BackupError` and `AppError`.
+- Extended `src/checker.rs` with `verify_manifest_metadata` and `verify_full_restore` in `BackupChecker`.
+- Built `tests/restore_tests.rs` containing 13 comprehensive integration and regression tests covering all Section 19 specifications.
+- Audited test continuity: 140 Phase 8 tests + 17 newly added tests = 157 total workspace tests passing. Zero regressions.
+
+### Files Created (5):
+- `crates/televault-backup/src/restore/mod.rs`
+- `crates/televault-backup/src/restore/collision.rs`
+- `crates/televault-backup/src/restore/types.rs`
+- `crates/televault-backup/src/restore/pipeline.rs`
+- `crates/televault-backup/tests/restore_tests.rs`
+
+### Files Modified (4):
+- `crates/televault-backup/src/error.rs`
+- `crates/televault-backup/src/checker.rs`
+- `crates/televault-backup/src/lib.rs`
+- `.antigravity/` tracking memory files
+
+### Test & Validation Results:
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo test --workspace`: PASS (157 tests passed, 0 failed, 0 ignored)
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- Resource & memory regression: PASS (5.2 GB 3-chunk virtual streaming restore tested with 0 large memory allocations)
+- Architecture validation: PASS (0 forbidden patterns: pure Rust, no Python, no HTTP/localhost, no background daemon, remote data strictly immutable)
+
+### Commit:
+- Commit message: "Phase 9 complete - restore engine and backup verification"
+- Local commit only; NO push to GitHub.
 
 
 

@@ -139,6 +139,200 @@ impl From<BackupError> for AppError {
     }
 }
 
+/// Result type alias for televault restore operations.
+pub type RestoreOpResult<T> = std::result::Result<T, RestoreError>;
+
+/// Strongly typed errors encountered during file restore and backup verification.
+#[derive(Debug, thiserror::Error)]
+pub enum RestoreError {
+    /// Manifest error or unsupported schema.
+    #[error("Manifest error: {0}")]
+    Manifest(#[from] televault_manifest::ManifestError),
+
+    /// Database retrieval or consistency error.
+    #[error("Database error: {0}")]
+    Database(#[from] televault_db::DbError),
+
+    /// Storage provider error during retrieval.
+    #[error("Storage error: {0}")]
+    Storage(#[from] televault_storage::StorageError),
+
+    /// Transfer engine error during chunk streaming.
+    #[error("Transfer error: {0}")]
+    Transfer(#[from] televault_transfer::TransferError),
+
+    /// Cryptographic decryption or authentication failure.
+    #[error("Cryptographic error: {0}")]
+    Crypto(#[from] televault_crypto::CryptoError),
+
+    /// Manifest represents an incomplete or corrupted backup state.
+    #[error("Incomplete backup: {reason}")]
+    IncompleteBackup {
+        /// Explanation of why the backup is incomplete.
+        reason: String,
+    },
+
+    /// A required chunk is missing from the manifest.
+    #[error("Missing chunk in manifest: chunk_id={chunk_id}, index={index}")]
+    MissingChunk {
+        /// Chunk identifier.
+        chunk_id: String,
+        /// Chunk index.
+        index: u32,
+    },
+
+    /// Chunk contains a pending, incomplete storage reference.
+    #[error("Pending chunk reference in manifest: chunk_id={chunk_id}, index={index}")]
+    PendingChunk {
+        /// Chunk identifier.
+        chunk_id: String,
+        /// Chunk index.
+        index: u32,
+    },
+
+    /// Remote object unavailable in cloud storage.
+    #[error("Remote object unavailable: {reference:?}")]
+    RemoteObjectUnavailable {
+        /// The missing storage reference.
+        reference: televault_manifest::StorageReference,
+    },
+
+    /// Decryption failed for a chunk payload.
+    #[error("Decryption failed for chunk {chunk_id}: {reason}")]
+    DecryptionFailed {
+        /// Chunk identifier.
+        chunk_id: String,
+        /// Reason for failure.
+        reason: String,
+    },
+
+    /// Decompression failed for a chunk payload.
+    #[error("Decompression failed for chunk {chunk_id}: {reason}")]
+    DecompressionFailed {
+        /// Chunk identifier.
+        chunk_id: String,
+        /// Reason for failure.
+        reason: String,
+    },
+
+    /// Whole-file integrity hash does not match the manifest.
+    #[error("Integrity mismatch for file '{file_id}': expected {expected}, actual {actual}")]
+    IntegrityMismatch {
+        /// File identifier.
+        file_id: String,
+        /// Expected SHA-256 hash.
+        expected: String,
+        /// Actual calculated SHA-256 hash.
+        actual: String,
+    },
+
+    /// Total restored byte size does not match original size in manifest.
+    #[error(
+        "Size mismatch for file '{file_id}': expected {expected} bytes, actual {actual} bytes"
+    )]
+    SizeMismatch {
+        /// File identifier.
+        file_id: String,
+        /// Expected byte length.
+        expected: u64,
+        /// Actual byte length.
+        actual: u64,
+    },
+
+    /// Stored chunk hash does not match chunk integrity metadata.
+    #[error(
+        "Chunk integrity mismatch for chunk '{chunk_id}': expected {expected}, actual {actual}"
+    )]
+    ChunkIntegrityMismatch {
+        /// Chunk identifier.
+        chunk_id: String,
+        /// Expected SHA-256 hash.
+        expected: String,
+        /// Actual calculated SHA-256 hash.
+        actual: String,
+    },
+
+    /// Missing decryption key or encryption policy conflict.
+    #[error("Encryption policy mismatch: {reason}")]
+    EncryptionMismatch {
+        /// Reason for policy mismatch.
+        reason: String,
+    },
+
+    /// Destination file already exists and policy is not Overwrite or KeepBoth.
+    #[error("Destination conflict for '{path}': file already exists")]
+    DestinationConflict {
+        /// Path to the conflicting file.
+        path: String,
+    },
+
+    /// Destination path validation or path traversal failure.
+    #[error("Unsafe destination path '{path}': {reason}")]
+    UnsafePath {
+        /// Target path.
+        path: String,
+        /// Reason.
+        reason: String,
+    },
+
+    /// File not found in local SQLite catalog.
+    #[error("File '{0}' not found in catalog")]
+    FileNotFound(String),
+
+    /// File version not found in catalog.
+    #[error("Version '{0}' not found in catalog")]
+    VersionNotFound(String),
+
+    /// Snapshot not found in catalog.
+    #[error("Snapshot '{0}' not found in catalog")]
+    SnapshotNotFound(String),
+
+    /// Standard I/O error during local staging or final write.
+    #[error("I/O error: {0}")]
+    Io(String),
+
+    /// Restore operation was cancelled by the user.
+    #[error("Restore operation was cancelled")]
+    Cancelled,
+}
+
+impl From<std::io::Error> for RestoreError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err.to_string())
+    }
+}
+
+impl From<RestoreError> for BackupError {
+    fn from(err: RestoreError) -> Self {
+        match err {
+            RestoreError::Cancelled => BackupError::Cancelled,
+            other => BackupError::StorageError(other.to_string()),
+        }
+    }
+}
+
+impl From<RestoreError> for AppError {
+    fn from(err: RestoreError) -> Self {
+        match err {
+            RestoreError::FileNotFound(msg) => AppError::NotFound {
+                entity: "File",
+                id: msg,
+            },
+            RestoreError::VersionNotFound(msg) => AppError::NotFound {
+                entity: "Version",
+                id: msg,
+            },
+            RestoreError::SnapshotNotFound(msg) => AppError::NotFound {
+                entity: "Snapshot",
+                id: msg,
+            },
+            RestoreError::UnsafePath { path: _, reason } => AppError::Path(reason),
+            RestoreError::Cancelled => AppError::Internal("Restore operation was cancelled".into()),
+            other => AppError::Internal(other.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

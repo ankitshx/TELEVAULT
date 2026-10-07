@@ -175,5 +175,35 @@
 - Reason: Eliminates duplicate upload logic, enforces bounded concurrency, and guarantees zero orphaned staging files
 - Date: 2026-10-07
 
+## AD-036: Temporary Staging and Verification Prior to Destination Finalization
+- Decision: Restored file streams are decrypted, decompressed, and written into a managed temporary staging file (`TempPayloadFile`) where whole-file SHA-256 and byte counts are strictly validated. Only after full verification succeeds is the temporary file atomically committed (via `fs::rename`) to the resolved destination.
+- Reason: Prevents corrupting, truncating, or leaving partial restored files at the user destination if network transfer, decryption, or checksum checks fail mid-operation.
+- Date: 2026-10-07
+
+## AD-037: Deterministic Collision Resolution Policies
+- Decision: Explicit collision policies (`Overwrite`, `Skip`, `KeepBoth`) govern existing target files. `KeepBoth` deterministically resolves alternate names by incrementing safe suffixes (`filename (1).ext`, `filename (2).ext`) without relying on filesystem directory enumeration order.
+- Reason: Eliminates nondeterminism, avoids race conditions, and guarantees user files are never overwritten unintentionally.
+- Date: 2026-10-07
+
+## AD-038: Incomplete Backup Pre-Validation Rejection
+- Decision: Manifests are thoroughly validated prior to initiating payload downloads. Manifests containing `StorageReference::Pending`, missing chunks, invalid chunk counts, non-contiguous chunk indices, or unsupported versions are rejected upfront with typed `RestoreError` before downloading any chunk bytes.
+- Reason: Saves network bandwidth, eliminates partial restore states, and prevents reconstructing incomplete or interrupted multi-chunk backups.
+- Date: 2026-10-07
+
+## AD-039: Strict Chunk Ordering by Manifest Index
+- Decision: Logical file reconstruction always sorts and streams chunks strictly in ascending `ChunkManifest.index` order (0, 1, ..., N-1), completely decoupling reconstruction from Telegram message ID sequence, network response ordering, or database record order.
+- Reason: Guarantees deterministic, bit-for-bit file reassembly regardless of out-of-order remote arrivals or asynchronous transfer completions.
+- Date: 2026-10-07
+
+## AD-040: Bounded 64 KiB Reverse Streaming Pipeline
+- Decision: The restore pipeline is memory-bounded throughout: remote chunks stream in 64 KiB buffers through `TransferEngine::download_stream`, decrypt through authenticated `ChunkAad`, decompress, and write to destination staging. The system never loads a 1.8 GB chunk or whole 5.2 GB logical file into RAM.
+- Reason: Guarantees fixed, lightweight memory footprint on user systems even when recovering multi-gigabyte media files.
+- Date: 2026-10-07
+
+## AD-041: Remote Backup Data Immutability During Restore
+- Decision: Restore operations are strictly read-only against remote storage. Chunks, messages, versions, and manifests in Telegram Cloud and SQLite are never deleted, pruned, or modified by restore.
+- Reason: Preserves backup integrity and retention isolation; disaster recovery must never jeopardize remote cloud copies.
+- Date: 2026-10-07
+
 
 

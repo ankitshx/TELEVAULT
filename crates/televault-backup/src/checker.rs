@@ -158,4 +158,154 @@ impl BackupChecker {
             .list_versions_by_file(file_id)
             .map_err(BackupError::from)
     }
+
+    /// Fast metadata verification: verifies manifest invariants, completeness, and non-pending references.
+    ///
+    /// If `storage_provider` is provided, also queries remote metadata for each chunk
+    /// without downloading payload data.
+    pub fn verify_manifest_metadata(
+        &self,
+        manifest: &televault_manifest::ManifestV1,
+        storage_provider: Option<&dyn televault_storage::StorageProvider>,
+    ) -> crate::restore::ManifestVerificationReport {
+        let mut issues = Vec::new();
+        let mut remote_objects_verified = false;
+
+        // 1. Schema and structural validation
+        if let Err(e) = manifest.validate() {
+            issues.push(format!("Manifest validation error: {e}"));
+        }
+
+        // 2. Format version check
+        if manifest.manifest_version != televault_manifest::ManifestVersion::V1 {
+            issues.push(format!(
+                "Unsupported manifest version: {}",
+                manifest.manifest_version
+            ));
+        }
+
+        // 3. Expected chunk count validation
+        let expected_chunks = televault_manifest::chunk::calculate_expected_chunk_count(
+            manifest.logical_file.original_size,
+        ) as usize;
+        if manifest.chunks.len() != expected_chunks {
+            issues.push(format!(
+                "Chunk count mismatch: expected {expected_chunks}, found {}",
+                manifest.chunks.len()
+            ));
+        }
+
+        // 4. Inspect each chunk reference
+        for chunk in &manifest.chunks {
+            if matches!(
+                chunk.storage_reference,
+                televault_manifest::StorageReference::Pending
+            ) {
+                issues.push(format!(
+                    "Chunk {} (index {}) has pending storage allocation",
+                    chunk.chunk_id, chunk.index
+                ));
+            } else if let Some(provider) = storage_provider {
+                match provider.get_metadata(&chunk.storage_reference) {
+                    Ok(meta) => {
+                        remote_objects_verified = true;
+                        if meta.size_bytes != chunk.stored_size {
+                            issues.push(format!(
+                                "Chunk {} size mismatch on remote: expected {} bytes, remote reports {} bytes",
+                                chunk.chunk_id, chunk.stored_size, meta.size_bytes
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        issues.push(format!(
+                            "Remote object unavailable for chunk {}: {e}",
+                            chunk.chunk_id
+                        ));
+                    }
+                }
+            }
+        }
+
+        let is_restorable = issues.is_empty();
+
+        crate::restore::ManifestVerificationReport {
+            manifest_id: manifest.manifest_id.clone(),
+            file_id: manifest.logical_file.file_id.clone(),
+            relative_path: manifest.logical_file.relative_path.clone(),
+            is_restorable,
+            total_chunks: manifest.chunks.len(),
+            original_size: manifest.logical_file.original_size,
+            issues,
+            remote_objects_verified,
+        }
+    }
+
+    /// Full restore verification: downloads and decrypts all chunks in managed staging,
+    /// computing and matching whole-file SHA-256 hash without writing to a user destination.
+    pub fn verify_full_restore(
+        &self,
+        manifest: &televault_manifest::ManifestV1,
+        encryption_policy: &televault_crypto::policy::EncryptionPolicy,
+        transfer_engine: &televault_transfer::engine::TransferEngine,
+        temp_manager: &televault_storage::temp::TempPayloadManager,
+        cancellation: &televault_transfer::cancellation::CancellationToken,
+    ) -> crate::restore::FullVerificationReport {
+        let start = std::time::Instant::now();
+        let expected_sha256 = manifest.integrity.digest.clone();
+
+        // Trial restore into a temporary destination file that is cleaned up immediately
+        let trial_temp = match temp_manager.create_staging_file("full_verify_trial") {
+            Ok(f) => f,
+            Err(e) => {
+                return crate::restore::FullVerificationReport {
+                    manifest_id: manifest.manifest_id.clone(),
+                    file_id: manifest.logical_file.file_id.clone(),
+                    is_valid: false,
+                    total_chunks: manifest.chunks.len(),
+                    original_size: manifest.logical_file.original_size,
+                    calculated_sha256: None,
+                    expected_sha256,
+                    elapsed_ms: start.elapsed().as_millis() as u64,
+                    error: Some(format!("Failed to create temporary staging file: {e}")),
+                };
+            }
+        };
+
+        let res = crate::restore::RestorePipeline::restore_file(
+            manifest,
+            trial_temp.path(),
+            crate::restore::CollisionPolicy::Overwrite,
+            encryption_policy,
+            transfer_engine,
+            temp_manager,
+            cancellation,
+        );
+
+        let _ = trial_temp.cleanup();
+
+        match res {
+            Ok(restore_result) => crate::restore::FullVerificationReport {
+                manifest_id: manifest.manifest_id.clone(),
+                file_id: manifest.logical_file.file_id.clone(),
+                is_valid: true,
+                total_chunks: manifest.chunks.len(),
+                original_size: manifest.logical_file.original_size,
+                calculated_sha256: restore_result.verified_sha256,
+                expected_sha256,
+                elapsed_ms: start.elapsed().as_millis() as u64,
+                error: None,
+            },
+            Err(err) => crate::restore::FullVerificationReport {
+                manifest_id: manifest.manifest_id.clone(),
+                file_id: manifest.logical_file.file_id.clone(),
+                is_valid: false,
+                total_chunks: manifest.chunks.len(),
+                original_size: manifest.logical_file.original_size,
+                calculated_sha256: None,
+                expected_sha256,
+                elapsed_ms: start.elapsed().as_millis() as u64,
+                error: Some(err.to_string()),
+            },
+        }
+    }
 }

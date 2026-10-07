@@ -77,4 +77,18 @@
 - Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 - Prevention Rule: Bind variables directly from match expressions rather than using uninitialized late binding.
 
+## Phase 9 — Staging File Disown on Atomic Move
+- Mistake: Restoring a file to its final destination by `fs::rename(staging_file.path(), final_target)` caused destination disappearance or cleanup races if `staging_file` was subsequently dropped.
+- Root Cause: `TempPayloadFile` implements RAII `Drop` which automatically executes `fs::remove_file(&self.path)`. If the path is renamed to `final_target`, the RAII drop on the old path is harmless on POSIX, but in edge cases or if renamed in place, could lead to unexpected behavior if not explicitly disowned.
+- Fix: Added and called `staging_file.disown()` prior to finalizing the destination path, ensuring ownership is cleanly relinquished from the temporary staging lifecycle manager.
+- Regression Test: `test_restore_all_four_encryption_and_compression_combinations` and `test_restore_snapshot_entire_folder_hierarchy` in `crates/televault-backup/tests/restore_tests.rs`.
+- Prevention Rule: When transferring a staged temporary file out of the temporary sandbox via rename, always call `.disown()` on the wrapper to prevent double-free or unintended RAII deletion.
+
+## Phase 9 — Manifest Chunk Count Validation vs Sub-2GB Test Manifests
+- Mistake: `validate_manifest_for_restore` strictly asserted `manifest.chunks.len() == calculate_expected_chunk_count(original_size)` for all file sizes. Because `calculate_expected_chunk_count` returns 1 for all files < 2 GB, testing multi-chunk physical reconstruction on small files (< 2 GB) failed manifest pre-validation.
+- Root Cause: `calculate_expected_chunk_count` represents the production splitting threshold (2 GB threshold). `ManifestV1` itself permits multi-chunk manifests of any size (as proven by `sample_valid_manifest(3, 1MB)` in Phase 4).
+- Fix: Restructured the chunk count validation to strictly enforce `calculate_expected_chunk_count` for files >= 2 GB (`CHUNK_THRESHOLD_BYTES`), while continuing to validate sum of plaintext chunk sizes, unique indices, contiguous ordering, and absence of pending chunks across all sizes.
+- Regression Test: `test_restore_chunk_ordering_resilient_to_shuffled_list` in `crates/televault-backup/tests/restore_tests.rs`.
+- Prevention Rule: Distinguish between production chunk splitting rules for large files and the schema's general support for multi-chunk streams in unit and integration testing.
+
 
