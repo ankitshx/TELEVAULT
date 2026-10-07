@@ -209,6 +209,79 @@
 - Local commit only; NO push to GitHub.
 
 ### Remaining Work (Next Phases):
-- Phase 6: Storage Provider & Telegram Integration (`crates/televault-storage`, `crates/televault-telegram`)
 - Subsequent phases: Transfer Workers, Backup Engine, Scheduler, Integrity, Tauri 2 UI.
+
+---
+
+## Phase 6 - Cloud-First Storage & Telegram Integration Contracts
+- Started: 2026-10-07 15:15 IST
+- Completed: 2026-10-07 15:42 IST
+- Status: Completed
+
+### Objective:
+- Implement production-grade Storage Abstraction layer in `crates/televault-storage`.
+- Implement Telegram-specific integration contracts in `crates/televault-telegram`.
+- Enforce strict cloud-first architecture: Telegram Cloud is the permanent destination; local storage retains only metadata, temp staging, cache, and logs.
+- Design streaming-first APIs using `&mut dyn Read` and `&mut dyn Write` with bounded 64 KiB stack buffers (`STREAM_CHUNK_BUFFER_SIZE`), prohibiting whole-file `Vec<u8>` buffering for multi-gigabyte files.
+- Establish 1.8 GB logical chunk contracts decoupled from memory allocation.
+- Enforce temporary payload storage policy with RAII `Drop` cleanup guarantee (`TempPayloadFile`), bounded directories, and stale payload purge (`TempPayloadManager`).
+- Define remote-first completion semantics (`StorageStatus::Verified`).
+- Provide resilient, retry-safe contracts and caption header tagging (`TelegramChunkHeader`) for disaster recovery.
+- Implement thread-safe `MockStorageProvider` and `MockTelegramTransport` for comprehensive offline testing.
+
+### Work Completed:
+- Added `sha2 = "0.10"` to root workspace dependencies and `[profile.dev.package.sha2] opt-level = 3`.
+- Configured dependencies in `crates/televault-storage/Cargo.toml` and `crates/televault-telegram/Cargo.toml`.
+- Built `crates/televault-storage/src/error.rs` mapping `StorageError` to `televault_core::AppError`.
+- Built `crates/televault-storage/src/types.rs` with `StorageStatus`, `UploadRequest`, `UploadResult`, `DownloadRequest`, `DownloadResult`, `VerificationRequest`, `DeleteRequest`, `RemoteObjectMetadata`, and `STREAM_CHUNK_BUFFER_SIZE`.
+- Built `crates/televault-storage/src/provider.rs` defining the `StorageProvider` trait.
+- Built `crates/televault-storage/src/temp.rs` providing `TempPayloadFile` (with RAII `Drop` unfinalized deletion) and `TempPayloadManager` (staging creation, size bounds, and stale purge).
+- Built `crates/televault-storage/src/mock.rs` with `MockStorageProvider` supporting streaming I/O, simulated failure states, and memory-bounded virtual large payload testing.
+- Built `crates/televault-storage/tests/storage_tests.rs` with tests for temporary lifecycle, RAII drop, upload failure states, retry idempotency, and 1.8 GB chunk streaming resource efficiency.
+- Built `crates/televault-telegram/src/error.rs` mapping `TelegramError` to `StorageError` and `AppError`.
+- Built `crates/televault-telegram/src/reference.rs` with `TelegramReference` (`chat_id`, `message_id`, `file_id`) and conversions to/from `televault_manifest::StorageReference`.
+- Built `crates/televault-telegram/src/contracts.rs` with `TelegramStorageConfig`, `TelegramDocumentMessage`, and `TelegramChunkHeader` with `TELEVAULT:v=1:...` caption encoding/parsing.
+- Built `crates/televault-telegram/src/transport.rs` with `TelegramTransport` trait and `MockTelegramTransport`.
+- Built `crates/televault-telegram/src/provider.rs` implementing `StorageProvider` for `TelegramStorageProvider<T: TelegramTransport>`.
+- Built `crates/televault-telegram/tests/telegram_tests.rs` testing full remote upload, caption verification, download, and delete lifecycle.
+- Full workspace test suite passing with 0 errors; formatting verified; zero Clippy warnings.
+
+### Files Created (12):
+- `crates/televault-storage/src/error.rs`
+- `crates/televault-storage/src/types.rs`
+- `crates/televault-storage/src/provider.rs`
+- `crates/televault-storage/src/temp.rs`
+- `crates/televault-storage/src/mock.rs`
+- `crates/televault-storage/tests/storage_tests.rs`
+- `crates/televault-telegram/src/error.rs`
+- `crates/televault-telegram/src/reference.rs`
+- `crates/televault-telegram/src/contracts.rs`
+- `crates/televault-telegram/src/transport.rs`
+- `crates/televault-telegram/src/provider.rs`
+- `crates/televault-telegram/tests/telegram_tests.rs`
+
+### Files Modified (8):
+- `Cargo.toml`
+- `crates/televault-storage/Cargo.toml`
+- `crates/televault-storage/src/lib.rs`
+- `crates/televault-telegram/Cargo.toml`
+- `crates/televault-telegram/src/lib.rs`
+- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-020 through AD-025)
+- `.antigravity/BUILD_RULES.md` (Rules 11 through 14)
+- `.antigravity/MISTAKES.md` (Phase 6 records)
+
+### Test & Validation Results:
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo test --workspace`: PASS (all unit, integration, and doc tests passing)
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- Architecture validation scan: PASS (0 forbidden patterns: no Python, no HTTP/localhost, no sidecar, no whole-file RAM buffering)
+
+### Commit:
+- Commit message: "Phase 6 complete - cloud-first storage and Telegram contracts"
+- Local commit only; NO push to GitHub.
+
+### Remaining Work (Next Phases):
+- Phase 7: Transfer Engine & Upload/Download Workers (`crates/televault-transfer`)
+- Subsequent phases: Backup Engine, Scheduler, Integrity, Tauri 2 UI.
 

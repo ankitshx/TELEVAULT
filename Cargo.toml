@@ -45,3 +45,7 @@ zeroize = { version = "1.8", features = ["derive"] }
 rand = "0.8"
 rusqlite = { version = "0.40.2", features = ["bundled-full"] }
 refinery = { version = "0.10.0", features = ["rusqlite"] }
+sha2 = "0.10"
+
+[profile.dev.package.sha2]
+opt-level = 3

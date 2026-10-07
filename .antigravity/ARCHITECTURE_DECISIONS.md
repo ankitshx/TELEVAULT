@@ -94,3 +94,34 @@
 - Decision: Database connections configure `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA foreign_keys = ON;`, and `PRAGMA busy_timeout = 5000;`. The database handle is wrapped in `Arc<Mutex<Connection>>` for safe sharing across concurrent desktop workers
 - Reason: Enables high write concurrency, fast commits, resilient crash recovery, and thread-safe desktop application access
 - Date: 2026-10-07
+
+## AD-020: Cloud-First Architecture and Telegram Cloud Authoritative Store
+- Decision: TELEVAULT is strictly a cloud-first backup application. Telegram Cloud is the authoritative and permanent repository for all backup payloads. The local system retains only SQLite metadata, small caches, bounded staging files, and diagnostics. No permanent backup copies are maintained on the local computer
+- Reason: Enforces the product identity as an encrypted cloud backup solution and prevents disk space exhaustion on user devices
+- Date: 2026-10-07
+
+## AD-021: Local Temporary Storage Policy and Staging RAII Lifecycle Guarantee
+- Decision: Temporary staging files reside strictly within TELEVAULT's managed temp area (`PathManager::temp_dir()`). Staging files are wrapped in `TempPayloadFile`, which implements RAII cleanup via `Drop` to ensure any aborted or failed operation immediately deletes unfinalized payload data from disk. Successful uploads clean up staging files immediately upon remote verification
+- Reason: Guarantees bounded local disk usage and prevents accumulation of orphaned payload data across process crashes or worker restarts
+- Date: 2026-10-07
+
+## AD-022: Streaming-First I/O and Bounded 64 KiB Buffers
+- Decision: All storage interfaces operate over `&mut dyn Read` and `&mut dyn Write` streaming contracts utilizing bounded stack buffers (`STREAM_CHUNK_BUFFER_SIZE = 65,536` bytes). Allocating whole-file `Vec<u8>` buffers for multi-gigabyte files or chunks is strictly prohibited across all storage components and test harnesses
+- Reason: Binds application memory footprint to constant, predictable usage regardless of user backup file sizes (e.g., 5 GB, 50 GB, 100 GB)
+- Date: 2026-10-07
+
+## AD-023: 1.8 GB Logical Chunk Size Decoupled From Memory Allocation
+- Decision: 1.8 GB (1,887,436,800 bytes) represents a logical chunk partitioning threshold for Telegram compatibility, NOT a memory allocation unit. Chunks are generated, hashed, encrypted, and transferred as streaming flows without ever materializing 1.8 GB in RAM
+- Reason: Enforces TELEVAULT's permanent resource-efficiency architecture on desktop environments
+- Date: 2026-10-07
+
+## AD-024: Decoupled StorageProvider Abstraction Boundary
+- Decision: Core domains interact exclusively with the generic `StorageProvider` trait (`crates/televault-storage`). Telegram-specific types (`TelegramReference`, `TelegramTransport`, Telegram API structures) are encapsulated inside `crates/televault-telegram`, preventing Telegram API leakage into `televault-core` or `televault-backup`
+- Reason: Maintains modular architectural separation of concerns, simplifies unit testing via mock providers, and allows potential alternate cloud storage adapters in the future
+- Date: 2026-10-07
+
+## AD-025: Structured Telegram Chunk Header Tagging in Message Captions
+- Decision: Telegram documents are tagged with structured, verifiable text captions formatted as `TELEVAULT:v=1:fid=<file_id>:cid=<chunk_id>:idx=<idx>:tot=<total>:sz=<bytes>`. Remote references are stored as `(chat_id, message_id, file_id)` tuples, allowing stateless out-of-band catalog recovery and verification directly from Telegram chat history
+- Reason: Enables catastrophic disaster recovery and independent validation of remote backup objects without relying on raw URLs or secret leakage
+- Date: 2026-10-07
+

@@ -27,3 +27,18 @@
 - Fix: Replaced indirect JSON deserialization with explicit `match` blocks handling both `"backing_up"` and `"backingup"`, and applied the same explicit mapping pattern to `TransferDirection` and `TransferStatus`.
 - Regression Test: `test_snapshots_versions_and_transfer_jobs_crud` in `crates/televault-db/tests/db_tests.rs`.
 - Prevention Rule: When converting between SQL text columns and domain enums, use explicit, exhaustive `match` blocks rather than dynamic JSON serialization wrappers.
+
+## Phase 6 — Mock Provider Whole-File Buffering on 1.8 GB Chunk Test
+- Mistake: In `MockStorageProvider::upload`, streamed bytes were collected into an unbounded `Vec<u8>` via `extend_from_slice`, causing `test_large_chunk_streaming_resource_efficiency` with a 1.8 GB virtual stream to attempt allocating 1.8 GB on the heap, violating the bounded-memory architecture rule and stalling execution.
+- Root Cause: The test mock provider accumulated raw payload bytes into memory rather than abstracting large virtual payloads.
+- Fix: Refactored `MockStoredObject` with `MockPayload::VirtualLarge { fill_byte }` for payloads > 4 MiB, reading and hashing through 64 KiB stack buffers without whole-file allocation, and added `[profile.dev.package.sha2] opt-level = 3` for fast test hashing.
+- Regression Test: `test_large_chunk_streaming_resource_efficiency` in `crates/televault-storage/tests/storage_tests.rs` (completes in ~1.88s with 0 multi-gigabyte RAM allocation).
+- Prevention Rule: Never collect streamed data into unbounded `Vec<u8>` in storage adapters or mocks; always handle large virtual payloads with streaming generation and bounded buffers.
+
+## Phase 6 — Clippy Warnings on Collapsible If and Complex Transport Type
+- Mistake: Clippy triggered `collapsible_if` in `purge_stale_staging_files` and `type_complexity` on `MockTelegramTransport.messages`.
+- Root Cause: Nested `if` checks in file cleanup loop and inline raw `Arc<Mutex<HashMap<...>>>` type definition.
+- Fix: Collapsed nested `if` into `if age >= max_age && fs::remove_file(&path).is_ok()` and factored complex type into `type MessageStore = ...`.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings` passing with zero warnings.
+- Prevention Rule: Combine adjacent conditional filters and define type aliases for complex generic combinations exceeding Clippy thresholds.
+
