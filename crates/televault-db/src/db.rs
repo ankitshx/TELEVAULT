@@ -1324,6 +1324,23 @@ impl Database {
         })
     }
 
+    /// Lists the most recent transfer jobs up to `limit`.
+    pub fn list_recent_transfer_jobs(&self, limit: usize) -> Result<Vec<TransferJobRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT job_id, file_id, chunk_id, direction, status, progress,
+                        retry_count, error_message, created_at, updated_at
+                 FROM transfer_jobs ORDER BY created_at DESC LIMIT ?1;",
+            )?;
+            let rows = stmt.query_map(params![limit as i64], Self::map_transfer_job_row)?;
+            let mut jobs = Vec::new();
+            for r in rows {
+                jobs.push(r?);
+            }
+            Ok(jobs)
+        })
+    }
+
     /// Updates status and error information of a transfer job.
     pub fn update_transfer_job_status(
         &self,

@@ -205,5 +205,31 @@
 - Reason: Preserves backup integrity and retention isolation; disaster recovery must never jeopardize remote cloud copies.
 - Date: 2026-10-07
 
+## AD-042: Tauri 2 Typed IPC Command Surface Architecture
+- Decision: Expose backend domain operations exclusively through Tauri 2 IPC commands registered via `tauri-specta` v2. The frontend communicates with Rust using generated TypeScript bindings (`bindings.ts`) with zero localhost, HTTP, REST, or web sockets.
+- Reason: Eliminates cross-origin issues, network port collisions, background process synchronization, and guarantees type safety between React and Rust.
+- Date: 2026-10-07
+
+## AD-043: DesktopAppState Managed Lifecycle and Shared Single-Process Services
+- Decision: All core Rust domain engines (`Database`, `TransferEngine`, `BackupEngine`, `RestoreEngine`, `BackupChecker`, `PathManager`) reside within a single `DesktopAppState` managed by Tauri's state container (`tauri::State<'_, DesktopAppState>`).
+- Reason: Avoids global mutable static variables, eliminates redundant database connections or engine instantiation per command, and guarantees safe concurrent execution across Tauri IPC threads.
+- Date: 2026-10-07
+
+## AD-044: Offloaded Async Execution for Heavy Commands
+- Decision: CPU-intensive or IO-heavy operations (backup execution, file/manifest/snapshot restore, trial verification) are wrapped in `tokio::task::spawn_blocking` within Tauri async commands rather than running synchronously on the IPC handler thread.
+- Reason: Keeps the Tauri main event loop and IPC dispatcher responsive to user interactions and progress/status queries without blocking the UI thread.
+- Date: 2026-10-07
+
+## AD-045: Structured IpcError with Machine-Readable Error Codes
+- Decision: IPC commands return a structured `Result<T, IpcError>` where `IpcError` contains machine-readable `code`, human-readable sanitized `message`, and optional `details`. Sensitive secrets, internal database paths, and Rust backtraces are strictly redacted.
+- Reason: Allows React frontend to branch deterministically on structured error codes (`VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, etc.) rather than parsing localized English error strings.
+- Date: 2026-10-07
+
+## AD-046: Cooperative Cancellation Registry via CancellationTokens
+- Decision: Operations supporting cancellation register their `CancellationToken` in `DesktopAppState::cancellation_tokens` keyed by operation identifier (`JobId` or `ProfileId`). The frontend issues `cancel_operation`, which triggers token cancellation across the underlying transfer and backup pipelines.
+- Reason: Connects frontend abort actions to the existing Phase 7/8/9 cancellation mechanism without creating an unrelated abort system.
+- Date: 2026-10-07
+
+
 
 

@@ -9,3 +9,14 @@
 - Risk: Restoring to an existing file path could overwrite newer local modifications if not explicitly confirmed.
 - Failure Mode: Data loss of current local files.
 - Protection in Phase 9: Explicit `CollisionPolicy` (`Overwrite`, `Skip`, `KeepBoth`). By default, collision resolution provides deterministic alternate file names (`file (1).ext`, `file (2).ext`) or skips restoration without modifying the target. `Overwrite` is only permitted when explicitly selected by the user.
+
+## KF-003: BigInt Precision Truncation in TypeScript IPC
+- Risk: Large 64-bit integers (`u64`, `usize`, `i64`) deserialized by `JSON.parse` in JavaScript environments can lose precision if exceeding `Number.MAX_SAFE_INTEGER` (2^53 - 1, ~9 Petabytes).
+- Failure Mode: Corrupted file byte counts, chunk offsets, or timestamp values in React UI state.
+- Protection in Phase 10: `specta-typescript` explicitly forbids unannotated BigInt exports. Byte counts and timestamps below 9 PB are annotated with `#[specta(type = specta_typescript::Number)]`, and limit parameters use `u32`, guaranteeing safe representation in JavaScript `number`.
+
+## KF-004: Frontend Backend Architectural Drift (Localhost / Sidecar Regression)
+- Risk: Architectural regression introducing a separate backend executable, sidecar daemon, Python runtime, or localhost HTTP server.
+- Failure Mode: Startup failures, network port collisions, antivirus firewall blocks, packaging nightmare.
+- Protection in Phase 10: Enforced via `apps/desktop/tests/architecture_invariants.rs` (4 tests) permanently verifying: zero localhost / 127.0.0.1 references in frontend and IPC bindings, zero sidecars in `tauri.conf.json`, zero Python files or scripts, and single-process desktop architecture.
+

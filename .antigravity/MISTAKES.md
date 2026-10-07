@@ -91,4 +91,26 @@
 - Regression Test: `test_restore_chunk_ordering_resilient_to_shuffled_list` in `crates/televault-backup/tests/restore_tests.rs`.
 - Prevention Rule: Distinguish between production chunk splitting rules for large files and the schema's general support for multi-chunk streams in unit and integration testing.
 
+## Phase 10 — Specta-TypeScript BigInt Export Rejection on Byte Count Fields
+- Mistake: Exporting TypeScript bindings using `specta_typescript::Typescript::default()` failed with `ExportError::BigIntForbidden` when generating types for structs containing `u64`, `usize`, or `i64` byte sizes (e.g. `file_size: u64`, `total_bytes: u64`).
+- Root Cause: Specta's TypeScript exporter explicitly rejects 64-bit integer types by default to prevent silent precision loss in JavaScript `JSON.parse` which truncates integers above `Number.MAX_SAFE_INTEGER` (2^53 - 1, ~9 Petabytes).
+- Fix: Annotated 64-bit integer fields with `#[specta(type = specta_typescript::Number)]` on DTO structs (since backup files under 9 PB serialize safely as standard JavaScript numbers), and typed command limit parameters as `Option<u32>` instead of `Option<usize>`.
+- Regression Test: `cargo run -p televault-desktop -- --export-types` and `test_ipc_builder_initialization` in `apps/desktop/tests/ipc_tests.rs`.
+- Prevention Rule: Always annotate 64-bit size and timestamp fields in Specta DTOs with `#[specta(type = specta_typescript::Number)]` or use `u32`/`f64` where appropriate.
+
+## Phase 10 — Submodule Macro Scoping in collect_commands!
+- Mistake: Calling `tauri_specta::collect_commands![get_app_info, create_backup_profile, ...]` produced compile errors `cannot find macro __specta__fn__get_app_info in this scope` because command functions were implemented in separate submodule files (`commands::system`, `commands::backup`, etc.).
+- Root Cause: `#[tauri_specta::specta]` generates internal helper macros `__cmd__<fn>` and `__specta__fn__<fn>` inside the defining module, which `collect_commands!` cannot locate if unadorned function names are passed without module qualification.
+- Fix: Qualified command identifiers with their declaring module paths in `collect_commands![system::get_app_info, backup::create_backup_profile, ...]` and imported the command submodules into `builder.rs`.
+- Regression Test: `cargo check --workspace` and `cargo test -p televault-desktop`.
+- Prevention Rule: When organizing Tauri Specta commands across multiple modules, always qualify command names with their module path inside `collect_commands!`.
+
+## Phase 10 — Tauri State Constructor Unavailable in Test Fixtures
+- Mistake: Attempting to invoke Tauri command handlers directly in integration tests via `tauri::State::from(&app_state)` failed compilation because `tauri::State` has private constructors and cannot be instantiated directly from references.
+- Root Cause: Tauri manages dependency injection via its internal container registry inside `tauri::App` or `tauri::AppHandle`.
+- Fix: Enabled the `test` feature on `tauri = { version = "2", features = ["wry", "test"] }` in `apps/desktop/Cargo.toml` `[dev-dependencies]` and used `tauri::test::mock_app()` with `app.manage(app_state)` to acquire a valid `app.state::<DesktopAppState>()` for command tests.
+- Regression Test: `apps/desktop/tests/ipc_tests.rs` verifying all 8 command suites against live mock state.
+- Prevention Rule: Use `tauri::test::mock_app()` to test Tauri command handlers requiring `tauri::State`.
+
+
 

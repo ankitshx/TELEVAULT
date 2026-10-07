@@ -23,3 +23,8 @@
 21. Verify Before Final Destination Rule: Never write unverified, partially decrypted, or partially downloaded data to the user destination path; stage in temporary storage, verify whole-file hash and size, and atomically move
 22. Remote Data Read-Only Restore Rule: Restore operations are strictly read-only against Telegram Cloud storage; remote chunks, messages, and historical manifests must never be mutated or deleted by restore
 23. Deterministic Collision Resolution Rule: `KeepBoth` must deterministically inspect destination presence and generate `(1)`, `(2)` suffixes without relying on directory iteration order
+24. IPC Payload Size Rule: Never transfer whole-file byte arrays or multi-gigabyte data across Tauri IPC; IPC payloads carry metadata, commands, and status only
+25. Single Desktop Process Invariant: The desktop application consists of exactly one process; zero localhost communication, zero HTTP servers, zero Python runtimes, zero backend sidecars
+26. IPC Untrusted Boundary Rule: Treat every frontend IPC request as untrusted; validate paths, IDs, enums, and destination directories using existing `PathManager` and domain validators before execution
+27. Secret Redaction Invariant: Never return API secrets, Telegram credentials, session secrets, or encryption keys in IPC DTOs or logs
+

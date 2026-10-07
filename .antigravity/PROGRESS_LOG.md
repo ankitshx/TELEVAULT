@@ -491,7 +491,79 @@
 
 ### Commit:
 - Commit message: "Phase 9 complete - restore engine and backup verification"
+- Commit hash: `cc754bf`
 - Local commit only; NO push to GitHub.
+
+---
+
+## Phase 10 - Desktop Application Core & Tauri 2 IPC Command Surface
+- Started: 2026-10-07 17:35 IST
+- Completed: 2026-10-07 18:35 IST
+- Status: Completed
+
+### Objective:
+- Build the Desktop Application Core and Tauri 2 IPC Command Surface in `apps/desktop`.
+- Safely expose existing Rust domain services (`BackupEngine`, `RestoreEngine`, `BackupChecker`, `TransferEngine`, `PathManager`) to the React/TypeScript frontend through strongly typed Tauri commands.
+- Pure Rust + Tauri 2 single-process architecture.
+- Enforce the permanent architecture invariant: NO Python, NO localhost/HTTP backend, NO separate backend executable, NO backend sidecars, NO backend ports.
+- Establish clean application boundary: React UI -> generated TypeScript API (`bindings.ts`) -> Tauri IPC -> Tauri command handlers -> application/service layer (`DesktopAppState`) -> existing domain engines.
+- Shared state management via `DesktopAppState` managing DB, TransferEngine, BackupEngine, RestoreEngine, BackupChecker, PathManager, and cooperative `CancellationToken` registry.
+- Strongly-typed IPC request/response DTOs and stable `IpcError` with machine-readable error codes.
+- Automated TypeScript binding generation using `tauri-specta` v2.
+- Memory-bounded streaming invariant: ZERO full-file payloads or multi-gigabyte arrays transported over IPC.
+- Async non-blocking offloading via `tokio::task::spawn_blocking` for CPU/IO heavy backup, restore, and verification operations.
+- Minimal React 18 + TypeScript + Vite frontend smoke test verifying typed IPC invocation.
+- Comprehensive integration, IPC, error mapping, and architecture invariant test suites.
+
+### Work Completed:
+- Configured `apps/desktop/Cargo.toml` with `[lib]` (`televault_desktop`), `[[bin]]` (`televault-desktop`), `tauri`, `specta`, `specta-typescript`, `tauri-specta`, domain crates, and `tauri` test feature in `[dev-dependencies]`.
+- Implemented `apps/desktop/src/dto/`:
+  - `common.rs`: `AppInfoDto`, `SystemPathsDto`.
+  - `backup.rs`: `CreateProfileRequest`, `UpdateProfileRequest`, `BackupProfileDto`, `StartBackupRequest`, `BackupSummaryDto`, `SnapshotDto`, `SnapshotFileDto` (annotated with `#[specta(type = Number)]` for integer compatibility).
+  - `restore.rs`: `CollisionPolicyDto`, `FileRestoreOutcomeDto`, `RestoreFileRequest`, `RestoreManifestRequest`, `RestoreSnapshotRequest`, `RestoreResultDto`, `SnapshotRestoreResultDto`.
+  - `checker.rs`: `CheckFileStatusRequest`, `FileStatusDto`, `FileVersionDto`, `VerifyManifestRequest`, `ManifestVerificationReportDto`, `FullVerificationReportDto`.
+  - `transfer.rs`: `TransferJobDto`, `TransferStatusDto`, `CancelOperationRequest`.
+  - `events.rs`: `TransferProgressEvent`, `BackupProgressEvent`, `RestoreProgressEvent`.
+  - `mod.rs`: Clean re-export of all DTO modules.
+- Implemented `apps/desktop/src/error.rs`: `IpcError` with machine-readable error codes (`VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `CANCELLATION`, `INTEGRITY_FAILURE`, `REMOTE_STORAGE_FAILURE`, `FILESYSTEM_FAILURE`, `INTERNAL_ERROR`), sanitizing secrets, and mapping from `AppError`, `BackupError`, `RestoreError`, `DbError`, `TransferError`.
+- Implemented `apps/desktop/src/state.rs`: `DesktopAppState` providing thread-safe shared access to `Database`, `TransferEngine`, `BackupEngine`, `RestoreEngine`, `BackupChecker`, `PathManager`, and cooperative `CancellationToken` registry with automatic job cancellation.
+- Implemented 22 typed Tauri commands in `apps/desktop/src/commands/`:
+  - `system.rs`: `get_app_info`, `get_system_paths`.
+  - `backup.rs`: `list_backup_profiles`, `get_backup_profile`, `create_backup_profile`, `update_backup_profile`, `delete_backup_profile`, `start_backup` (async), `list_snapshots`, `get_snapshot_files`.
+  - `restore.rs`: `restore_file` (async), `restore_manifest` (async), `restore_snapshot` (async), `verify_manifest_metadata`, `verify_full_restore` (async).
+  - `checker.rs`: `check_file_status`, `is_incremental_backup_needed` (async), `get_file_versions`.
+  - `transfer.rs`: `list_transfer_jobs`, `get_transfer_job`, `get_transfer_status`, `cancel_operation`.
+- Implemented `apps/desktop/src/builder.rs`: `create_ipc_builder()` collecting all 22 commands via `tauri_specta::collect_commands!`, and `export_typescript_bindings()` exporting bindings to `apps/desktop/ui/src/bindings.ts`.
+- Implemented `crates/televault-db/src/db.rs` query `list_recent_transfer_jobs(&self, limit: usize)`.
+- Generated TypeScript bindings: `apps/desktop/ui/src/bindings.ts` (341 lines) generated cleanly via `cargo run -p televault-desktop -- --export-types`.
+- Scaffolded minimal React 18 + TypeScript + Vite frontend in `apps/desktop/ui/`: `package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `src/main.tsx`, and `src/App.tsx` (smoke test importing `commands` from `./bindings` and invoking typed IPC).
+- Implemented `apps/desktop/tests/architecture_invariants.rs` (4 tests):
+  - `test_no_localhost_in_frontend_or_ipc`
+  - `test_no_backend_sidecars_in_tauri_config`
+  - `test_no_python_runtime_or_scripts_in_workspace`
+  - `test_single_process_desktop_state_architecture`
+- Implemented `apps/desktop/tests/ipc_tests.rs` (8 tests):
+  - `test_ipc_builder_initialization`
+  - `test_system_info_and_paths`
+  - `test_backup_profile_lifecycle`
+  - `test_backup_execution_and_snapshot_query`
+  - `test_restore_file_and_verification`
+  - `test_checker_commands`
+  - `test_transfer_status_and_cancellation`
+  - `test_error_mapping_and_validation`
+
+### Test & Validation Results:
+- `cargo fmt --all -- --check`: PASS (clean formatting)
+- `cargo check --workspace`: PASS (all 12 packages clean)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
+- `cargo test --workspace`: PASS (170 tests passed, 0 failed, 0 ignored)
+- Test count continuity: 158 previous tests verified + 12 new Phase 10 tests = 170 total workspace tests passing. Zero regressions.
+- Architecture regression validation: PASS (0 localhost occurrences, 0 backend sidecars, 0 Python files, 0 HTTP endpoints, single-process desktop runtime).
+
+### Commit:
+- Commit message: "Phase 10 complete - Tauri IPC command surface"
+- Local commit only; NO push to GitHub.
+
 
 
 

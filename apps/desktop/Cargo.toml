@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "televault-desktop"
 version.workspace = true
 edition.workspace = true
@@ -6,5 +6,33 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+name = "televault_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "televault-desktop"
+path = "src/main.rs"
+
 [dependencies]
 televault-core = { workspace = true }
+televault-crypto = { workspace = true }
+televault-manifest = { workspace = true }
+televault-db = { workspace = true }
+televault-storage = { workspace = true }
+televault-transfer = { workspace = true }
+televault-backup = { workspace = true }
+
+tauri = { version = "2", default-features = false, features = ["wry"] }
+specta = { version = "2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "0.0.12"
+tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "javascript", "typescript"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { version = "1", features = ["sync", "rt", "rt-multi-thread", "macros"] }
+tracing = "0.1"
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tauri = { version = "2", default-features = false, features = ["wry", "test"] }
