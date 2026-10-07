@@ -8,3 +8,12 @@ repository.workspace = true
 
 [dependencies]
 televault-core = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+aes-gcm = { workspace = true }
+argon2 = { workspace = true }
+zeroize = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -53,24 +53,6 @@
 - Enforce strict crate boundaries, minimal dependencies, and pure Rust single-process architecture.
 - Ensure 100% clean compilation, zero warnings in clippy, and passing tests across all crates.
 
-### Work Completed:
-- Created root `Cargo.toml` with `[workspace]`, `[workspace.package]`, and `[workspace.dependencies]`.
-- Established `apps/cli` binary application foundation with CLI entry point.
-- Established `apps/desktop` application foundation for future Tauri 2 single-process host.
-- Established 10 domain library crates under `crates/televault-*`:
-  - `televault-core`: Domain models, `AppError` enum, and `PathManager`.
-  - `televault-crypto`: Cryptographic foundation stub and version exports.
-  - `televault-manifest`: Manifest v1 specification contract stub.
-  - `televault-storage`: Storage provider abstraction interfaces stub.
-  - `televault-telegram`: Telegram client and session adapter stub.
-  - `televault-db`: Embedded SQLite database foundation stub.
-  - `televault-transfer`: Transfer queue and chunking pipeline stub.
-  - `televault-backup`: Backup engine, snapshots, and retention stub.
-  - `televault-scheduler`: Recurring schedule and next-run state stub.
-  - `televault-integrity`: Cryptographic hash and integrity checking stub.
-- Verified zero forbidden artifacts (no Python, no localhost, no HTTP API, no sidecar, no electron).
-- Added Architecture Decisions AD-003 and AD-004.
-
 ### Commit:
 - Commit message: "Phase 1 complete - Cargo workspace foundation"
 - Commit hash: `df88939`
@@ -92,47 +74,71 @@
 - Validated `AppConfig` with strict secret exclusion.
 - Comprehensive unit testing, 100% clean formatting, zero Clippy warnings.
 
+### Commit:
+- Commit message: "Phase 2 complete - televault core foundation"
+- Commit hash: `0df539a`
+- Local commit only; NO push to GitHub.
+
+---
+
+## Phase 3 - Cryptographic Foundation + Optional Encryption Contract
+- Started: 2026-10-07 14:16 IST
+- Completed: 2026-10-07 14:24 IST
+- Status: Completed
+
+### Objective:
+- Implement production-grade cryptographic foundation in `crates/televault-crypto`.
+- Authenticated symmetric encryption using AES-256-GCM.
+- Password-based key derivation using Argon2id (64 MiB, 3 iterations, 2 parallelism, 32-byte salt).
+- Secure key management with `zeroize::ZeroizeOnDrop` and redacted debug outputs.
+- Chunk-aware Authenticated Associated Data (`ChunkAad`) binding `FileId`, `chunk_index`, and `total_chunks`.
+- Optional encryption contract (`EncryptionPolicy::Enabled` / `EncryptionPolicy::Disabled`).
+- Zero secret leakage, negative security tests, and workspace integration.
+
 ### Work Completed:
-- Added `serde` to `[workspace.dependencies]` and `serde_json` as dev-dependency.
-- Built `src/error.rs` with typed error variants, error codes, and safe propagation.
-- Built `src/validation.rs` with identifier character/length checks, non-empty checks, and relative path traversal prevention.
-- Built `src/paths.rs` with platform-aware `PathManager` (`system_default` pointing to `%LOCALAPPDATA%\TELEVAULT` on Windows), isolated category accessors (`data`, `config`, `database`, `cache`, `logs`, `temp`, `backups`, `recovery`), and safe subpath resolution.
-- Built `src/ids.rs` with validated identifier newtypes and serde transparency.
-- Built `src/models.rs` with domain lifecycle and status enums.
-- Built `src/config.rs` with hierarchical configuration (`general`, `storage`, `transfer`, `backup`) and validation invariants.
-- Updated `src/lib.rs` with clean public exports.
-- Executed full validation test suite (30 total tests passing).
+- Configured dependencies: `aes-gcm = "0.10"`, `argon2 = "0.5"`, `zeroize = "1.8"`, `rand = "0.8"`.
+- Built `src/error.rs` mapping crypto failures to `televault_core::AppError`.
+- Built `src/key.rs` implementing `SecretKey` (with zeroization), `Salt`, and `Nonce`.
+- Built `src/kdf.rs` implementing Argon2id key derivation according to specifications.
+- Built `src/aad.rs` implementing `ChunkAad` context binding to prevent chunk replay/tampering.
+- Built `src/payload.rs` implementing versioned `EncryptedPayload` and `KdfMetadata`.
+- Built `src/cipher.rs` implementing `encrypt_raw`, `decrypt_raw`, `encrypt_chunk`, `decrypt_chunk`.
+- Built `src/policy.rs` defining `EncryptionPolicy` for explicit opt-in encryption.
+- Updated `src/lib.rs` with clean exports and docstrings.
+- Created 23 unit tests in `televault-crypto` (positive and negative security tests).
+- Verified entire workspace: 53 tests passing across all crates.
 
-### Files Created (4):
-- `crates/televault-core/src/config.rs`
-- `crates/televault-core/src/ids.rs`
-- `crates/televault-core/src/models.rs`
-- `crates/televault-core/src/validation.rs`
+### Files Created (6):
+- `crates/televault-crypto/src/aad.rs`
+- `crates/televault-crypto/src/cipher.rs`
+- `crates/televault-crypto/src/error.rs`
+- `crates/televault-crypto/src/kdf.rs`
+- `crates/televault-crypto/src/key.rs`
+- `crates/televault-crypto/src/payload.rs`
+- `crates/televault-crypto/src/policy.rs`
 
-### Files Modified (6):
+### Files Modified (4):
 - `Cargo.toml`
 - `Cargo.lock`
-- `crates/televault-core/Cargo.toml`
-- `crates/televault-core/src/error.rs`
-- `crates/televault-core/src/lib.rs`
-- `crates/televault-core/src/paths.rs`
+- `crates/televault-crypto/Cargo.toml`
+- `crates/televault-crypto/src/lib.rs`
 
 ### Documentation Updated (3):
-- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-005, AD-006, AD-007)
-- `.antigravity/MISTAKES.md` (Clippy derivable impls record)
-- `.antigravity/PROGRESS_LOG.md` (Phase 2 completion)
+- `.antigravity/ARCHITECTURE_DECISIONS.md` (AD-008, AD-009, AD-010)
+- `.antigravity/MISTAKES.md` (Recorded missing thiserror dependency resolution)
+- `.antigravity/PROGRESS_LOG.md` (Phase 3 completion log)
 
 ### Test & Validation Results:
 - `cargo check --workspace`: PASS (all 12 packages clean)
-- `cargo test --workspace`: PASS (12 test suites, 30 tests passed, 0 failed)
+- `cargo test --workspace`: PASS (53 tests passed, 0 failed, 0 ignored)
 - `cargo fmt --all -- --check`: PASS (clean formatting)
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS (0 warnings, 0 errors)
 - Architecture validation scan: PASS (0 forbidden patterns found)
 
 ### Commit:
-- Commit message: "Phase 2 complete - televault core foundation"
+- Commit message: "Phase 3 complete - cryptographic foundation"
 - Local commit only; NO push to GitHub.
 
 ### Remaining Work (Next Phases):
-- Phase 3: Cryptographic Primitives & Key Management (`crates/televault-crypto`)
-- Subsequent phases: Manifest, Database, Storage, Telegram, Transfer, Backup, Scheduler, Integrity, Tauri 2 UI.
+- Phase 4: Manifest & Metadata Specification (`crates/televault-manifest`)
+- Subsequent phases: Database, Storage, Telegram, Transfer, Backup, Scheduler, Integrity, Tauri 2 UI.

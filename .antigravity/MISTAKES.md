@@ -6,3 +6,10 @@
 - Fix: Replaced manual `impl Default` with `Default` in `#[derive(...)]` on `AppConfig`.
 - Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings` executed as part of standard build validation.
 - Prevention Rule: Always derive `Default` on container structs when all constituent fields implement `Default` with desired initial values.
+
+## Phase 3 — Missing thiserror dependency in televault-crypto
+- Mistake: `crates/televault-crypto/Cargo.toml` omitted `thiserror`, causing compilation failure in `src/error.rs`.
+- Root Cause: Assumed `thiserror` would be transitively accessible from `televault-core` without declaring it in `televault-crypto`.
+- Fix: Added `thiserror = { workspace = true }` directly to `crates/televault-crypto/Cargo.toml`.
+- Regression Test: `cargo check --workspace` verifies all crate-level imports resolve independently.
+- Prevention Rule: Every crate defining error types via `#[derive(Error)]` must explicitly declare `thiserror = { workspace = true }` in its own `Cargo.toml`.
