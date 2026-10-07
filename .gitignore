@@ -1,0 +1,20 @@
+﻿# Rust
+/target/
+/src-tauri/target/
+/apps/desktop/src-tauri/target/
+
+# Node & Frontend
+/node_modules/
+/dist/
+/apps/desktop/node_modules/
+/apps/desktop/dist/
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# OS artifacts
+.DS_Store
+Thumbs.db
