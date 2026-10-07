@@ -1,0 +1,10 @@
+﻿[package]
+name = "televault-db"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+televault-core = { workspace = true }

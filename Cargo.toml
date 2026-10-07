@@ -1,0 +1,39 @@
+﻿[workspace]
+resolver = "2"
+members = [
+    "apps/cli",
+    "apps/desktop",
+    "crates/televault-core",
+    "crates/televault-crypto",
+    "crates/televault-manifest",
+    "crates/televault-storage",
+    "crates/televault-telegram",
+    "crates/televault-db",
+    "crates/televault-transfer",
+    "crates/televault-backup",
+    "crates/televault-scheduler",
+    "crates/televault-integrity",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Ankit Sharma <ankitshx@users.noreply.github.com>"]
+license = "MIT"
+repository = "https://github.com/ankitshx/TELEVAULT"
+
+[workspace.dependencies]
+# Internal workspace crates
+televault-core = { path = "crates/televault-core" }
+televault-crypto = { path = "crates/televault-crypto" }
+televault-manifest = { path = "crates/televault-manifest" }
+televault-storage = { path = "crates/televault-storage" }
+televault-telegram = { path = "crates/televault-telegram" }
+televault-db = { path = "crates/televault-db" }
+televault-transfer = { path = "crates/televault-transfer" }
+televault-backup = { path = "crates/televault-backup" }
+televault-scheduler = { path = "crates/televault-scheduler" }
+televault-integrity = { path = "crates/televault-integrity" }
+
+# Shared fundamental dependencies
+thiserror = "2.0"
