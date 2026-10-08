@@ -253,7 +253,7 @@ impl PayloadPipeline {
 
         let manifest = ManifestV1 {
             manifest_version: ManifestVersion::V1,
-            manifest_id: format!("man-{}", file_id),
+            manifest_id: format!("man-{}-{}", file_id, &logical_file_hash[..16]),
             logical_file,
             encryption: encryption_metadata,
             compression: compression_metadata,

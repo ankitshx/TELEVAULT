@@ -871,15 +871,50 @@
 
 ---
 
-## Next Phase: Phase 16
-- Phase 16 has NOT started.
+## Phase 16: Production Hardening, End-to-End Integration & Reliability Validation
+- Status: COMPLETED
+- Date: 2026-10-08
+- Objectives:
+  - Validate and harden the complete end-to-end backup pipeline across all stages (Profile -> Discovery -> Change Detection -> Snapshot -> Manifest -> Compression -> Encryption -> Chunking -> Upload Queue -> Mock Telegram Remote Storage -> Remote Verification -> Database Commit -> Restore).
+  - Validate 5.2 GB large-file logical representation (split across two 1.8 GB chunks and one ~1.6 GB chunk) with strict 64 KiB bounded streaming buffers and zero multi-gigabyte memory allocations.
+  - Implement and validate realistic failure injection: simulated upload network failures, cooperative cancellation via `CancellationToken`, simulated download failures during restore, and corrupted remote storage detection.
+  - Validate cold process restarts and persistence on disk-backed SQLite databases (`PRAGMA integrity_check` & `PRAGMA foreign_key_check`), ensuring full recovery of profiles, schedules, snapshots, manifests, and verification history.
+  - Validate scheduler reliability across Interval, Daily, Weekly (`Weekday@HH:MM`), and Cron formats, with persistent next-run calculations and concurrency bounding via `ExecutionGuard`.
+  - Validate retention safety invariants: dry-run evaluations cause zero mutations; non-dry-run prunes local metadata transactionally while **NEVER deleting remote Telegram backup payloads**.
+  - Validate verification ➔ repair ➔ re-verification ➔ byte-for-byte restore lifecycle with strict profile ownership isolation.
 
+### Key Engineering Accomplishments:
+1. **Architectural Point-in-Time Manifest ID Hardening**:
+   - Discovered that generating `manifest_id` as `man-{file_id}` caused subsequent incremental modifications of a file to overwrite historical manifest records in SQLite `manifests`.
+   - Hardened `manifest_id` generation in `crates/televault-backup/src/pipeline.rs` to include the content hash prefix: `format!("man-{}-{}", file_id, &logical_file_hash[..16])`.
+   - Proved multi-generation incremental point-in-time recovery works flawlessly across historical snapshots.
+2. **Cooperative Cancellation & Snapshot Fault Recovery**:
+   - Wrapped `execute_backup` in `execute_backup_inner` with top-level error handling.
+   - Any aborted execution, cooperative cancellation, or network failure automatically transitions the SQLite snapshot status from `BackingUp` to `Failed` with diagnostic error metadata, preventing orphaned in-flight snapshots.
+3. **Database Integrity & Foreign Key Verification API**:
+   - Implemented `full_integrity_check(&self) -> Result<Vec<String>>` using `PRAGMA integrity_check;` in `crates/televault-db/src/db.rs`.
+   - Implemented `foreign_key_check(&self) -> Result<Vec<String>>` using `PRAGMA foreign_key_check;` in `crates/televault-db/src/db.rs`.
+   - Added unit and disk-backed restart integration tests confirming 0 integrity issues and 0 foreign key violations.
+4. **Mock Storage Corruption Simulation**:
+   - Enhanced `MockStorageProvider` with `corrupt_object(&self, reference: &StorageReference) -> Result<()>` that mutates payload bytes and recalculates `sha256_hex` digest.
+   - Enables deterministic bitrot and remote data corruption simulation in automated test suites without external networks.
+5. **New End-to-End Reliability Test Suites Added**:
+   - `apps/desktop/tests/e2e_pipeline_tests.rs`: Complete backup ➔ verify ➔ restore cycle with collision policies (`Overwrite`, `Skip`, `KeepBoth`), Zstd compression, AES-256-GCM encryption, and multi-generation incremental point-in-time recovery.
+   - `apps/desktop/tests/large_file_e2e_tests.rs`: 5.2 GB 3-chunk streaming validation (1.8 GB + 1.8 GB + ~1.6 GB) maintaining 64 KiB buffer discipline and clean staging cleanup.
+   - `apps/desktop/tests/failure_injection_tests.rs`: Simulated upload failure, cooperative cancellation, download failure during restore, and corrupted remote payload detection.
+   - `apps/desktop/tests/restart_persistence_tests.rs`: Disk-backed SQLite restart validation, entity reloading, PRAGMA checks, and interrupted backup recovery.
+   - `apps/desktop/tests/scheduler_retention_reliability_tests.rs`: Schedule calculations (Interval, Daily, Weekly, Cron), persistence across restarts, execution guard concurrency bounds, and retention safety proving 0 remote Telegram deletions.
+   - `apps/desktop/tests/verification_repair_e2e_tests.rs`: Full Verification ➔ Damage Injection ➔ Verification Failure ➔ Repair Preview ➔ Snapshot Repair ➔ Re-verification ➔ Restore cycle, with cross-profile ownership isolation.
+6. **Authoritative Verification & Test Results**:
+   - Rust test count: **297 passed, 0 failed, 0 ignored** (+15 new tests added).
+   - Frontend Vitest suite: **23 passed, 0 failed, 0 ignored**.
+   - Total authoritative test count: **320 passed, 0 failed, 0 ignored**.
+   - Frontend production bundle build (`tsc && vite build`): PASSED.
+   - Rust lint & style checks (`cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`): PASSED.
+   - Security audit (`scan_secrets.ps1`): 0 secrets detected.
+   - Storage/Payload audit (`scan_payloads.ps1`): 0 backup payloads tracked, 0 staging leaks.
 
+---
 
-
-
-
-
-
-
-
+## Next Phase: Phase 17
+- Phase 17 has NOT started.

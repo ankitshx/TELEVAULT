@@ -96,7 +96,6 @@ TELEVAULT features a unified, dark-theme desktop user experience integrated dire
   1. **Dashboard**: Live system status, profile inventory, recent backups, active transfers, verification, and repair summary.
   2. **Backups**: Manual and profile-driven backup trigger, live execution status, cancellation, and error reporting.
   3. **Restore**: Historical snapshot browser, point-in-time file catalog inspection, destination path selection, and deterministic collision policies (`Overwrite`, `Skip`, `KeepBoth`).
-  4. **Schedules**: Automation manager supporting Interval, Daily, Weekly, and Cron triggers, with run history and manual trigger overrides.
   5. **Retention**: Multi-rule snapshot retention policy designer (keep latest N, age window, keep latest successful) with dry-run preview and safe atomic execution (zero remote deletion).
   6. **Verification**: 4-level integrity auditor (`MetadataOnly`, `RemoteAvailability`, `RemoteIntegrity`, `RestoreReadiness`) displaying health indicators, finding codes, and repair eligibility.
   7. **Repair**: Guided remote repair wizard with pre-execution eligibility validation, dry-run preview, single-chunk isolated streaming repair, and persistent audit history.
@@ -104,6 +103,16 @@ TELEVAULT features a unified, dark-theme desktop user experience integrated dire
   9. **Profiles**: Complete profile CRUD management (target paths, exclusion patterns, Zstd compression, and AES-256-GCM encryption configuration).
   10. **Settings**: Centralized application configuration (`AppConfig`) covering general preferences, storage limits, transfer concurrency, and backup defaults.
 - **Zero-Payload Streaming UI Contract**: React state never loads, buffers, or retains actual backup payloads or multi-gigabyte files (e.g. 5.2 GB archives). The UI consumes and displays bounded metadata, percentages, and status codes while the Rust backend streams payloads in 64 KiB bounded chunks.
+
+### 3.8 Production Hardening, End-to-End Integration & Reliability Model (Phase 16)
+Phase 16 proves the complete system behaves deterministically and reliably across all integrated workflows:
+- **End-to-End Backup Pipeline & Point-in-Time Recovery**: Validates profile creation, file discovery, change detection, Zstd compression, AES-256-GCM encryption, chunking, upload queue, mock Telegram remote storage, 4-level integrity verification, and byte-for-byte restore with collision handling (`Overwrite`, `Skip`, `KeepBoth`). Multi-generation incremental backups support point-in-time recovery across historical file versions via unique manifest generation.
+- **5.2 GB Large-File Streaming Validation**: Validates the 5.2 GB logical file split into two 1.8 GB chunks and one ~1.6 GB chunk. Confirms the strict 64 KiB buffer discipline and zero multi-gigabyte memory allocations during verification, repair, and restore.
+- **Controlled Failure Injection & Recovery**: Tests simulated network upload failures (ensuring no false success records), cooperative cancellation via `CancellationToken` (immediate graceful abort with zero database corruption and zero staging leaks), corrupted remote data detection, and download failures during restore.
+- **Restart & Persistence Durability**: Validates cold restarts on disk-backed SQLite databases. Profiles, schedules, snapshots, manifests, chunks, and verification history survive process termination. SQLite `PRAGMA integrity_check` and `PRAGMA foreign_key_check` verify zero corruption and zero foreign key violations across restarts and crash recovery.
+- **Scheduler Reliability & Concurrency Guard**: Validates deterministic next-run calculations across Interval, Daily, Weekly (`Weekday@HH:MM`), and Cron formats. The shared `ExecutionGuard` bounds concurrent operations per profile, preventing duplicate executions.
+- **Retention Safety Invariant**: Enforces that retention policies (Keep Latest N, Age Window, Keep Latest Successful) prune only local metadata catalog records. **Remote Telegram backup objects are NEVER deleted** during retention operations.
+- **Verification + Repair Full Lifecycle**: Validates the complete cycle: Backup ➔ Level 3 Verification (Healthy) ➔ Bitrot/Damage Injection ➔ Level 3 Verification (Corrupted) ➔ Repair Preview ➔ Snapshot Repair ➔ Re-verification (Healthy) ➔ Byte-for-byte Restore.
 
 ---
 
@@ -142,7 +151,7 @@ TELEVAULT features a unified, dark-theme desktop user experience integrated dire
 | **Phase 2** | `televault-core` Domain Layer & PathManager | 19 | Approved |
 | **Phase 3** | `televault-crypto` AES-256-GCM & Argon2id KDF | 23 | Approved |
 | **Phase 4** | `televault-manifest` ManifestV1 & Chunk Specification | 20 | Approved |
-| **Phase 5** | `televault-db` SQLite Embedded Catalog & FTS5 | 15 | Approved |
+| **Phase 5** | `televault-db` SQLite Embedded Catalog & FTS5 | 16 | Approved |
 | **Phase 6** | `televault-storage` Cloud-First & Temp Staging | 13 | Approved |
 | **Phase 7** | `televault-transfer` Bounded Streaming Queue Engine | 27 | Approved |
 | **Phase 8** | `televault-backup` Snapshot & Incremental Backup Engine | 9 | Approved |
@@ -152,8 +161,9 @@ TELEVAULT features a unified, dark-theme desktop user experience integrated dire
 | **Phase 12** | `televault-backup` Snapshot Retention & Pruning Engine | 34 | Approved |
 | **Phase 13** | `televault-integrity` Remote Verification & Audit Engine | 50 | Approved |
 | **Phase 14** | Remote Repair & Recovery, Disk Audit & GitHub Sync | 17 | Approved |
-| **Phase 15** | **Production Desktop App Integration & UI Completion** | **24** | **Completed** |
-| **Total** | **Authoritative Test Baseline (282 Rust + 23 UI)** | **305** | **100% Passed** |
+| **Phase 15** | Production Desktop App Integration & UI Completion | 24 | Approved |
+| **Phase 16** | **Production Hardening, End-to-End Integration & Reliability** | **15** | **Completed** |
+| **Total** | **Authoritative Test Baseline (297 Rust + 23 UI)** | **320** | **100% Passed** |
 
 ---
 
@@ -166,7 +176,7 @@ TELEVAULT features a unified, dark-theme desktop user experience integrated dire
 
 ### Running Verification & Tests
 ```powershell
-# Run the Rust test suite (282 tests)
+# Run the Rust test suite (297 tests)
 cargo test --workspace
 
 # Run strict Clippy lint checks

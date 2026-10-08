@@ -315,10 +315,17 @@
 - Reason: Provides instant, deterministic regression detection for all 10 desktop views without requiring an active WebView2 graphical window or display server.
 - Date: 2026-10-08
 
+## AD-064: Hash-Differentiated Manifest IDs for Point-in-Time Versioning
+- Decision: Manifest identifiers are generated as `man-{file_id}-{hash_prefix}` rather than `man-{file_id}`.
+- Reason: The SQLite `manifests` table defines `manifest_id TEXT PRIMARY KEY`. Without hash differentiation, subsequent modifications of a tracked file overwrite the historical manifest record, breaking point-in-time restore of earlier snapshots. Generating hash-differentiated manifest IDs guarantees immutable manifests across multi-generation snapshots.
+- Date: 2026-10-08
 
+## AD-065: Cooperative Cancellation Failure Transition & Database Consistency
+- Decision: When a backup operation is aborted via `CancellationToken` or encounters any unrecoverable I/O error, the engine wraps execution in a top-level error handler that immediately transitions the snapshot status from `BackingUp` to `Failed` in SQLite with error details.
+- Reason: Prevents orphaned snapshots trapped indefinitely in the `BackingUp` state and guarantees deterministic state recovery upon restart.
+- Date: 2026-10-08
 
-
-
-
-
-
+## AD-066: Non-Destructive Retention Remote Safety Invariant
+- Decision: Retention policy evaluations and pruning operations transactionally remove eligible local SQLite snapshot records and file version metadata, but are strictly prohibited from deleting remote Telegram storage objects.
+- Reason: Remote backup safety is paramount. Telegram remote storage is authoritative and permanent; remote deletion is deferred to an explicitly authorized, user-confirmed remote garbage collection phase.
+- Date: 2026-10-08

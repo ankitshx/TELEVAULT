@@ -84,6 +84,21 @@ impl BackupEngine {
             BackupStatus::BackingUp,
         )?;
 
+        match self.execute_backup_inner(&plan, cancel, start_time) {
+            Ok(summary) => Ok(summary),
+            Err(e) => {
+                let _ = self.fail_snapshot(&plan.snapshot_id, &e.to_string());
+                Err(e)
+            }
+        }
+    }
+
+    fn execute_backup_inner(
+        &self,
+        plan: &BackupPlan,
+        cancel: &CancellationToken,
+        start_time: std::time::Instant,
+    ) -> Result<BackupSummary> {
         let mut transferred_chunks = 0;
         let mut transferred_bytes = 0;
         let new_count = plan.change_set.new_files().len();

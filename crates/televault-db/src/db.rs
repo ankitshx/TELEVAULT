@@ -165,6 +165,42 @@ impl Database {
         })
     }
 
+    /// Checks for foreign key constraint violations across all tables.
+    /// Returns an empty vector if all foreign keys are valid.
+    pub fn foreign_key_check(&self) -> Result<Vec<String>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare("PRAGMA foreign_key_check;")?;
+            let rows = stmt.query_map([], |row| {
+                let table: String = row.get(0)?;
+                let rowid: i64 = row.get(1)?;
+                let parent: String = row.get(2)?;
+                let fkid: i64 = row.get(3)?;
+                Ok(format!(
+                    "Foreign key violation: table '{table}' rowid {rowid} references parent '{parent}' (fkid {fkid})"
+                ))
+            })?;
+            let mut violations = Vec::new();
+            for r in rows {
+                violations.push(r?);
+            }
+            Ok(violations)
+        })
+    }
+
+    /// Runs a full SQLite database integrity check.
+    /// Returns ["ok"] when healthy, or diagnostic messages if issues are detected.
+    pub fn full_integrity_check(&self) -> Result<Vec<String>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare("PRAGMA integrity_check;")?;
+            let rows = stmt.query_map([], |row| row.get(0))?;
+            let mut results = Vec::new();
+            for r in rows {
+                results.push(r?);
+            }
+            Ok(results)
+        })
+    }
+
     // =========================================================================
     // Backup Profiles
     // =========================================================================

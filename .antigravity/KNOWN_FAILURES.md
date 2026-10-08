@@ -68,7 +68,12 @@
 - Failure Mode: Silent button stalls or unexpected error popups.
 - Protection in Phase 15: Global status indicators, button disabling during in-flight operations, and robust handling of `SCHEDULE_ALREADY_RUNNING` and conflict errors with clear, actionable user messages.
 
+## KF-015: Historical Manifest Overwrite Preventing Point-in-Time Restore
+- Risk: In incremental backups where a tracked file is modified, generating a manifest with a fixed `manifest_id` (e.g., `man-{file_id}`) causes SQLite to overwrite the previous manifest record.
+- Failure Mode: Attempting to restore a historical snapshot recovers the newest version of the file rather than the historical point-in-time version.
+- Mitigation in Phase 16: Manifest IDs incorporate content hash prefixes (`man-{file_id}-{hash_prefix}`). Each unique version retains an immutable manifest row in SQLite, guaranteeing accurate historical recovery.
 
-
-
-
+## KF-016: Orphaned Snapshots Trapped in BackingUp State on Crash or Cancellation
+- Risk: If the application process crashes, is forcefully killed, or encounters an uncaught abort during backup, the snapshot record remains in `BackingUp` status indefinitely.
+- Failure Mode: Snapshot permanently appears in-progress, blocking future backups and failing validation.
+- Mitigation in Phase 16: Automatic failure wrapping in `execute_backup_inner` immediately transitions snapshot status to `Failed` upon any error or cancellation. Cold restart recovery detects incomplete in-flight snapshots and recovers gracefully.

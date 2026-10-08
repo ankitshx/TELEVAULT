@@ -1466,3 +1466,24 @@ fn test_atomic_apply_chunk_repair_success_and_rollback() {
         "Nonexistent chunk must fail transaction and rollback"
     );
 }
+
+#[test]
+fn test_database_foreign_key_and_full_integrity_checks() {
+    let db = Database::open_in_memory().expect("open in-memory db");
+
+    // 1. Initial integrity and foreign keys are clean
+    let integrity_res = db.full_integrity_check().expect("full integrity check");
+    assert_eq!(integrity_res, vec!["ok".to_string()]);
+
+    let fk_violations = db.foreign_key_check().expect("foreign key check");
+    assert!(
+        fk_violations.is_empty(),
+        "Fresh database must have 0 FK violations"
+    );
+
+    // 2. Health check reports healthy and foreign keys enabled
+    let health = db.health_check().expect("health check");
+    assert!(health.is_healthy);
+    assert!(health.foreign_keys_enabled);
+    assert_eq!(health.integrity_check, "ok");
+}

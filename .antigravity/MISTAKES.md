@@ -210,6 +210,27 @@
 - Regression Test: `npm.cmd run build` (`tsc && vite build`) passing with zero type errors.
 - Prevention Rule: Always export and inspect generated Specta bindings before implementing frontend forms and IPC consumption.
 
+## Phase 16 — Manifest ID Collision Overwriting Historical File Versions
+- Mistake: In `crates/televault-backup/src/pipeline.rs`, `manifest_id` was hardcoded to `format!("man-{}", file_id)`. When an incremental backup modified a file, its new manifest overwrote the old manifest row in SQLite `manifests`, causing historical snapshots to restore the latest content rather than point-in-time content.
+- Root Cause: Assumed `manifest_id` could be uniquely keyed by `file_id` alone instead of incorporating the content hash.
+- Fix: Generated `manifest_id` with content hash differentiation: `format!("man-{}-{}", file_id, &logical_file_hash[..16])`.
+- Regression Test: `test_e2e_multi_generation_incremental_backup_and_point_in_time_recovery` in `apps/desktop/tests/e2e_pipeline_tests.rs`.
+- Prevention Rule: Any entity representing immutable point-in-time content in a primary-keyed database must incorporate content hash or version identity into its primary key.
+
+## Phase 16 — Mock Storage In-Memory Payload Mutation without Hash Digest Synchronization
+- Mistake: In `MockStorageProvider::corrupt_object`, mutating an object's payload byte array altered the payload but left `sha256_hex` unchanged. When repair idempotency checked `is_chunk_already_healthy`, `get_metadata` reported the old hash and skipped repairing the chunk.
+- Root Cause: Decoupled payload state mutation from metadata digest recalculation in the mock store.
+- Fix: Updated `corrupt_object` to recompute and update `sha256_hex` immediately upon mutating payload bytes.
+- Regression Test: `test_e2e_verification_repair_reverification_and_restore_cycle` in `apps/desktop/tests/verification_repair_e2e_tests.rs`.
+- Prevention Rule: Test mocks simulating data corruption must update both stored content and reported digest metadata to ensure accurate failure detection.
+
+## Phase 16 — SQLite PRAGMA integrity_check Assertion Mismatch
+- Mistake: Asserted `db.full_integrity_check().unwrap().is_empty()` expecting empty vec on success.
+- Root Cause: In SQLite, `PRAGMA integrity_check` returns a single row containing string `"ok"` when healthy; an empty vector is only returned by `PRAGMA foreign_key_check` when there are zero violations.
+- Fix: Asserted `assert_eq!(db.full_integrity_check().unwrap(), vec!["ok".to_string()])`.
+- Regression Test: `test_metadata_persistence_across_application_restart` in `apps/desktop/tests/restart_persistence_tests.rs`.
+- Prevention Rule: Always check SQLite PRAGMA return value documentation: `integrity_check` returns `["ok"]`, whereas `foreign_key_check` returns empty rows on success.
+
 
 
 

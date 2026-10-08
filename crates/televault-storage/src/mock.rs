@@ -76,6 +76,35 @@ impl MockStorageProvider {
         self.objects.lock().unwrap().len()
     }
 
+    /// Corrupts the payload of an object in mock storage to simulate bitrot/remote corruption.
+    pub fn corrupt_object(&self, reference: &StorageReference) -> Result<()> {
+        let key = Self::reference_key(reference)?;
+        let mut guard = self.objects.lock().unwrap();
+        if let Some(obj) = guard.get_mut(&key) {
+            match &mut obj.payload {
+                MockPayload::InMemory(data) => {
+                    if !data.is_empty() {
+                        data[0] ^= 0xFF;
+                    } else {
+                        data.push(0xAA);
+                    }
+                    let mut hasher = Sha256::new();
+                    hasher.update(&*data);
+                    obj.sha256_hex = format!("{:x}", hasher.finalize());
+                }
+                MockPayload::VirtualLarge { fill_byte } => {
+                    *fill_byte ^= 0xFF;
+                    obj.sha256_hex = "corrupted_virtual_large_hash".into();
+                }
+            }
+            Ok(())
+        } else {
+            Err(StorageError::NotFound(format!(
+                "Reference '{key}' not found"
+            )))
+        }
+    }
+
     /// Inserts a virtual mock object with specified fill byte and precomputed hash.
     /// Used for testing gigabyte-scale payloads (e.g. 1.8 GB chunks) with zero RAM allocation.
     pub fn insert_virtual_object(
