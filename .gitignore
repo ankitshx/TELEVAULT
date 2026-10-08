@@ -7,8 +7,10 @@
 # Node & Frontend dependencies and bundles
 /node_modules/
 /dist/
+/build/
 /apps/desktop/node_modules/
 /apps/desktop/dist/
+/apps/desktop/build/
 
 # Local databases and SQLite journals (never track runtime local database instances)
 *.db

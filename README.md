@@ -67,14 +67,19 @@ TELEVAULT is strictly **cloud-first**:
 - **Chunk-Aware AAD (`ChunkAad`)**: Every chunk binds `FileId`, `chunk_index`, and `total_chunks` in Authenticated Associated Data, mathematically preventing chunk tampering, index reordering, or cross-file splicing.
 - **Secret Zeroization**: All cryptographic secrets implement `zeroize::ZeroizeOnDrop` and are redacted in debug and logging output.
 
-### 3.4 Verification Model (Phase 13)
+### 3.4 Compression Model
+- **High-Throughput Compression**: Optional stream-oriented compression using Zstandard (`zstd`).
+- **Policy Driven**: Profiles and manifests explicitly record `CompressionMetadata` (`CompressionAlgorithm::None` or `CompressionAlgorithm::Zstd` with compression level).
+- **Zero Heap Buffering**: Compression and decompression operate through streaming readers and writers in bounded 64 KiB chunks, keeping memory consumption strictly constant regardless of file size.
+
+### 3.5 Verification Model (Phase 13)
 Verification audits backup integrity across 4 distinct levels:
 1. **Level 1 (MetadataOnly)**: Invariant check of catalog manifests, chunk indexing, sizes, and hashes.
 2. **Level 2 (RemoteAvailability)**: Queries remote Telegram storage to verify message and file existence.
 3. **Level 3 (RemoteIntegrity)**: Validates remote size, hash digests, and server metadata.
 4. **Level 4 (RestoreReadiness)**: Complete cryptographic payload validation and end-to-end restore dry-run.
 
-### 3.5 Remote Repair & Recovery Model (Phase 14)
+### 3.6 Remote Repair & Recovery Model (Phase 14)
 When verification detects damaged or missing remote chunks, the **Remote Repair Engine** recovers them safely:
 - **Strict Ownership Isolation**: Validates the unbroken hierarchy:  
   `Profile ➔ Snapshot ➔ File ➔ Manifest ➔ Chunk ➔ Remote Reference`.  
@@ -91,10 +96,24 @@ When verification detects damaged or missing remote chunks, the **Remote Repair 
 ### Mandatory Development Rule
 > **"Every completed TELEVAULT phase MUST be committed locally, validated, and pushed to the official GitHub repository before the phase is considered complete."**
 
+### Permanent Phase Workflow for All Future Phases:
+1. **Start from Checkpoint**: Always start from the latest approved, synchronized GitHub checkpoint (`origin/main`).
+2. **Phase Boundary Discipline**: Implement exactly one phase at a time; never begin later phases prematurely.
+3. **Complete Test Suite**: Run `cargo test --workspace` ensuring 100% tests pass (0 failed, 0 ignored).
+4. **Code Quality**: Run `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+5. **Documentation**: Update `README.md` reflecting current cumulative architecture and completed phases.
+6. **Architecture Records**: Update `.antigravity/` records (`PROGRESS_LOG.md`, `MISTAKES.md`, `ARCHITECTURE_DECISIONS.md`, `BUILD_RULES.md`, `KNOWN_FAILURES.md`).
+7. **Security & Invariant Audit**: Verify zero secrets, zero Telegram credentials, zero unverified payloads, and zero architecture drift (no Python, no localhost, no sidecars).
+8. **Phase Commit**: Create a dedicated phase commit with complete cumulative project state.
+9. **GitHub Push**: Push commit to `origin/main` ([https://github.com/ankitshx/TELEVAULT.git](https://github.com/ankitshx/TELEVAULT.git)).
+10. **Verify Synchronization**: Confirm `HEAD == origin/main` with `git status` and `git branch -vv`.
+11. **Stop & Report**: Conclude the phase and await explicit review before proceeding.
+
 ### Repository Information
 - **Official GitHub Repository**: [https://github.com/ankitshx/TELEVAULT](https://github.com/ankitshx/TELEVAULT)
 - **Primary Branch**: `main`
-- **Continuous Remote Checkpoints**: Every completed phase is pushed immediately to origin, creating an immutable chronological backup of code, tests, and documentation.
+- **Continuous Cumulative Remote Checkpoints**: Every completed phase is pushed immediately to origin, creating an immutable chronological backup of code, tests, and documentation.
+
 
 ---
 

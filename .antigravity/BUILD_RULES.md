@@ -34,7 +34,19 @@
 32. Snapshot Retention Safety Rule: Retention pruning must never delete active in-progress snapshots, snapshots from unrelated profiles, or the sole recovery point for a profile.
 33. Dry-Run Zero-Mutation Rule: Retention preview/dry-run must be strictly non-destructive; it must never perform database mutations or remote network calls.
 34. Transaction-Safe Metadata Pruning Rule: Snapshot and version metadata pruning must execute inside an atomic SQLite transaction and maintain referential integrity.
-35. Continuous GitHub Checkpoint Rule: Every completed TELEVAULT phase MUST be committed locally, validated, and pushed to the official GitHub repository before the phase is considered complete.
+35. Continuous GitHub Checkpoint Rule: Every completed TELEVAULT phase MUST be committed locally, validated, and pushed to the official GitHub repository before the phase is considered complete. Every future checkpoint MUST contain the complete cumulative project state from the earliest phase through the current phase.
+    Workflow for EVERY future phase:
+    1. Start from latest approved GitHub checkpoint (`origin/main`).
+    2. Implement only the current phase (never start later phases prematurely).
+    3. Run complete test suite (`cargo test --workspace`).
+    4. Run formatting and lint checks (`cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`).
+    5. Update README.md with current cumulative architecture and completed phases.
+    6. Update .antigravity/ records (PROGRESS_LOG, MISTAKES, ARCHITECTURE_DECISIONS, BUILD_RULES, KNOWN_FAILURES).
+    7. Review security and architecture invariants (zero secrets, zero Telegram credentials, zero unverified payloads, zero localhost, zero sidecars).
+    8. Commit the completed phase.
+    9. Push to origin/main (https://github.com/ankitshx/TELEVAULT.git).
+    10. Verify local == origin/main.
+    11. Stop and report.
 36. Remote Repair Safety & Non-Deletion Rule: Remote repair must be opt-in, verification-driven, and strictly ownership-isolated (Profile -> Snapshot -> File -> Manifest -> Chunk -> Remote Reference). Damaged chunks are reconstructed and uploaded to fresh remote references without mutating or deleting old remote references. Remote deletion is deferred to an explicitly authorized future phase.
 37. Large-File Single-Chunk Repair Rule: For multi-chunk logical files (e.g. 5.2 GB across 3 chunks), repair must reconstruct and upload ONLY the affected chunk(s) using bounded 64 KiB streaming buffers. RAM allocations exceeding streaming boundaries are strictly prohibited.
 
