@@ -334,3 +334,57 @@ impl From<televault_backup::RetentionError> for IpcError {
         }
     }
 }
+
+impl From<televault_backup::RepairError> for IpcError {
+    fn from(err: televault_backup::RepairError) -> Self {
+        match err {
+            televault_backup::RepairError::Ineligible { reason } => {
+                Self::new("REPAIR_INELIGIBLE", reason)
+            }
+            televault_backup::RepairError::OwnershipViolation { reason } => {
+                Self::new("OWNERSHIP_VIOLATION", reason)
+            }
+            televault_backup::RepairError::SourceNotFound { path } => Self::new(
+                "SOURCE_NOT_FOUND",
+                format!("Source file not found at '{path}'"),
+            )
+            .with_details(path),
+            televault_backup::RepairError::SourceUnreadable { path, reason } => Self::new(
+                "SOURCE_UNREADABLE",
+                format!("Source file '{path}' is unreadable: {reason}"),
+            )
+            .with_details(path),
+            televault_backup::RepairError::SourceSizeMismatch {
+                path,
+                expected,
+                actual,
+            } => Self::new(
+                "SOURCE_SIZE_MISMATCH",
+                format!("Source file '{path}' size mismatch: expected {expected}, actual {actual}"),
+            )
+            .with_details(path),
+            televault_backup::RepairError::EncryptionKeyMissing { reason } => {
+                Self::new("ENCRYPTION_KEY_MISSING", reason)
+            }
+            televault_backup::RepairError::Manifest(e) => {
+                Self::new("MANIFEST_ERROR", e.to_string())
+            }
+            televault_backup::RepairError::NotFound(id) => Self::new("NOT_FOUND", id),
+            televault_backup::RepairError::Storage(e) => Self::new("STORAGE_ERROR", e.to_string()),
+            televault_backup::RepairError::Transfer(e) => e.into(),
+            televault_backup::RepairError::Crypto(e) => Self::new("CRYPTO_ERROR", e.to_string()),
+            televault_backup::RepairError::Database(e) => e.into(),
+            televault_backup::RepairError::ProfileBusy(msg) => Self::new("OPERATION_CONFLICT", msg),
+            televault_backup::RepairError::RemoteVerificationFailed { chunk_id, reason } => {
+                Self::new(
+                    "REMOTE_VERIFICATION_FAILED",
+                    format!("Chunk '{chunk_id}': {reason}"),
+                )
+                .with_details(chunk_id)
+            }
+            televault_backup::RepairError::Io(e) => Self::new("FILESYSTEM_ERROR", e),
+            televault_backup::RepairError::Cancelled => Self::cancelled(),
+            televault_backup::RepairError::Internal(msg) => Self::internal(msg),
+        }
+    }
+}

@@ -3,9 +3,9 @@
 use crate::error::{DbError, Result};
 use crate::migrations::run_migrations;
 use crate::models::{
-    ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, RetentionHistoryRecord,
-    RetentionPolicyRecord, ScheduleHistoryRecord, ScheduleRecord, SearchResult, SnapshotRecord,
-    TransferJobRecord, VerificationHistoryRecord, VersionRecord,
+    ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, RepairHistoryRecord,
+    RetentionHistoryRecord, RetentionPolicyRecord, ScheduleHistoryRecord, ScheduleRecord,
+    SearchResult, SnapshotRecord, TransferJobRecord, VerificationHistoryRecord, VersionRecord,
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::Path;
@@ -2099,6 +2099,171 @@ impl Database {
             }
         })
     }
+
+    /// Records a remote repair audit history entry.
+    pub fn record_repair_history(&self, record: &RepairHistoryRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO repair_history (
+                    repair_id, profile_id, snapshot_id, file_id, manifest_id,
+                    chunk_id, chunk_index, repair_type, finding_code,
+                    old_storage_reference, new_storage_reference, status,
+                    bytes_processed, duration_ms, error_message, repaired_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16);",
+                params![
+                    record.repair_id,
+                    record.profile_id.as_str(),
+                    record.snapshot_id.as_ref().map(|s| s.as_str()),
+                    record.file_id.as_str(),
+                    record.manifest_id,
+                    record.chunk_id.as_str(),
+                    record.chunk_index as i64,
+                    record.repair_type,
+                    record.finding_code,
+                    record.old_storage_reference,
+                    record.new_storage_reference,
+                    record.status,
+                    record.bytes_processed as i64,
+                    record.duration_ms as i64,
+                    record.error_message,
+                    record.repaired_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Lists remote repair audit history for a profile, ordered newest first.
+    pub fn list_repair_history(
+        &self,
+        profile_id: &ProfileId,
+        limit: usize,
+    ) -> Result<Vec<RepairHistoryRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT repair_id, profile_id, snapshot_id, file_id, manifest_id,
+                        chunk_id, chunk_index, repair_type, finding_code,
+                        old_storage_reference, new_storage_reference, status,
+                        bytes_processed, duration_ms, error_message, repaired_at
+                 FROM repair_history
+                 WHERE profile_id = ?1
+                 ORDER BY repaired_at DESC
+                 LIMIT ?2;",
+            )?;
+            let rows = stmt.query_map(
+                params![profile_id.as_str(), limit as i64],
+                map_repair_history_row,
+            )?;
+            let mut history = Vec::new();
+            for r in rows {
+                history.push(r?);
+            }
+            Ok(history)
+        })
+    }
+
+    /// Retrieves a single remote repair history record by ID.
+    pub fn get_repair_history(&self, repair_id: &str) -> Result<Option<RepairHistoryRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT repair_id, profile_id, snapshot_id, file_id, manifest_id,
+                        chunk_id, chunk_index, repair_type, finding_code,
+                        old_storage_reference, new_storage_reference, status,
+                        bytes_processed, duration_ms, error_message, repaired_at
+                 FROM repair_history
+                 WHERE repair_id = ?1;",
+            )?;
+            let mut rows = stmt.query_map(params![repair_id], map_repair_history_row)?;
+            if let Some(r) = rows.next() {
+                Ok(Some(r?))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Atomically updates chunk storage reference and integrity in SQLite,
+    /// persists updated Manifest V1, and records repair audit history in a single transaction.
+    ///
+    /// If any update fails, the transaction rolls back completely and old metadata is preserved.
+    #[allow(clippy::too_many_arguments)]
+    pub fn atomic_apply_chunk_repair(
+        &self,
+        chunk_id: &ChunkId,
+        new_reference: &str,
+        new_hash: &str,
+        new_stored_size: u64,
+        updated_at: &str,
+        manifest: &ManifestV1,
+        history: &RepairHistoryRecord,
+    ) -> Result<()> {
+        self.with_transaction(|tx| {
+            // 1. Update chunks table row
+            let affected = tx.execute(
+                "UPDATE chunks
+                 SET storage_reference = ?2, integrity_hash = ?3, stored_size = ?4, updated_at = ?5
+                 WHERE chunk_id = ?1;",
+                params![
+                    chunk_id.as_str(),
+                    new_reference,
+                    new_hash,
+                    new_stored_size as i64,
+                    updated_at,
+                ],
+            )?;
+            if affected == 0 {
+                return Err(DbError::NotFound {
+                    entity: "Chunk",
+                    id: chunk_id.to_string(),
+                });
+            }
+
+            // 2. Update manifests table with updated serialized JSON
+            let serialized = manifest.to_json()?;
+            let m_affected = tx.execute(
+                "UPDATE manifests
+                 SET serialized_manifest = ?2, updated_at = ?3
+                 WHERE manifest_id = ?1;",
+                params![manifest.manifest_id.as_str(), serialized, updated_at],
+            )?;
+            if m_affected == 0 {
+                return Err(DbError::NotFound {
+                    entity: "Manifest",
+                    id: manifest.manifest_id.clone(),
+                });
+            }
+
+            // 3. Record repair history
+            tx.execute(
+                "INSERT INTO repair_history (
+                    repair_id, profile_id, snapshot_id, file_id, manifest_id,
+                    chunk_id, chunk_index, repair_type, finding_code,
+                    old_storage_reference, new_storage_reference, status,
+                    bytes_processed, duration_ms, error_message, repaired_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16);",
+                params![
+                    history.repair_id,
+                    history.profile_id.as_str(),
+                    history.snapshot_id.as_ref().map(|s| s.as_str()),
+                    history.file_id.as_str(),
+                    history.manifest_id,
+                    history.chunk_id.as_str(),
+                    history.chunk_index as i64,
+                    history.repair_type,
+                    history.finding_code,
+                    history.old_storage_reference,
+                    history.new_storage_reference,
+                    history.status,
+                    history.bytes_processed as i64,
+                    history.duration_ms as i64,
+                    history.error_message,
+                    history.repaired_at,
+                ],
+            )?;
+
+            Ok(())
+        })
+    }
 }
 
 fn map_schedule_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ScheduleRecord> {
@@ -2287,6 +2452,60 @@ fn map_verification_history_row(
         duration_ms: duration_ms as u64,
         findings_json,
         verified_at,
+    })
+}
+
+fn map_repair_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RepairHistoryRecord> {
+    let repair_id: String = r.get(0)?;
+    let profile_id_str: String = r.get(1)?;
+    let snapshot_id_opt: Option<String> = r.get(2)?;
+    let file_id_str: String = r.get(3)?;
+    let manifest_id: String = r.get(4)?;
+    let chunk_id_str: String = r.get(5)?;
+    let chunk_index: i64 = r.get(6)?;
+    let repair_type: String = r.get(7)?;
+    let finding_code: String = r.get(8)?;
+    let old_storage_reference: String = r.get(9)?;
+    let new_storage_reference: String = r.get(10)?;
+    let status: String = r.get(11)?;
+    let bytes_processed: i64 = r.get(12)?;
+    let duration_ms: i64 = r.get(13)?;
+    let error_message: Option<String> = r.get(14)?;
+    let repaired_at: String = r.get(15)?;
+
+    let profile_id = ProfileId::new(profile_id_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    let snapshot_id = match snapshot_id_opt {
+        Some(s) => Some(SnapshotId::new(s).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+        })?),
+        None => None,
+    };
+    let file_id = FileId::new(file_id_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    let chunk_id = ChunkId::new(chunk_id_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+
+    Ok(RepairHistoryRecord {
+        repair_id,
+        profile_id,
+        snapshot_id,
+        file_id,
+        manifest_id,
+        chunk_id,
+        chunk_index: chunk_index as u32,
+        repair_type,
+        finding_code,
+        old_storage_reference,
+        new_storage_reference,
+        status,
+        bytes_processed: bytes_processed as u64,
+        duration_ms: duration_ms as u64,
+        error_message,
+        repaired_at,
     })
 }
 

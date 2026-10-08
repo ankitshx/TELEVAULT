@@ -432,6 +432,179 @@ impl From<RetentionError> for BackupError {
     }
 }
 
+/// Result type alias for televault repair operations.
+pub type RepairOpResult<T> = std::result::Result<T, RepairError>;
+
+/// Strongly typed errors encountered during remote repair operations.
+#[derive(Debug, thiserror::Error)]
+pub enum RepairError {
+    /// Finding or target is ineligible for repair.
+    #[error("Ineligible for repair: {reason}")]
+    Ineligible {
+        /// Reason why repair is prohibited.
+        reason: String,
+    },
+
+    /// Strict ownership validation failed.
+    #[error("Ownership violation: {reason}")]
+    OwnershipViolation {
+        /// Explanation of ownership breach.
+        reason: String,
+    },
+
+    /// Local source file is missing.
+    #[error("Local source file not found at '{path}'")]
+    SourceNotFound {
+        /// Filesystem path.
+        path: String,
+    },
+
+    /// Local source file cannot be read.
+    #[error("Local source file unreadable at '{path}': {reason}")]
+    SourceUnreadable {
+        /// Filesystem path.
+        path: String,
+        /// Reason.
+        reason: String,
+    },
+
+    /// Local source file size does not match expected size in manifest.
+    #[error(
+        "Local source size mismatch for '{path}': expected {expected} bytes, found {actual} bytes"
+    )]
+    SourceSizeMismatch {
+        /// Filesystem path.
+        path: String,
+        /// Expected byte length.
+        expected: u64,
+        /// Actual byte length.
+        actual: u64,
+    },
+
+    /// Required encryption key is unavailable or missing.
+    #[error("Encryption key unavailable: {reason}")]
+    EncryptionKeyMissing {
+        /// Reason.
+        reason: String,
+    },
+
+    /// Target manifest is corrupted or invalid.
+    #[error("Manifest error: {0}")]
+    Manifest(#[from] televault_manifest::ManifestError),
+
+    /// Target entity not found in SQLite catalog.
+    #[error("Not found in catalog: {0}")]
+    NotFound(String),
+
+    /// Storage provider error during upload or verification.
+    #[error("Storage error: {0}")]
+    Storage(#[from] televault_storage::StorageError),
+
+    /// Transfer engine error during chunk transmission.
+    #[error("Transfer error: {0}")]
+    Transfer(#[from] televault_transfer::TransferError),
+
+    /// Cryptographic error during chunk encryption.
+    #[error("Cryptographic error: {0}")]
+    Crypto(#[from] televault_crypto::CryptoError),
+
+    /// Database persistence error.
+    #[error("Database error: {0}")]
+    Database(#[from] televault_db::DbError),
+
+    /// Profile is currently busy with an active backup or repair operation.
+    #[error("Profile '{0}' is busy with an active operation")]
+    ProfileBusy(String),
+
+    /// Remote object post-upload verification failed.
+    #[error("Remote verification failed for chunk '{chunk_id}': {reason}")]
+    RemoteVerificationFailed {
+        /// Chunk identifier.
+        chunk_id: String,
+        /// Reason.
+        reason: String,
+    },
+
+    /// Standard I/O error.
+    #[error("I/O error: {0}")]
+    Io(String),
+
+    /// Repair operation was cancelled.
+    #[error("Repair operation was cancelled")]
+    Cancelled,
+
+    /// Internal error.
+    #[error("Internal repair error: {0}")]
+    Internal(String),
+}
+
+impl From<std::io::Error> for RepairError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err.to_string())
+    }
+}
+
+impl From<RepairError> for AppError {
+    fn from(err: RepairError) -> Self {
+        match err {
+            RepairError::Ineligible { reason } => AppError::Validation {
+                field: "repair",
+                message: reason,
+            },
+            RepairError::OwnershipViolation { reason } => AppError::Conflict {
+                entity: "Ownership",
+                reason,
+            },
+            RepairError::SourceNotFound { path } => AppError::NotFound {
+                entity: "SourceFile",
+                id: path,
+            },
+            RepairError::SourceUnreadable { path, reason } => {
+                AppError::Path(format!("Unreadable source '{path}': {reason}"))
+            }
+            RepairError::SourceSizeMismatch {
+                path,
+                expected,
+                actual,
+            } => AppError::Validation {
+                field: "source_size",
+                message: format!(
+                    "Size mismatch for '{path}': expected {expected}, actual {actual}"
+                ),
+            },
+            RepairError::EncryptionKeyMissing { reason } => AppError::Validation {
+                field: "encryption_key",
+                message: reason,
+            },
+            RepairError::NotFound(msg) => AppError::NotFound {
+                entity: "Entity",
+                id: msg,
+            },
+            RepairError::ProfileBusy(msg) => AppError::Conflict {
+                entity: "Profile",
+                reason: msg,
+            },
+            RepairError::Cancelled => AppError::Internal("Repair operation was cancelled".into()),
+            other => AppError::Internal(other.to_string()),
+        }
+    }
+}
+
+impl From<RepairError> for BackupError {
+    fn from(err: RepairError) -> Self {
+        match err {
+            RepairError::Cancelled => BackupError::Cancelled,
+            RepairError::Database(e) => BackupError::DatabaseError(e.to_string()),
+            RepairError::Storage(e) => BackupError::StorageError(e.to_string()),
+            RepairError::Transfer(e) => BackupError::TransferError(e.to_string()),
+            RepairError::Crypto(e) => BackupError::CryptoError(e.to_string()),
+            RepairError::Manifest(e) => BackupError::ManifestError(e.to_string()),
+            RepairError::Io(e) => BackupError::Io(e),
+            other => BackupError::StorageError(other.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

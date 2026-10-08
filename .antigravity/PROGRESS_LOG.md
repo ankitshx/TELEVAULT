@@ -740,7 +740,49 @@
 
 ### Commit:
 - Commit message: "Phase 13 complete - remote verification integrity and ownership audit"
-- Local commit only; NO push to GitHub.
+- Commit hash: `8c8b22aeea5f39bc0e323e61a8482a1f73b1cf4b`
+- Checkpoint pushed to GitHub: YES (`origin/main`) prior to Phase 14 commencement.
+
+---
+
+## Phase 14 - Remote Repair & Recovery, Ownership Safety, Large-File Repair, 25GB Forensic Audit, GitHub Continuous Checkpoint
+- Started: 2026-10-08 13:45 IST
+- Completed: 2026-10-08 14:45 IST
+- Status: Completed
+
+### Objectives & Deliverables:
+1. **GitHub Pre-Phase Checkpoint**:
+   - Pushed approved Phase 13 state (`8c8b22aeea5f39bc0e323e61a8482a1f73b1cf4b`) to `origin/main` (https://github.com/ankitshx/TELEVAULT.git).
+   - Enforced continuous phase workflow rule: every completed phase must be committed and pushed to GitHub.
+2. **25 GB Forensic Disk Audit**:
+   - Conducted granular size measurement using Windows-compatible PowerShell script.
+   - Identified root cause: exactly 23,836.93 MB (99.99%) of storage was consumed by `target/debug/deps/*.exe` due to Cargo compiling incremental debug integration test binaries across 13 phases.
+   - Proved zero accumulation of backup archive payloads (.zip, .bin, .tar, .stage) outside `target/`.
+   - Proved `.git` is clean (0.92 MB, 466 objects, 0 pack files, largest blob 115 KB `Cargo.lock`).
+   - Hardened `.gitignore` with strict patterns for database journals, `.chunk`, `.stage`, `.enc`, `payloads/`, `recovery/`, `.env*`.
+3. **Database Migration V5**:
+   - Implemented `V5__repair_history.sql` with table `repair_history` and indexes on `profile_id`, `file_id`, `chunk_id`, and `repaired_at`.
+   - Added `RepairHistoryRecord` model and database audit methods: `record_repair_history`, `list_repair_history`, `get_repair_history`, `atomic_apply_chunk_repair`.
+4. **Remote Repair & Recovery Engine**:
+   - Implemented `RepairEligibilityChecker`: verifies unbroken ownership chain (`Profile -> Snapshot -> File -> Manifest -> Chunk -> Remote Reference`), validates local source existence and size, verifies encryption keys, and strictly refuses repair on ownership violations or ambiguous manifests.
+   - Implemented `RepairPipeline`: single-chunk seek and bounded 64 KiB streaming reconstruction; optional AES-256-GCM encryption with `ChunkAad`; idempotent pre-check; post-upload verification; atomic SQLite metadata update; RAII temporary staging cleanup.
+   - Implemented `RepairEngine`: coordinates file and snapshot repairs with per-profile mutual exclusion (`RepairGuard`) and dry-run preview capabilities.
+   - Non-Deletion Guarantee: old remote references are preserved; zero remote Telegram deletion calls.
+5. **Desktop Tauri IPC**:
+   - Integrated `RepairEngine` into `DesktopAppState`.
+   - Implemented Specta DTOs and typed IPC commands in `apps/desktop/src/commands/repair.rs`: `preview_repair`, `repair_file`, `repair_snapshot`, `get_repair_history`.
+   - Enforced double-layered mutual exclusion via `scheduler_service.execution_guard()`.
+   - Exported updated TypeScript bindings to `apps/desktop/ui/src/bindings.ts`.
+6. **Comprehensive Automated Testing**:
+   - 11 integration tests in `crates/televault-backup/tests/repair_tests.rs`.
+   - 2 integration tests in `crates/televault-db/tests/db_tests.rs`.
+   - 4 IPC integration tests in `apps/desktop/tests/repair_ipc_tests.rs`.
+   - Total authoritative tests: 281 passed (264 baseline + 17 new), 0 failed, 0 ignored.
+   - 100% clean `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+
+### Commit:
+- Commit message: "Phase 14 complete - remote repair recovery and disk audit"
+
 
 
 

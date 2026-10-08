@@ -43,5 +43,21 @@
 - Failure Mode: Complete loss of restorable recovery points.
 - Mitigation in Phase 12: Invariant protection for `keep_latest_successful` (preserving the most recent completed snapshot regardless of age) and `ProtectedSoleSnapshot` (preventing deletion of the only remaining snapshot for a profile).
 
+## KF-010: Cross-Profile Repair Privilege Escalation
+- Risk: A client requests repair for Profile B specifying an affected file or chunk belonging to Profile A, or uses an ambiguous/tampered manifest.
+- Failure Mode: Corrupted cross-profile references, unauthorized file exposure, catalog inconsistency.
+- Mitigation in Phase 14: Strict unbroken ownership validation (`RepairEligibilityChecker::validate_ownership_chain`). Validates `Profile -> Snapshot -> File -> Manifest -> Chunk -> Remote Reference`. Cross-profile references trigger immediate `RepairError::OwnershipViolation`.
+
+## KF-011: Unbounded RAM Allocation during Multi-Gigabyte Chunk Repair
+- Risk: Repairing a damaged chunk of a 5.2 GB file loads the whole 5.2 GB file or whole 1.8 GB chunk into memory for hashing/encryption.
+- Failure Mode: Memory exhaustion, OOM crash, desktop UI freeze.
+- Mitigation in Phase 14: Streaming single-chunk pipeline using bounded 64 KiB buffers (`REPAIR_STREAM_BUFFER_SIZE = 64 * 1024`). Seeks directly to the damaged chunk's offset, streams to a temporary staging file, hashes incrementally, and dispatches to `TransferEngine`. RAM overhead is capped under 50 MB regardless of file size.
+
+## KF-012: Inadvertent Remote Telegram Object Deletion during Recovery
+- Risk: A repair process attempting to clean up a damaged chunk calls Telegram deletion methods, causing data loss if the chunk was only temporarily unreachable or if recovery aborts midway.
+- Failure Mode: Irrevocable loss of remote objects.
+- Mitigation in Phase 14: Strict Remote Non-Deletion Invariant. Replacement chunks are uploaded to fresh Telegram references; old references remain intact in remote cloud storage.
+
+
 
 

@@ -3,9 +3,9 @@
 use televault_core::ids::{ChunkId, FileId, JobId, ProfileId, SnapshotId, VersionId};
 use televault_core::models::{BackupStatus, TransferDirection, TransferStatus};
 use televault_db::{
-    ChunkRecord, Database, FileRecord, HealthStatus, ProfileRecord, RetentionHistoryRecord,
-    RetentionPolicyRecord, SnapshotRecord, TransferJobRecord, VerificationHistoryRecord,
-    VersionRecord,
+    ChunkRecord, Database, FileRecord, HealthStatus, ManifestRecord, ProfileRecord,
+    RepairHistoryRecord, RetentionHistoryRecord, RetentionPolicyRecord, SnapshotRecord,
+    TransferJobRecord, VerificationHistoryRecord, VersionRecord,
 };
 use televault_manifest::{
     calculate_expected_chunk_count, ChunkManifest, CompressionMetadata, EncryptionMetadata,
@@ -1196,4 +1196,273 @@ fn test_verification_history_persistence_and_profile_cascade() {
     db.delete_profile(&pid).expect("delete profile");
     assert!(db.get_verification_history("vh-test-01").unwrap().is_none());
     assert_eq!(db.list_verification_history(&pid, 10).unwrap().len(), 0);
+}
+
+#[test]
+fn test_repair_history_persistence_and_profile_cascade() {
+    let db = Database::open_in_memory().expect("open db");
+    let pid = ProfileId::new("prof-repair-test").unwrap();
+    let fid = FileId::new("file-repair-test").unwrap();
+    let cid = ChunkId::new("chk-repair-test-0").unwrap();
+
+    let profile = ProfileRecord {
+        profile_id: pid.clone(),
+        name: "Repair Profile".into(),
+        description: None,
+        source_path: "D:\\test\\repair".into(),
+        enabled: true,
+        created_at: "2026-10-08T10:00:00Z".into(),
+        updated_at: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_profile(&profile).expect("create profile");
+
+    let file = FileRecord {
+        file_id: fid.clone(),
+        profile_id: Some(pid.clone()),
+        file_name: "repaired_data.bin".into(),
+        relative_path: "repaired_data.bin".into(),
+        original_size: 1024,
+        mime_type: None,
+        status: "active".into(),
+        logical_file_hash: Some("abcd".into()),
+        created_at: "2026-10-08T10:00:00Z".into(),
+        modified_at: None,
+        created_timestamp: "2026-10-08T10:00:00Z".into(),
+        updated_timestamp: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_file(&file).expect("create file");
+
+    let manifest = ManifestRecord {
+        manifest_id: "man-repair-01".into(),
+        file_id: fid.clone(),
+        manifest_version: "1.0".into(),
+        serialized_manifest: "{}".into(),
+        created_at: "2026-10-08T10:00:00Z".into(),
+        updated_at: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_manifest(&manifest).expect("create manifest");
+
+    let chunk = ChunkRecord {
+        chunk_id: cid.clone(),
+        file_id: fid.clone(),
+        manifest_id: "man-repair-01".into(),
+        chunk_index: 0,
+        plaintext_size: 1024,
+        stored_size: 1024,
+        integrity_hash: "hash_old".into(),
+        storage_reference:
+            "{\"Telegram\":{\"chat_id\":100,\"message_id\":501,\"file_id\":\"tg_old\"}}".into(),
+        status: "active".into(),
+        created_at: "2026-10-08T10:00:00Z".into(),
+        updated_at: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_chunk(&chunk).expect("create chunk");
+
+    let repair_record = RepairHistoryRecord {
+        repair_id: "rep-001".into(),
+        profile_id: pid.clone(),
+        snapshot_id: None,
+        file_id: fid.clone(),
+        manifest_id: "man-repair-01".into(),
+        chunk_id: cid.clone(),
+        chunk_index: 0,
+        repair_type: "corrupted_remote_chunk".into(),
+        finding_code: "CHUNK_HASH_MISMATCH".into(),
+        old_storage_reference: chunk.storage_reference.clone(),
+        new_storage_reference:
+            "{\"Telegram\":{\"chat_id\":100,\"message_id\":602,\"file_id\":\"tg_new\"}}".into(),
+        status: "success".into(),
+        bytes_processed: 1024,
+        duration_ms: 45,
+        error_message: None,
+        repaired_at: "2026-10-08T10:05:00Z".into(),
+    };
+
+    db.record_repair_history(&repair_record)
+        .expect("record repair history");
+
+    let history = db
+        .list_repair_history(&pid, 10)
+        .expect("list repair history");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].repair_id, "rep-001");
+    assert_eq!(history[0].repair_type, "corrupted_remote_chunk");
+    assert_eq!(history[0].status, "success");
+    assert_eq!(history[0].bytes_processed, 1024);
+
+    let fetched = db
+        .get_repair_history("rep-001")
+        .expect("get repair history")
+        .expect("some");
+    assert_eq!(fetched.chunk_id, cid);
+    assert_eq!(fetched.old_storage_reference, chunk.storage_reference);
+    assert_eq!(
+        fetched.new_storage_reference,
+        repair_record.new_storage_reference
+    );
+
+    // Cascading delete when profile is deleted
+    db.delete_profile(&pid).expect("delete profile");
+    assert!(db.get_repair_history("rep-001").unwrap().is_none());
+    assert_eq!(db.list_repair_history(&pid, 10).unwrap().len(), 0);
+}
+
+#[test]
+fn test_atomic_apply_chunk_repair_success_and_rollback() {
+    let db = Database::open_in_memory().expect("open db");
+    let pid = ProfileId::new("prof-atomic-repair").unwrap();
+    let fid = FileId::new("file-atomic-repair").unwrap();
+    let cid = ChunkId::new("chk-atomic-repair-0").unwrap();
+
+    let profile = ProfileRecord {
+        profile_id: pid.clone(),
+        name: "Atomic Repair Profile".into(),
+        description: None,
+        source_path: "D:\\test\\atomic".into(),
+        enabled: true,
+        created_at: "2026-10-08T10:00:00Z".into(),
+        updated_at: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_profile(&profile).expect("create profile");
+
+    let file = FileRecord {
+        file_id: fid.clone(),
+        profile_id: Some(pid.clone()),
+        file_name: "atomic.dat".into(),
+        relative_path: "atomic.dat".into(),
+        original_size: 2048,
+        mime_type: None,
+        status: "active".into(),
+        logical_file_hash: Some("abcd".into()),
+        created_at: "2026-10-08T10:00:00Z".into(),
+        modified_at: None,
+        created_timestamp: "2026-10-08T10:00:00Z".into(),
+        updated_timestamp: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_file(&file).expect("create file");
+
+    let file_hash = "1".repeat(64);
+    let old_chunk_hash = "2".repeat(64);
+    let new_chunk_hash = "3".repeat(64);
+
+    let initial_manifest = ManifestV1 {
+        manifest_version: televault_manifest::ManifestVersion::V1,
+        manifest_id: "man-atomic-01".into(),
+        logical_file: televault_manifest::LogicalFileMetadata {
+            file_id: fid.clone(),
+            file_name: "atomic.dat".into(),
+            relative_path: "atomic.dat".into(),
+            original_size: 2048,
+            created_at: None,
+            modified_at: None,
+            mime_type: None,
+        },
+        encryption: None,
+        compression: televault_manifest::types::CompressionMetadata::none(),
+        integrity: televault_manifest::types::IntegrityMetadata::sha256(&file_hash),
+        chunks: vec![televault_manifest::chunk::ChunkManifest {
+            chunk_id: cid.clone(),
+            index: 0,
+            plaintext_size: 2048,
+            stored_size: 2048,
+            integrity: televault_manifest::types::IntegrityMetadata::sha256(&old_chunk_hash),
+            storage_reference: televault_manifest::StorageReference::Telegram {
+                chat_id: 123,
+                message_id: 456,
+                file_id: "old_tg_id".into(),
+            },
+        }],
+    };
+    db.save_manifest(&initial_manifest).expect("save manifest");
+
+    let initial_chunk = ChunkRecord {
+        chunk_id: cid.clone(),
+        file_id: fid.clone(),
+        manifest_id: "man-atomic-01".into(),
+        chunk_index: 0,
+        plaintext_size: 2048,
+        stored_size: 2048,
+        integrity_hash: old_chunk_hash.clone(),
+        storage_reference:
+            "{\"Telegram\":{\"chat_id\":123,\"message_id\":456,\"file_id\":\"old_tg_id\"}}".into(),
+        status: "active".into(),
+        created_at: "2026-10-08T10:00:00Z".into(),
+        updated_at: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_chunk(&initial_chunk).expect("create chunk");
+
+    // 1. Success case: atomic update modifies chunk, manifest, and repair history
+    let mut updated_manifest = initial_manifest.clone();
+    updated_manifest.chunks[0].integrity =
+        televault_manifest::types::IntegrityMetadata::sha256(&new_chunk_hash);
+    updated_manifest.chunks[0].storage_reference = televault_manifest::StorageReference::Telegram {
+        chat_id: 123,
+        message_id: 789,
+        file_id: "new_tg_id".into(),
+    };
+
+    let repair_history = RepairHistoryRecord {
+        repair_id: "rep-atomic-01".into(),
+        profile_id: pid.clone(),
+        snapshot_id: None,
+        file_id: fid.clone(),
+        manifest_id: "man-atomic-01".into(),
+        chunk_id: cid.clone(),
+        chunk_index: 0,
+        repair_type: "corrupted_remote_chunk".into(),
+        finding_code: "STORED_HASH_MISMATCH".into(),
+        old_storage_reference: initial_chunk.storage_reference.clone(),
+        new_storage_reference:
+            "{\"Telegram\":{\"chat_id\":123,\"message_id\":789,\"file_id\":\"new_tg_id\"}}".into(),
+        status: "success".into(),
+        bytes_processed: 2048,
+        duration_ms: 60,
+        error_message: None,
+        repaired_at: "2026-10-08T10:10:00Z".into(),
+    };
+
+    db.atomic_apply_chunk_repair(
+        &cid,
+        &repair_history.new_storage_reference,
+        &new_chunk_hash,
+        2048,
+        "2026-10-08T10:10:00Z",
+        &updated_manifest,
+        &repair_history,
+    )
+    .expect("atomic apply repair");
+
+    // Verify chunk updated in SQLite
+    let updated_chunk = db.get_chunk(&cid).expect("get chunk").expect("some");
+    assert_eq!(
+        updated_chunk.storage_reference,
+        repair_history.new_storage_reference
+    );
+    assert_eq!(updated_chunk.integrity_hash, new_chunk_hash);
+
+    // Verify manifest updated in SQLite
+    let saved_m = db
+        .get_manifest("man-atomic-01")
+        .expect("get manifest")
+        .expect("some");
+    assert_eq!(saved_m.chunks[0].integrity.digest, new_chunk_hash);
+
+    // Verify repair history recorded
+    assert!(db.get_repair_history("rep-atomic-01").unwrap().is_some());
+
+    // 2. Failure rollback test: Non-existent chunk causes rollback, nothing is altered
+    let bad_cid = ChunkId::new("chk-nonexistent").unwrap();
+    let res = db.atomic_apply_chunk_repair(
+        &bad_cid,
+        "{\"Telegram\":{\"chat_id\":123,\"message_id\":999,\"file_id\":\"fake\"}}",
+        "fake_hash",
+        2048,
+        "2026-10-08T10:15:00Z",
+        &updated_manifest,
+        &repair_history,
+    );
+    assert!(
+        res.is_err(),
+        "Nonexistent chunk must fail transaction and rollback"
+    );
 }

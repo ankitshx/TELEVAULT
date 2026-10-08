@@ -2,6 +2,7 @@
 
 pub mod backup;
 pub mod checker;
+pub mod repair;
 pub mod restore;
 pub mod retention;
 pub mod scheduler;
@@ -11,6 +12,7 @@ pub mod verification;
 
 pub use backup::*;
 pub use checker::*;
+pub use repair::*;
 pub use restore::*;
 pub use retention::*;
 pub use scheduler::*;

@@ -1,20 +1,59 @@
-﻿# Rust
+# Rust build artifacts
 /target/
 /src-tauri/target/
 /apps/desktop/src-tauri/target/
+**/*.rs.bk
 
-# Node & Frontend
+# Node & Frontend dependencies and bundles
 /node_modules/
 /dist/
 /apps/desktop/node_modules/
 /apps/desktop/dist/
 
-# Environment
-.env
+# Local databases and SQLite journals (never track runtime local database instances)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
-# Logs
+# Local logs, crash dumps, and diagnostics
 *.log
+*.dmp
+*.dump
 
-# OS artifacts
+# Local staging, temporary payloads, and transfer chunks (prevent runtime data leakage)
+*.tmp
+*.temp
+*.stage
+*.chunk
+*.enc
+*.dat
+/staging/
+/temp/
+/payloads/
+/recovery/
+
+# Environment, secrets, and credentials (strict security isolation)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
+*.session
+*.session-journal
+credentials.json
+auth.json
+token.json
+
+# Installer bundles and package distributions
+/bundle/
+/release/
+*.msi
+*.exe
+
+# OS metadata
 .DS_Store
 Thumbs.db
+desktop.ini

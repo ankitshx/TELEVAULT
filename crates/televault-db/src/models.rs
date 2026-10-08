@@ -334,3 +334,40 @@ pub struct VerificationHistoryRecord {
     /// Timestamp of verification execution (ISO-8601).
     pub verified_at: String,
 }
+
+/// Stored remote repair audit history record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RepairHistoryRecord {
+    /// Unique repair record identifier.
+    pub repair_id: String,
+    /// Associated profile identifier.
+    pub profile_id: ProfileId,
+    /// Associated snapshot identifier if part of snapshot repair.
+    pub snapshot_id: Option<SnapshotId>,
+    /// Associated logical file identifier.
+    pub file_id: FileId,
+    /// Associated manifest identifier.
+    pub manifest_id: String,
+    /// Associated physical chunk identifier.
+    pub chunk_id: ChunkId,
+    /// Zero-based chunk index.
+    pub chunk_index: u32,
+    /// Type of repair operation performed (e.g. "missing_remote_chunk", "corrupted_remote_chunk").
+    pub repair_type: String,
+    /// Triggering verification finding code.
+    pub finding_code: String,
+    /// Previous (damaged or missing) storage reference.
+    pub old_storage_reference: String,
+    /// Replacement storage reference.
+    pub new_storage_reference: String,
+    /// Outcome status ("success", "failed", "cancelled", "dry_run").
+    pub status: String,
+    /// Total bytes processed and uploaded.
+    pub bytes_processed: u64,
+    /// Execution duration in milliseconds.
+    pub duration_ms: u64,
+    /// Safe human-readable error message if repair failed.
+    pub error_message: Option<String>,
+    /// Timestamp of repair execution (ISO-8601).
+    pub repaired_at: String,
+}

@@ -9,6 +9,7 @@ pub mod error;
 pub mod pipeline;
 pub mod plan;
 pub mod profile;
+pub mod repair;
 pub mod restore;
 pub mod retention;
 pub mod scanner;
@@ -18,10 +19,15 @@ pub mod verification;
 pub use change_detector::{ChangeDetector, ChangeKind, ChangeSet, FileChange};
 pub use checker::{BackupChecker, FileBackupStatus};
 pub use engine::BackupEngine;
-pub use error::{BackupError, RestoreError, RestoreOpResult, Result, RetentionError};
+pub use error::{
+    BackupError, RepairError, RepairOpResult, RestoreError, RestoreOpResult, Result, RetentionError,
+};
 pub use pipeline::{PayloadPipeline, ProcessedChunk, ProcessedFile, ProcessingOptions};
 pub use plan::{BackupPlan, BackupSummary};
 pub use profile::{BackupProfile, ProfileConfig};
+pub use repair::{
+    RepairCandidate, RepairChunkResult, RepairEngine, RepairExecutionResult, RepairPreview,
+};
 pub use restore::{
     generate_alternate_path, resolve_collision, CollisionPolicy, CollisionResolution,
     FileRestoreOutcome, FullVerificationReport, ManifestVerificationReport, RestoreEngine,

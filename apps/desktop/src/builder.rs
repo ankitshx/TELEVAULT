@@ -4,7 +4,7 @@ use std::path::Path;
 use tauri_specta::Builder;
 
 use crate::commands::{
-    backup, checker, restore, retention, scheduler, system, transfer, verification,
+    backup, checker, repair, restore, retention, scheduler, system, transfer, verification,
 };
 
 /// Configures and returns the central [`Builder`] registering all TELEVAULT IPC commands.
@@ -60,6 +60,11 @@ pub fn create_ipc_builder() -> Builder<tauri::Wry> {
         verification::verify_snapshot,
         verification::verify_profile,
         verification::get_verification_history,
+        // Repair
+        repair::preview_repair,
+        repair::repair_file,
+        repair::repair_snapshot,
+        repair::get_repair_history,
     ])
 }
 

@@ -92,6 +92,14 @@ export const commands = {
 	verifyProfile: (request: VerifyTargetRequest) => typedError<VerificationResultDto, IpcError>(__TAURI_INVOKE("verify_profile", { request })),
 	/**  Retrieves persisted historical verification records for a profile. */
 	getVerificationHistory: (profileId: string, limit: number | null) => typedError<VerificationHistoryRecordDto[], IpcError>(__TAURI_INVOKE("get_verification_history", { profileId, limit })),
+	/**  Generates a preview analysis of needed repairs without mutating remote or local state. */
+	previewRepair: (request: PreviewRepairRequest) => typedError<RepairPreviewDto, IpcError>(__TAURI_INVOKE("preview_repair", { request })),
+	/**  Executes remote repair for an individual logical file. */
+	repairFile: (request: RepairFileRequest) => typedError<RepairExecutionResultDto, IpcError>(__TAURI_INVOKE("repair_file", { request })),
+	/**  Executes remote repair across all files in a backup snapshot. */
+	repairSnapshot: (request: RepairSnapshotRequest) => typedError<RepairExecutionResultDto, IpcError>(__TAURI_INVOKE("repair_snapshot", { request })),
+	/**  Lists remote repair history records for a profile, ordered newest first. */
+	getRepairHistory: (profileId: string, limit: number | null) => typedError<RepairHistoryRecordDto[], IpcError>(__TAURI_INVOKE("get_repair_history", { profileId, limit })),
 };
 
 /* Types */
@@ -242,6 +250,118 @@ export type ManifestVerificationReportDto = {
 	original_size: number,
 	remote_objects_verified: boolean,
 	issues: string[],
+};
+
+/**  Request parameters for generating a repair preview. */
+export type PreviewRepairRequest = {
+	/**  Associated profile identifier enforcing ownership isolation. */
+	profile_id: string,
+	/**  Target type ("file" or "snapshot"). */
+	target_type: string,
+	/**  Target identifier (file_id or snapshot_id). */
+	target_id: string,
+	/**  Optional passphrase for encrypted backups. */
+	passphrase: string | null,
+	/**  Optional operation tracking identifier for cooperative cancellation. */
+	operation_id: string | null,
+};
+
+/**  Data transfer object representing an individual chunk candidate for repair. */
+export type RepairCandidateDto = {
+	chunk_id: string,
+	chunk_index: number,
+	total_chunks: number,
+	finding_code: string,
+	old_storage_reference: string,
+	plaintext_size: number,
+	stored_size: number,
+	source_path: string,
+};
+
+/**  Data transfer object representing the repair result of an individual chunk. */
+export type RepairChunkResultDto = {
+	chunk_id: string,
+	chunk_index: number,
+	status: string,
+	old_storage_reference: string,
+	new_storage_reference: string | null,
+	bytes_processed: number,
+	duration_ms: number,
+	error: string | null,
+};
+
+/**  Data transfer object representing the overall repair execution outcome. */
+export type RepairExecutionResultDto = {
+	profile_id: string,
+	target_type: string,
+	target_id: string,
+	total_chunks_evaluated: number,
+	repaired_chunks: number,
+	skipped_healthy_chunks: number,
+	failed_chunks: number,
+	total_bytes_transferred: number,
+	duration_ms: number,
+	chunk_results: RepairChunkResultDto[],
+};
+
+/**  Request parameters for repairing an individual logical file. */
+export type RepairFileRequest = {
+	/**  Associated profile identifier enforcing ownership isolation. */
+	profile_id: string,
+	/**  Logical file identifier to repair. */
+	file_id: string,
+	/**  Whether to perform dry-run evaluation without remote upload. */
+	dry_run: boolean | null,
+	/**  Optional passphrase for encrypted backups. */
+	passphrase: string | null,
+	/**  Optional operation tracking identifier for cooperative cancellation. */
+	operation_id: string | null,
+};
+
+/**  Data transfer object representing an auditable repair history record. */
+export type RepairHistoryRecordDto = {
+	repair_id: string,
+	profile_id: string,
+	snapshot_id: string | null,
+	file_id: string,
+	manifest_id: string,
+	chunk_id: string,
+	chunk_index: number,
+	repair_type: string,
+	finding_code: string,
+	old_storage_reference: string,
+	new_storage_reference: string,
+	status: string,
+	bytes_processed: number,
+	duration_ms: number,
+	error_message: string | null,
+	repaired_at: string,
+};
+
+/**  Data transfer object representing preview analysis prior to repair. */
+export type RepairPreviewDto = {
+	profile_id: string,
+	target_type: string,
+	target_id: string,
+	eligible_candidates: RepairCandidateDto[],
+	ineligible_findings_count: number,
+	total_affected_chunks: number,
+	total_estimated_bytes: number,
+	is_repairable: boolean,
+};
+
+/**  Request parameters for repairing an entire backup snapshot. */
+export type RepairSnapshotRequest = {
+	/**  Associated profile identifier enforcing ownership isolation. */
+	profile_id: string,
+	/**  Snapshot identifier to repair. */
+	snapshot_id: string,
+	/**  Whether to perform dry-run evaluation without remote upload. */
+	dry_run: boolean | null,
+	/**  Optional passphrase for encrypted backups. */
+	passphrase: string | null,
+	/**  Optional operation tracking identifier for cooperative cancellation. */
+	operation_id: string | null,
 };
 
 /**  Request to restore a specific logical file by FileId. */

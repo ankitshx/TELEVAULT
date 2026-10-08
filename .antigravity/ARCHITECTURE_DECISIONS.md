@@ -275,6 +275,32 @@
 - Reason: Prevents partial metadata pruning and avoids foreign-key constraint violations or dangling version references.
 - Date: 2026-10-07
 
+## AD-056: Mandatory Continuous GitHub Checkpointing
+- Decision: Every completed TELEVAULT development phase must be committed locally, verified against authoritative test and lint suites, and pushed directly to the official GitHub repository (`origin/main`) before any subsequent phase can begin.
+- Reason: Ensures the remote GitHub repository is the authoritative source-of-truth backup of codebase and development history at all times, preventing laptop-only state accumulation.
+- Date: 2026-10-08
+
+## AD-057: Isolated Single-Chunk Remote Repair Pipeline
+- Decision: For multi-chunk logical files (e.g. 5.2 GB), if a specific chunk is damaged or missing, the repair engine seeks directly to that chunk's plaintext offset, reads and streams through a bounded 64 KiB buffer, applies the active compression/encryption policy, uploads the replacement, and updates the manifest without re-transferring unaffected chunks.
+- Reason: Massive bandwidth and resource savings; prevents re-reading or re-uploading gigabytes of healthy remote chunks.
+- Date: 2026-10-08
+
+## AD-058: Remote Cloud Non-Deletion Invariant during Repair
+- Decision: Repair operations upload replacement objects to fresh Telegram references; old or corrupted remote references are never deleted remotely by the repair engine.
+- Reason: Enforces the Cloud-First safety rule that remote Telegram deletion is forbidden until an explicitly authorized and designed future phase.
+- Date: 2026-10-08
+
+## AD-059: Atomic SQLite Repair History & Metadata Transaction
+- Decision: Updating a repaired chunk's storage reference and hash, persisting the updated `ManifestV1`, and recording the audit row in `repair_history` execute inside a single embedded SQLite transaction via `atomic_apply_chunk_repair`.
+- Reason: Guarantees catalog consistency; if database writing fails, the entire transaction rolls back and old metadata remains untouched.
+- Date: 2026-10-08
+
+## AD-060: Double-Layered Concurrency Guarding for Repair Operations
+- Decision: Repair operations acquire `RepairGuard` (internal to `RepairEngine` per-profile) and also acquire `ExecutionGuard` from `televault-scheduler` at the IPC boundary.
+- Reason: Guarantees mutual exclusion between repairs, backups, and restores on the same profile without introducing cyclic crate dependencies.
+- Date: 2026-10-08
+
+
 
 
 

@@ -34,3 +34,7 @@
 32. Snapshot Retention Safety Rule: Retention pruning must never delete active in-progress snapshots, snapshots from unrelated profiles, or the sole recovery point for a profile.
 33. Dry-Run Zero-Mutation Rule: Retention preview/dry-run must be strictly non-destructive; it must never perform database mutations or remote network calls.
 34. Transaction-Safe Metadata Pruning Rule: Snapshot and version metadata pruning must execute inside an atomic SQLite transaction and maintain referential integrity.
+35. Continuous GitHub Checkpoint Rule: Every completed TELEVAULT phase MUST be committed locally, validated, and pushed to the official GitHub repository before the phase is considered complete.
+36. Remote Repair Safety & Non-Deletion Rule: Remote repair must be opt-in, verification-driven, and strictly ownership-isolated (Profile -> Snapshot -> File -> Manifest -> Chunk -> Remote Reference). Damaged chunks are reconstructed and uploaded to fresh remote references without mutating or deleting old remote references. Remote deletion is deferred to an explicitly authorized future phase.
+37. Large-File Single-Chunk Repair Rule: For multi-chunk logical files (e.g. 5.2 GB across 3 chunks), repair must reconstruct and upload ONLY the affected chunk(s) using bounded 64 KiB streaming buffers. RAM allocations exceeding streaming boundaries are strictly prohibited.
+

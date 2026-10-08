@@ -175,5 +175,27 @@
 - Regression Test: `test_02_healthy_multi_chunk_backup` and `test_21_large_file_5_2gb_three_chunks_healthy` in `crates/televault-backup/tests/verification_tests.rs`.
 - Prevention Rule: Ensure all synthesized hash fixtures in tests conform to strict 64-character lowercase hex validation.
 
+## Phase 14 — Hardcoded TARGET_CHUNK_SIZE_BYTES Multiplier for Chunk Seek Offset
+- Mistake: In `RepairPipeline::repair_single_chunk`, seek offset was calculated as `candidate.chunk_index as u64 * TARGET_CHUNK_SIZE_BYTES`. In multi-chunk files with smaller chunks, seeking to 1.8 GB reached EOF, causing `SourceSizeMismatch (actual: 0)`.
+- Root Cause: Assumed all multi-chunk files partition exactly at `TARGET_CHUNK_SIZE_BYTES` rather than computing offsets dynamically from the manifest.
+- Fix: Calculated seek offset dynamically: `manifest.chunks.iter().take(candidate.chunk_index as usize).map(|c| c.plaintext_size).sum()`.
+- Regression Test: `test_5_2gb_large_file_middle_chunk_isolated_repair` in `crates/televault-backup/tests/repair_tests.rs`.
+- Prevention Rule: Always compute chunk seek offsets dynamically by summing previous chunk sizes from the authoritative manifest rather than assuming uniform chunk sizes.
+
+## Phase 14 — SQLite Foreign Key Constraint Order in Encrypted Repair Test
+- Mistake: In `test_encrypted_chunk_repair_with_key_and_missing_key_rejection`, `save_manifest` was called before `create_file`, triggering SQLite constraint violation `FOREIGN KEY constraint failed`.
+- Root Cause: In SQLite, `manifests.file_id` is a foreign key referencing `files.file_id`.
+- Fix: Swapped fixture order to call `create_file` prior to `save_manifest`.
+- Regression Test: `test_encrypted_chunk_repair_with_key_and_missing_key_rejection` in `crates/televault-backup/tests/repair_tests.rs`.
+- Prevention Rule: Always insert parent entity rows (`profiles`, `files`) before child rows (`manifests`, `chunks`, `versions`) in test fixtures.
+
+## Phase 14 — Clippy too_many_arguments on atomic_apply_chunk_repair
+- Mistake: `atomic_apply_chunk_repair` had 8 parameters, triggering `-D clippy::too_many_arguments`.
+- Root Cause: Atomic update transaction coordinates chunk updates, manifest persistence, and audit history recording simultaneously.
+- Fix: Added `#[allow(clippy::too_many_arguments)]` to the database method.
+- Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Prevention Rule: Explicitly allow `clippy::too_many_arguments` on multi-table database transaction methods when bundling entities into a synthetic wrapper reduces domain readability.
+
+
 
 

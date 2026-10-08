@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use televault_backup::checker::BackupChecker;
 use televault_backup::engine::BackupEngine;
+use televault_backup::repair::RepairEngine;
 use televault_backup::restore::RestoreEngine;
 use televault_backup::retention::RetentionEngine;
 use televault_backup::verification::VerificationEngine;
@@ -45,6 +46,8 @@ pub struct DesktopAppState {
     pub retention_engine: Arc<RetentionEngine>,
     /// Production remote backup verification and integrity-audit subsystem.
     pub verification_engine: Arc<VerificationEngine>,
+    /// Production remote repair and chunk recovery engine.
+    pub repair_engine: Arc<RepairEngine>,
     /// Registry mapping in-flight operation IDs to cooperative cancellation tokens.
     pub cancellation_registry: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
@@ -105,6 +108,12 @@ impl DesktopAppState {
             Arc::clone(&storage_provider),
             Arc::clone(&temp_manager),
         ));
+        let repair_engine = Arc::new(RepairEngine::new(
+            Arc::clone(&db),
+            Arc::clone(&transfer_engine),
+            Arc::clone(&temp_manager),
+            Arc::clone(&verification_engine),
+        ));
 
         Ok(Self {
             db,
@@ -118,6 +127,7 @@ impl DesktopAppState {
             scheduler_service,
             retention_engine,
             verification_engine,
+            repair_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -167,6 +177,12 @@ impl DesktopAppState {
             Arc::clone(&storage_provider),
             Arc::clone(&temp_manager),
         ));
+        let repair_engine = Arc::new(RepairEngine::new(
+            Arc::clone(&db),
+            Arc::clone(&transfer_engine),
+            Arc::clone(&temp_manager),
+            Arc::clone(&verification_engine),
+        ));
 
         Self {
             db,
@@ -180,6 +196,7 @@ impl DesktopAppState {
             scheduler_service,
             retention_engine,
             verification_engine,
+            repair_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
         }
     }
