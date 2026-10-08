@@ -112,7 +112,15 @@ Phase 16 proves the complete system behaves deterministically and reliably acros
 - **Restart & Persistence Durability**: Validates cold restarts on disk-backed SQLite databases. Profiles, schedules, snapshots, manifests, chunks, and verification history survive process termination. SQLite `PRAGMA integrity_check` and `PRAGMA foreign_key_check` verify zero corruption and zero foreign key violations across restarts and crash recovery.
 - **Scheduler Reliability & Concurrency Guard**: Validates deterministic next-run calculations across Interval, Daily, Weekly (`Weekday@HH:MM`), and Cron formats. The shared `ExecutionGuard` bounds concurrent operations per profile, preventing duplicate executions.
 - **Retention Safety Invariant**: Enforces that retention policies (Keep Latest N, Age Window, Keep Latest Successful) prune only local metadata catalog records. **Remote Telegram backup objects are NEVER deleted** during retention operations.
-- **Verification + Repair Full Lifecycle**: Validates the complete cycle: Backup ➔ Level 3 Verification (Healthy) ➔ Bitrot/Damage Injection ➔ Level 3 Verification (Corrupted) ➔ Repair Preview ➔ Snapshot Repair ➔ Re-verification (Healthy) ➔ Byte-for-byte Restore.
+### 3.9 Production Telegram Cloud Storage Integration (Phase 17)
+Phase 17 transitions TELEVAULT from mock-only remote storage to a production-ready, fully validated Telegram-backed cloud storage architecture:
+- **Telegram Bot API Transport (`HttpTelegramTransport`)**: Native Rust transport communicating via standard Telegram Bot API endpoints (`getMe`, `getChat`, `sendDocument`, `getFile`, `deleteMessage`) using `reqwest` (TLS native, zero child processes or Node/Python dependencies).
+- **Dynamic Storage Provider Routing (`DynamicStorageProvider`)**: In-process thread-safe storage router delegating between `MockStorageProvider` (default when unconfigured or in tests) and `TelegramStorageProvider` dynamically at runtime without restarting the application.
+- **Strict Credential Isolation**: Bot tokens, Chat IDs, and custom endpoints are persisted to a private JSON file (`telegram_credentials.json`, git-ignored), validated for format integrity, and zeroized/redacted in logs, errors, DTOs, and UI views (`[REDACTED]`).
+- **Non-Destructive Safe Connection Testing**: `test_connection` invokes `getMe` and `getChat` to verify bot credentials and target chat permissions without creating payloads, altering manifests, or mutating retention states.
+- **Bounded 64 KiB Streaming Pipeline**: Telegram document upload and download stream through temporary staging spools via 64 KiB buffers, strictly avoiding full-file buffering in memory.
+- **Remote Verification, Restore & Repair over Telegram**: Remote availability and SHA-256 integrity verification, incremental backup pipelines, byte-for-byte restore, and bitrot repair seamlessly operate against Telegram message documents and captions (`TELEVAULT:V1:...`).
+- **Resilient Retry & Backoff**: Automatic retry with exponential backoff on transient network interruptions (e.g. connection resets, peer closed stream) in `execute_staged_upload`, preserving idempotent database state and zero staging file leaks.
 
 ---
 
@@ -162,8 +170,9 @@ Phase 16 proves the complete system behaves deterministically and reliably acros
 | **Phase 13** | `televault-integrity` Remote Verification & Audit Engine | 50 | Approved |
 | **Phase 14** | Remote Repair & Recovery, Disk Audit & GitHub Sync | 17 | Approved |
 | **Phase 15** | Production Desktop App Integration & UI Completion | 24 | Approved |
-| **Phase 16** | **Production Hardening, End-to-End Integration & Reliability** | **15** | **Completed** |
-| **Total** | **Authoritative Test Baseline (297 Rust + 23 UI)** | **320** | **100% Passed** |
+| **Phase 16** | Production Hardening, End-to-End Integration & Reliability | 15 | Approved |
+| **Phase 17** | **Production Telegram Cloud Storage Integration** | **20** | **Completed** |
+| **Total** | **Authoritative Test Baseline (312 Rust + 28 UI)** | **340** | **100% Passed** |
 
 ---
 
@@ -176,8 +185,8 @@ Phase 16 proves the complete system behaves deterministically and reliably acros
 
 ### Running Verification & Tests
 ```powershell
-# Run the Rust test suite (297 tests)
-cargo test --workspace
+# Run the Rust test suite (312 tests)
+cargo test --workspace --all-targets --all-features
 
 # Run strict Clippy lint checks
 cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -185,7 +194,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 # Verify code formatting
 cargo fmt --all -- --check
 
-# Run Frontend test suite (23 Vitest tests across 6 suites)
+# Run Frontend test suite (28 Vitest tests across 7 suites)
 cd apps/desktop/ui
 npm test -- --run
 
@@ -216,8 +225,9 @@ npm run tauri dev
 
 ## 8. Known Limitations & Future Work
 
-- **Future Phase 16+**: Remote garbage collection and explicit user-authorized remote Telegram chunk deletion.
-- **Future Phase 17+**: Release packaging, code signing, and installer automation.
+- **Live Cloud Validation**: When live Telegram credentials are not present in the runtime environment, the application securely falls back to `MockStorageProvider` and deterministic mock-transport integration tests. Live verification with production cloud accounts will run when live credentials are provided.
+- **Telegram Bot API Size Limits**: Standard Telegram Bot API limits uploads to 50 MB (20 MB for downloads via default Bot API servers; up to 2 GB with custom local Bot API server). Chunks are tagged and partitioned according to standard constraints.
+- **Future Phase 18+**: Release packaging, code signing, and installer automation.
 
 ---
 

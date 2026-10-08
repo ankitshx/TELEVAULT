@@ -329,3 +329,19 @@
 - Decision: Retention policy evaluations and pruning operations transactionally remove eligible local SQLite snapshot records and file version metadata, but are strictly prohibited from deleting remote Telegram storage objects.
 - Reason: Remote backup safety is paramount. Telegram remote storage is authoritative and permanent; remote deletion is deferred to an explicitly authorized, user-confirmed remote garbage collection phase.
 - Date: 2026-10-08
+
+## AD-067: Dynamic Storage Provider Routing with Zero-Restart Runtime Reconfiguration
+- Decision: Implemented `DynamicStorageProvider` wrapping `Arc<RwLock<Arc<dyn StorageProvider + Send + Sync>>>`. Application subsystems (`BackupEngine`, `RestoreEngine`, `VerificationEngine`, `RepairEngine`, `TransferEngine`) depend on this dynamic provider. At runtime, saving or removing Telegram credentials dynamically switches the active backend between `MockStorageProvider` and `TelegramStorageProvider` without restarting the application or mutating ongoing operations.
+- Reason: Enables smooth desktop configuration workflows where users can test credentials and activate Telegram cloud storage without application relaunch, while preserving testability via default mock providers.
+- Date: 2026-10-08
+
+## AD-068: Native Rust Telegram Bot API Transport with Bounded 64 KiB Streaming
+- Decision: Implemented `HttpTelegramTransport` communicating directly with the official Telegram Bot API via native `reqwest` (TLS native, single process, zero Node/Python/sidecar dependencies). Streaming document uploads spool into bounded temporary staging files cleaned by RAII drop. Downloads resolve remote paths via `getFile` and stream into caller writers in 64 KiB chunks.
+- Reason: Complies strictly with the single-process architecture freeze, avoids external binaries, and strictly enforces the 64 KiB bounded memory invariant regardless of logical file sizes.
+- Date: 2026-10-08
+
+## AD-069: Redacted Telegram Credentials with File-Based Secret Persistence
+- Decision: Implemented `TelegramCredentials` with secure file persistence (`telegram_credentials.json` in the application config directory, git-ignored), custom token syntax validation (`<bot_id>:<token>`), and secret redaction (`[REDACTED]`) in `Debug` and `Display` traits. Secret tokens are strictly excluded from IPC DTOs, React state, logs, and database plaintext columns.
+- Reason: Mathematical isolation of credentials prevents accidental secret leakage in logs, diagnostics, frontend state inspection, or Git commits.
+- Date: 2026-10-08
+

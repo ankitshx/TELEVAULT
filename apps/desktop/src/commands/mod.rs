@@ -7,6 +7,7 @@ pub mod restore;
 pub mod retention;
 pub mod scheduler;
 pub mod system;
+pub mod telegram;
 pub mod transfer;
 pub mod verification;
 
@@ -17,5 +18,6 @@ pub use restore::*;
 pub use retention::*;
 pub use scheduler::*;
 pub use system::*;
+pub use telegram::*;
 pub use transfer::*;
 pub use verification::*;

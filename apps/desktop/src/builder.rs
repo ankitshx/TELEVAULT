@@ -4,7 +4,8 @@ use std::path::Path;
 use tauri_specta::Builder;
 
 use crate::commands::{
-    backup, checker, repair, restore, retention, scheduler, system, transfer, verification,
+    backup, checker, repair, restore, retention, scheduler, system, telegram, transfer,
+    verification,
 };
 
 /// Configures and returns the central [`Builder`] registering all TELEVAULT IPC commands.
@@ -67,6 +68,11 @@ pub fn create_ipc_builder() -> Builder<tauri::Wry> {
         repair::repair_file,
         repair::repair_snapshot,
         repair::get_repair_history,
+        // Telegram Cloud Storage
+        telegram::get_telegram_status,
+        telegram::save_telegram_config,
+        telegram::test_telegram_connection,
+        telegram::disconnect_telegram,
     ])
 }
 

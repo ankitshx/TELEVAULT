@@ -36,6 +36,15 @@ impl<T: TelegramTransport> TelegramStorageProvider<T> {
     pub fn config(&self) -> &TelegramStorageConfig {
         &self.config
     }
+
+    /// Tests connection and access to the configured target chat without creating backup payloads.
+    pub fn test_connection(
+        &self,
+    ) -> Result<crate::transport::TelegramConnectionInfo, StorageError> {
+        self.transport
+            .test_connection(self.config.target_chat_id)
+            .map_err(StorageError::from)
+    }
 }
 
 /// Helper reader calculating running SHA-256 while streaming bytes.
@@ -188,7 +197,12 @@ impl<T: TelegramTransport> StorageProvider for TelegramStorageProvider<T> {
         let mut hashing_writer = HashingWriter::new(writer);
         let downloaded_bytes = self
             .transport
-            .get_document_stream(reference.chat_id, reference.message_id, &mut hashing_writer)
+            .get_document_stream(
+                reference.chat_id,
+                reference.message_id,
+                &reference.file_id,
+                &mut hashing_writer,
+            )
             .map_err(StorageError::from)?;
 
         let (calculated_hash, total_written) = hashing_writer.finalize_hash();
@@ -227,15 +241,38 @@ impl<T: TelegramTransport> StorageProvider for TelegramStorageProvider<T> {
             Err(_) => return Ok(false),
         };
 
-        match self
-            .transport
-            .get_message_metadata(reference.chat_id, reference.message_id)
-        {
+        match self.transport.get_message_metadata(
+            reference.chat_id,
+            reference.message_id,
+            &reference.file_id,
+        ) {
             Ok(doc) => {
                 if request.expected_size_bytes > 0 && doc.size_bytes != request.expected_size_bytes
                 {
                     return Ok(false);
                 }
+
+                if let Some(ref expected_hash) = request.expected_sha256 {
+                    let mut sink = std::io::sink();
+                    let mut hashing_writer = HashingWriter::new(&mut sink);
+                    if self
+                        .transport
+                        .get_document_stream(
+                            reference.chat_id,
+                            reference.message_id,
+                            &reference.file_id,
+                            &mut hashing_writer,
+                        )
+                        .is_err()
+                    {
+                        return Ok(false);
+                    }
+                    let (calculated, _) = hashing_writer.finalize_hash();
+                    if !calculated.eq_ignore_ascii_case(expected_hash) {
+                        return Ok(false);
+                    }
+                }
+
                 Ok(true)
             }
             Err(TelegramError::MessageNotFound { .. } | TelegramError::DocumentNotFound { .. }) => {
@@ -254,7 +291,7 @@ impl<T: TelegramTransport> StorageProvider for TelegramStorageProvider<T> {
 
         let doc = self
             .transport
-            .get_message_metadata(tg_ref.chat_id, tg_ref.message_id)
+            .get_message_metadata(tg_ref.chat_id, tg_ref.message_id, &tg_ref.file_id)
             .map_err(StorageError::from)?;
 
         Ok(RemoteObjectMetadata {

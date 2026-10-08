@@ -4,6 +4,8 @@ import {
   AppConfigDto,
   AppInfoDto,
   SystemPathsDto,
+  TelegramStatusDto,
+  SaveTelegramConfigDto,
 } from "../bindings";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -16,11 +18,20 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
   const [config, setConfig] = useState<AppConfigDto | null>(null);
   const [appInfo, setAppInfo] = useState<AppInfoDto | null>(null);
   const [paths, setPaths] = useState<SystemPathsDto | null>(null);
+  const [telegramStatus, setTelegramStatus] = useState<TelegramStatusDto | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form Fields
+  // Telegram Configuration Form Fields
+  const [botToken, setBotToken] = useState<string>("");
+  const [targetChatId, setTargetChatId] = useState<string>("");
+  const [apiEndpoint, setApiEndpoint] = useState<string>("");
+  const [testingConnection, setTestingConnection] = useState<boolean>(false);
+  const [savingTelegram, setSavingTelegram] = useState<boolean>(false);
+  const [telegramNotice, setTelegramNotice] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
+
+  // General Form Fields
   const [theme, setTheme] = useState<string>("dark");
   const [language, setLanguage] = useState<string>("en-US");
   const [checkUpdates, setCheckUpdates] = useState<boolean>(true);
@@ -41,10 +52,11 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
       setLoading(true);
       setError(null);
 
-      const [cfgRes, infoRes, pathsRes] = await Promise.all([
+      const [cfgRes, infoRes, pathsRes, tgRes] = await Promise.all([
         commands.getAppConfig(),
         commands.getAppInfo(),
         commands.getSystemPaths(),
+        commands.getTelegramStatus(),
       ]);
 
       if (cfgRes.status === "ok") {
@@ -70,6 +82,12 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
 
       if (infoRes.status === "ok") setAppInfo(infoRes.data);
       if (pathsRes.status === "ok") setPaths(pathsRes.data);
+      if (tgRes.status === "ok") {
+        setTelegramStatus(tgRes.data);
+        if (tgRes.data.target_chat_id) {
+          setTargetChatId(tgRes.data.target_chat_id.toString());
+        }
+      }
     } catch (err: unknown) {
       setError(String(err));
     } finally {
@@ -80,6 +98,97 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const handleSaveTelegram = async () => {
+    if (!botToken.trim()) {
+      setTelegramNotice({ type: "error", msg: "Bot token is required." });
+      return;
+    }
+    const chatIdNum = parseInt(targetChatId.trim(), 10);
+    if (isNaN(chatIdNum) || chatIdNum === 0) {
+      setTelegramNotice({ type: "error", msg: "A valid non-zero Target Chat ID is required." });
+      return;
+    }
+
+    try {
+      setSavingTelegram(true);
+      setTelegramNotice(null);
+      const req: SaveTelegramConfigDto = {
+        bot_token: botToken.trim(),
+        target_chat_id: chatIdNum,
+        api_endpoint: apiEndpoint.trim() ? apiEndpoint.trim() : null,
+      };
+      const res = await commands.saveTelegramConfig(req);
+      if (res.status === "ok") {
+        setTelegramStatus(res.data);
+        setBotToken(""); // Immediately clear raw token from state
+        setTelegramNotice({
+          type: "success",
+          msg: "Telegram configuration saved securely. Test connection to verify cloud access.",
+        });
+        onNotify("success", "Telegram Configured", "Credentials stored in secure application config.");
+      } else {
+        setTelegramNotice({ type: "error", msg: res.error.message });
+      }
+    } catch (err: unknown) {
+      setTelegramNotice({ type: "error", msg: String(err) });
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    try {
+      setTestingConnection(true);
+      setTelegramNotice(null);
+      const res = await commands.testTelegramConnection();
+      if (res.status === "ok") {
+        const testRes = res.data;
+        if (testRes.success) {
+          setTelegramNotice({
+            type: "success",
+            msg: `Connected successfully as @${testRes.bot_username || "Bot"} (ID: ${testRes.bot_id || "N/A"}) to ${testRes.chat_title || "chat"}.`,
+          });
+          onNotify("success", "Connection Verified", "Telegram Bot API is fully accessible.");
+        } else {
+          setTelegramNotice({
+            type: "error",
+            msg: testRes.error_message || "Connection test failed. Check token and chat permissions.",
+          });
+        }
+        // Refresh status
+        const tgRes = await commands.getTelegramStatus();
+        if (tgRes.status === "ok") setTelegramStatus(tgRes.data);
+      } else {
+        setTelegramNotice({ type: "error", msg: res.error.message });
+      }
+    } catch (err: unknown) {
+      setTelegramNotice({ type: "error", msg: String(err) });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleDisconnectTelegram = async () => {
+    try {
+      const res = await commands.disconnectTelegram();
+      if (res.status === "ok") {
+        setTelegramStatus(res.data);
+        setBotToken("");
+        setTargetChatId("");
+        setApiEndpoint("");
+        setTelegramNotice({
+          type: "info",
+          msg: "Telegram disconnected. Active backend reverted to local mock storage.",
+        });
+        onNotify("info", "Telegram Disconnected", "Credentials cleared from local disk.");
+      } else {
+        setTelegramNotice({ type: "error", msg: res.error.message });
+      }
+    } catch (err: unknown) {
+      setTelegramNotice({ type: "error", msg: String(err) });
+    }
+  };
 
   const handleSaveSettings = async () => {
     try {
@@ -122,6 +231,22 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
     }
   };
 
+  const getStatusBadgeClass = (status?: string) => {
+    switch (status) {
+      case "Connected":
+        return "badge-success";
+      case "Configured":
+      case "Connecting":
+        return "badge-info";
+      case "ConnectionFailed":
+        return "badge-danger";
+      case "Reconnecting":
+        return "badge-warning";
+      default:
+        return "badge-neutral";
+    }
+  };
+
   if (loading && !config) {
     return <LoadingSpinner message="Reading application settings from disk..." />;
   }
@@ -129,6 +254,174 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {error && <ErrorBanner error={error} title="Configuration Error" onDismiss={() => setError(null)} />}
+
+      {/* Telegram Cloud Storage Section */}
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-title">Telegram Cloud Storage Integration</div>
+            <div className="card-subtitle">
+              Encrypted cloud backup transport and remote storage credentials
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
+              Backend: <strong>{telegramStatus?.active_backend || "unknown"}</strong>
+            </span>
+            <span
+              className={`badge ${getStatusBadgeClass(telegramStatus?.status)}`}
+              style={{ padding: "0.3rem 0.6rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}
+            >
+              {telegramStatus?.status === "Connected"
+                ? "🟢 Connected"
+                : telegramStatus?.status === "Configured"
+                ? "🔵 Configured"
+                : telegramStatus?.status === "ConnectionFailed"
+                ? "🔴 Connection Failed"
+                : telegramStatus?.status === "Connecting"
+                ? "🟡 Connecting..."
+                : "⚪ Not Configured"}
+            </span>
+          </div>
+        </div>
+
+        {telegramNotice && (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "6px",
+              marginBottom: "1rem",
+              fontSize: "0.85rem",
+              background:
+                telegramNotice.type === "success"
+                  ? "rgba(34, 197, 94, 0.1)"
+                  : telegramNotice.type === "error"
+                  ? "rgba(239, 68, 68, 0.1)"
+                  : "rgba(59, 130, 246, 0.1)",
+              border: `1px solid ${
+                telegramNotice.type === "success"
+                  ? "var(--success)"
+                  : telegramNotice.type === "error"
+                  ? "var(--danger)"
+                  : "var(--accent)"
+              }`,
+              color:
+                telegramNotice.type === "success"
+                  ? "var(--success)"
+                  : telegramNotice.type === "error"
+                  ? "var(--danger)"
+                  : "var(--accent)",
+            }}
+          >
+            {telegramNotice.msg}
+          </div>
+        )}
+
+        {telegramStatus?.is_configured && (
+          <div
+            style={{
+              display: "flex",
+              gap: "2rem",
+              padding: "0.75rem 1rem",
+              background: "var(--bg-card)",
+              borderRadius: "6px",
+              marginBottom: "1rem",
+              fontSize: "0.85rem",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div>
+              <span style={{ color: "var(--text-dim)" }}>Target Chat ID: </span>
+              <strong className="mono">{telegramStatus.target_chat_id || "None"}</strong>
+            </div>
+            {telegramStatus.bot_username && (
+              <div>
+                <span style={{ color: "var(--text-dim)" }}>Bot Username: </span>
+                <strong className="mono">@{telegramStatus.bot_username}</strong>
+              </div>
+            )}
+            {telegramStatus.last_error && (
+              <div style={{ color: "var(--danger)" }}>
+                <span>Error: </span>
+                <span>{telegramStatus.last_error}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid-3">
+          <div className="form-group">
+            <label>Bot Token:</label>
+            <input
+              type="password"
+              placeholder={telegramStatus?.is_configured ? "•••••••••••••••• (Leave blank to keep)" : "123456789:ABCdefGHI..."}
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
+            />
+            <span style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>
+              Isolated in secure credentials file. Never exposed in UI state.
+            </span>
+          </div>
+
+          <div className="form-group">
+            <label>Target Chat ID:</label>
+            <input
+              type="text"
+              placeholder="-1001234567890"
+              value={targetChatId}
+              onChange={(e) => setTargetChatId(e.target.value)}
+            />
+            <span style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>
+              Target private channel or Saved Messages chat ID.
+            </span>
+          </div>
+
+          <div className="form-group">
+            <label>API Endpoint (Optional):</label>
+            <input
+              type="text"
+              placeholder="https://api.telegram.org (Default)"
+              value={apiEndpoint}
+              onChange={(e) => setApiEndpoint(e.target.value)}
+            />
+            <span style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>
+              Custom or local Bot API server for 2 GB file chunking.
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem" }}>
+          <div>
+            {telegramStatus?.is_configured && (
+              <button
+                className="btn btn-outline"
+                style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+                onClick={handleDisconnectTelegram}
+              >
+                Disconnect Telegram
+              </button>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            {telegramStatus?.is_configured && (
+              <button
+                className="btn btn-outline"
+                onClick={handleTestConnection}
+                disabled={testingConnection}
+              >
+                {testingConnection ? "Testing..." : "🔌 Test Connection"}
+              </button>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveTelegram}
+              disabled={savingTelegram}
+            >
+              {savingTelegram ? "Saving..." : "💾 Save Telegram Settings"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* General Settings */}
       <div className="card">

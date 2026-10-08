@@ -407,6 +407,40 @@ export function createTauriMock(customHandlers: Record<string, any> = {}) {
     }),
     cancel_backup: () => true,
     cancel_operation: () => true,
+    get_telegram_status: () => ({
+      is_configured: true,
+      status: "Connected",
+      target_chat_id: -1001234567890,
+      bot_username: "TeleVaultMockBot",
+      last_tested_at: "2026-10-08T12:00:00Z",
+      last_error: null,
+      active_backend: "telegram-cloud-storage",
+    }),
+    save_telegram_config: (args: any) => ({
+      is_configured: true,
+      status: "Configured",
+      target_chat_id: args?.request?.target_chat_id || -1001234567890,
+      bot_username: null,
+      last_tested_at: null,
+      last_error: null,
+      active_backend: "telegram-cloud-storage",
+    }),
+    test_telegram_connection: () => ({
+      success: true,
+      bot_username: "TeleVaultMockBot",
+      bot_id: 123456789,
+      chat_title: "Backup Vault Channel",
+      error_message: null,
+    }),
+    disconnect_telegram: () => ({
+      is_configured: false,
+      status: "NotConfigured",
+      target_chat_id: null,
+      bot_username: null,
+      last_tested_at: null,
+      last_error: null,
+      active_backend: "mock-storage",
+    }),
   };
 
   const handlers = { ...defaultHandlers, ...customHandlers };

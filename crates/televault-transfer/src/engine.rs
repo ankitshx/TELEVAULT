@@ -145,19 +145,34 @@ impl TransferEngine {
         cancellation: &CancellationToken,
     ) -> Result<StorageReference> {
         let path = staging_file.path().to_path_buf();
-        let mut file = File::open(&path)?;
-
-        let upload_res = self.upload_stream(job, &mut file, cancellation);
-
-        match upload_res {
-            Ok(storage_ref) => {
-                // Cloud upload succeeded and verified -> explicitly cleanup temporary staging payload
-                staging_file.cleanup().map_err(TransferError::Storage)?;
-                Ok(storage_ref)
+        loop {
+            if cancellation.is_cancelled() {
+                return Err(TransferError::Cancelled);
             }
-            Err(e) => {
-                // Staging file will be unlinked by RAII Drop on staging_file scope exit
+
+            let mut file = File::open(&path)?;
+            let upload_res = self.upload_stream(job, &mut file, cancellation);
+
+            match upload_res {
+                Ok(storage_ref) => {
+                    // Cloud upload succeeded and verified -> explicitly cleanup temporary staging payload
+                    staging_file.cleanup().map_err(TransferError::Storage)?;
+                    return Ok(storage_ref);
+                }
                 Err(e)
+                    if e.is_retryable() && self.config.retry_policy.can_retry(job.retry_count) =>
+                {
+                    let delay = self
+                        .config
+                        .retry_policy
+                        .calculate_backoff(job.retry_count.saturating_sub(1));
+                    std::thread::sleep(delay);
+                    continue;
+                }
+                Err(e) => {
+                    // Staging file will be unlinked by RAII Drop on staging_file scope exit
+                    return Err(e);
+                }
             }
         }
     }

@@ -77,3 +77,15 @@
 - Risk: If the application process crashes, is forcefully killed, or encounters an uncaught abort during backup, the snapshot record remains in `BackingUp` status indefinitely.
 - Failure Mode: Snapshot permanently appears in-progress, blocking future backups and failing validation.
 - Mitigation in Phase 16: Automatic failure wrapping in `execute_backup_inner` immediately transitions snapshot status to `Failed` upon any error or cancellation. Cold restart recovery detects incomplete in-flight snapshots and recovers gracefully.
+
+## KF-017: Telegram Bot API Default File Size Limit Constraints
+- Risk: Standard Telegram Bot API servers enforce a 50 MB limit for `sendDocument` and a 20 MB limit for `getFile` downloads, whereas TELEVAULT's multi-chunk architecture uses ~1.8 GB chunks.
+- Failure Mode: Attempting multi-gigabyte chunk uploads through standard public Bot API endpoints returns HTTP 400 with `file is too large`.
+- Mitigation in Phase 17: Architectural isolation via `TelegramStorageConfig` and progressive test sizes. Supporting standard 1.8 GB chunks in production requires configuring a local Telegram Bot API server (`api_endpoint`), which supports up to 2 GB documents, or connecting through Telegram MTProto transports in subsequent phases.
+- Status: Documented and architected; live cloud testing accurately reported as NOT EXECUTED pending production environment setup.
+
+## KF-018: Secret Credential Leakage in Diagnostics, Logs, or Frontend Inspection
+- Risk: User's bot token or session string inadvertently printed in error messages, formatted via `println!`/`format!`, sent in IPC responses, or written to SQLite plaintext.
+- Failure Mode: Bot token compromise, unauthorized channel access, credential leakage in bug reports or Git.
+- Mitigation in Phase 17: `TelegramCredentials` redacts secrets in `Debug` and `Display` (`[REDACTED]`), persists solely to a git-ignored file (`telegram_credentials.json`), excludes secrets from Specta DTOs (`TelegramStatusDto` returns only `is_configured`, `target_chat_id`, and `bot_username`), and rejects plaintext storage in database tables.
+

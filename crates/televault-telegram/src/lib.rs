@@ -3,16 +3,20 @@
 #![deny(missing_docs)]
 
 pub mod contracts;
+pub mod credentials;
 pub mod error;
+pub mod http;
 pub mod provider;
 pub mod reference;
 pub mod transport;
 
 pub use contracts::{TelegramChunkHeader, TelegramDocumentMessage, TelegramStorageConfig};
+pub use credentials::TelegramCredentials;
 pub use error::{Result, TelegramError};
+pub use http::HttpTelegramTransport;
 pub use provider::TelegramStorageProvider;
 pub use reference::TelegramReference;
-pub use transport::{MockTelegramTransport, TelegramTransport};
+pub use transport::{MockTelegramTransport, TelegramConnectionInfo, TelegramTransport};
 
 pub use televault_core as core;
 pub use televault_manifest as manifest;

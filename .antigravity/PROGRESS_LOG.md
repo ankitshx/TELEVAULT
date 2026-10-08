@@ -916,5 +916,56 @@
 
 ---
 
-## Next Phase: Phase 17
-- Phase 17 has NOT started.
+## Phase 17: Production Telegram Cloud Storage Integration
+- Status: COMPLETED
+- Date: 2026-10-08
+- Objectives:
+  - Transition TELEVAULT from `MockStorageBackend` to a production-ready, fully validated Telegram-backed cloud storage implementation.
+  - Implement real/production Telegram transport (`HttpTelegramTransport`) using the Telegram Bot API (`getMe`, `getChat`, `sendDocument`, `getFile`, `deleteMessage`) via native Rust `reqwest` (TLS native, single-process, zero Python/Node sidecars).
+  - Implement secure credential persistence and format validation (`TelegramCredentials`) with strict zeroization and debug/display redaction (`[REDACTED]`).
+  - Implement non-destructive connection testing (`test_connection`) verifying bot authentication and chat write permissions without creating backup payloads or altering catalog metadata.
+  - Implement dynamic storage provider routing (`DynamicStorageProvider`) permitting runtime reconfiguration between mock storage and Telegram cloud storage without application restarts.
+  - Maintain the 64 KiB bounded streaming discipline and strict local storage invariant (zero permanent backup payloads remaining locally after remote verification).
+  - Validate the complete lifecycle against Telegram storage: upload, remote reference creation, remote verification (size + streaming SHA-256), restore (streaming download + decrypt + decompress), repair of corrupted remote chunks, retry with exponential backoff on network failures, cooperative cancellation, and cold restart persistence.
+  - Extend the desktop UI in Settings to display safe Telegram connection status (`NotConfigured`, `Connecting`, `Connected`, `ConnectionFailed`, `Reconnecting`), bot username, target chat ID, connection testing action, configuration dialog, and disconnection.
+  - Provide accurate reporting: `LIVE TELEGRAM VALIDATION: NOT EXECUTED` (no live Telegram credentials available in runtime environment), with full deterministic transport validation.
+
+### Key Engineering Accomplishments:
+1. **Production Telegram Bot API Transport (`HttpTelegramTransport`)**:
+   - Implemented `TelegramTransport` trait backed by Telegram Bot API endpoints: `getMe`, `getChat`, `sendDocument`, `getFile`, `deleteMessage`.
+   - Streaming multipart document upload spools into temporary staging files using bounded 64 KiB buffers and cleans up automatically via RAII drop.
+   - Streaming download uses Telegram `getFile` to resolve `file_path` and streams payload directly into callers without buffering whole files in RAM.
+2. **Secure Credential Model (`TelegramCredentials`)**:
+   - Stores bot token, target chat ID, and optional custom Bot API endpoint.
+   - Validates `<bot_id>:<token>` syntax.
+   - Redacts token in `Debug` and `Display` implementations (`[REDACTED]`).
+   - Persists securely to `telegram_credentials.json` (git-ignored, 0 secrets committed).
+3. **Dynamic Storage Provider Routing (`DynamicStorageProvider`)**:
+   - Allows runtime switching between `MockStorageProvider` (default or fallback) and `TelegramStorageProvider` through an `Arc<RwLock<Arc<dyn StorageProvider>>>`.
+   - Thread-safe, transparent to all higher-level engines (`BackupEngine`, `RestoreEngine`, `VerificationEngine`, `RepairEngine`).
+4. **Resilient Retry & Backoff in Transfer Pipeline**:
+   - Extended `TransferEngine::execute_staged_upload` with an automatic retry loop governed by `RetryPolicy`.
+   - Retries transient network interruptions with exponential backoff, maintaining idempotent database state and zero orphaned staging files.
+5. **Level 3 Integrity Verification against Telegram Storage**:
+   - Enhanced `TelegramStorageProvider::verify` to compute streaming SHA-256 using `HashingWriter` with `std::io::sink()` when `expected_sha256` is supplied.
+   - Correctly flags corrupted remote messages, allowing `RepairEngine` to detect bitrot and execute single-chunk replacement.
+6. **Frontend Integration & Typed IPC Bindings**:
+   - Added DTOs: `TelegramConnectionStatus`, `TelegramStatusDto`, `SaveTelegramConfigDto`, `TelegramConnectionTestResultDto`.
+   - Added commands: `get_telegram_status`, `save_telegram_config`, `test_telegram_connection`, `disconnect_telegram`.
+   - Exported TypeScript bindings via `tauri-specta`.
+   - Updated `SettingsView.tsx` with dedicated Telegram Cloud Storage section and connection testing workflow.
+   - Added `telegram_settings.test.tsx` verifying safe status display, credential isolation, and connection testing.
+7. **Comprehensive Test Suite & Verification Results**:
+   - Rust test count: **312 passed, 0 failed, 0 ignored** (+15 new tests: 3 credentials tests, 6 unit/integration tests in televault-telegram, 6 e2e tests in desktop).
+   - Frontend Vitest suite: **28 passed, 0 failed, 0 ignored** (+5 new tests in `telegram_settings.test.tsx`).
+   - Total authoritative test count: **340 passed, 0 failed, 0 ignored**.
+   - Rust formatting check (`cargo fmt --all -- --check`): PASSED.
+   - Rust clippy lint check (`cargo clippy --workspace --all-targets --all-features -- -D warnings`): PASSED (0 warnings).
+   - Frontend production bundle build (`tsc && vite build`): PASSED.
+   - Security audit: 0 secrets committed, 0 session tokens committed, 0 credentials in git diff.
+
+---
+
+## Next Phase: Phase 18
+- Phase 18 has NOT started.
+

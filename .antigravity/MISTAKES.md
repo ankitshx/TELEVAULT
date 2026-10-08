@@ -231,6 +231,28 @@
 - Regression Test: `test_metadata_persistence_across_application_restart` in `apps/desktop/tests/restart_persistence_tests.rs`.
 - Prevention Rule: Always check SQLite PRAGMA return value documentation: `integrity_check` returns `["ok"]`, whereas `foreign_key_check` returns empty rows on success.
 
+## Phase 17 — Specta BigInt Disallowance for 64-Bit Integers
+- Mistake: Adding raw `target_chat_id: i64` and `bot_id: i64` to `SaveTelegramConfigDto` and `TelegramConnectionTestResultDto` caused `tauri-specta` compilation failure with `"Specta does not support BigInt by default"`.
+- Root Cause: Specta protects against JavaScript `BigInt` serialization incompatibilities unless explicitly annotated or enabled.
+- Fix: Annotated 64-bit integer fields with `#[specta(type = Number)]` and `#[specta(type = Option<Number>)]` which cleanly serializes into TypeScript `number`.
+- Regression Test: `cargo test --bin export_types` and `npm.cmd run build`.
+- Prevention Rule: When exposing integer identifiers (such as Telegram Chat IDs or timestamps) across Specta IPC, annotate with `#[specta(type = Number)]`.
+
+## Phase 17 — Telegram Storage Provider Verify Hash Skipping Caused Repair Bypass
+- Mistake: In `TelegramStorageProvider::verify`, only remote message existence and document byte sizes were verified against metadata; `request.expected_sha256` was ignored. During repair, `is_chunk_already_healthy` checked `verify()` which returned `Ok(true)` because the message existed and the size matched, falsely concluding the corrupted chunk was healthy and skipping the repair.
+- Root Cause: Telegram document metadata does not return SHA-256 hashes, and `verify()` omitted payload streaming verification when `expected_sha256` was supplied.
+- Fix: Updated `TelegramStorageProvider::verify` to stream remote bytes through `HashingWriter` with `std::io::sink()` and compare the calculated SHA-256 against `expected_sha256` whenever a hash is requested.
+- Regression Test: `test_telegram_remote_corruption_detection_and_repair` in `apps/desktop/tests/telegram_integration_e2e_tests.rs`.
+- Prevention Rule: Any `StorageProvider::verify` implementation must explicitly validate `request.expected_sha256` by streaming remote bytes when remote metadata lacks a native checksum.
+
+## Phase 17 — Staged Upload Lacked Automatic Retry Loop
+- Mistake: `TransferEngine::execute_staged_upload` executed a single attempt; when `upload_stream` failed on a transient network reset, the job was transitioned to `Retrying` but returned `Err` to the caller, failing the backup prematurely.
+- Root Cause: Assumed retry scheduling was exclusively handled by the transfer queue worker rather than the staged upload pipeline.
+- Fix: Wrapped `execute_staged_upload` in a loop that checks `is_retryable()` and `retry_policy.can_retry(job.retry_count)`, sleeps for `calculate_backoff()`, and retries streaming from the staged file.
+- Regression Test: `test_telegram_network_retry_and_idempotency` in `apps/desktop/tests/telegram_integration_e2e_tests.rs`.
+- Prevention Rule: Transfer pipeline methods accepting local staged files must loop with exponential backoff on retryable errors until success or retry exhaustion.
+
+
 
 
 

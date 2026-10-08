@@ -104,6 +104,14 @@ export const commands = {
 	repairSnapshot: (request: RepairSnapshotRequest) => typedError<RepairExecutionResultDto, IpcError>(__TAURI_INVOKE("repair_snapshot", { request })),
 	/**  Lists remote repair history records for a profile, ordered newest first. */
 	getRepairHistory: (profileId: string, limit: number | null) => typedError<RepairHistoryRecordDto[], IpcError>(__TAURI_INVOKE("get_repair_history", { profileId, limit })),
+	/**  Returns current safe Telegram storage connection and configuration status. */
+	getTelegramStatus: () => typedError<TelegramStatusDto, IpcError>(__TAURI_INVOKE("get_telegram_status")),
+	/**  Validates, securely persists, and activates Telegram connection settings. */
+	saveTelegramConfig: (request: SaveTelegramConfigDto) => typedError<TelegramStatusDto, IpcError>(__TAURI_INVOKE("save_telegram_config", { request })),
+	/**  Executes a safe Telegram connection test without creating payloads or modifying retention. */
+	testTelegramConnection: () => typedError<TelegramConnectionTestResultDto, IpcError>(__TAURI_INVOKE("test_telegram_connection")),
+	/**  Disconnects Telegram configuration and falls back to mock storage. */
+	disconnectTelegram: () => typedError<TelegramStatusDto, IpcError>(__TAURI_INVOKE("disconnect_telegram")),
 };
 
 /* Types */
@@ -547,6 +555,16 @@ export type RetentionResultDto = {
 	error_message: string | null,
 };
 
+/**  Request payload submitted by the UI to configure Telegram credentials. */
+export type SaveTelegramConfigDto = {
+	/**  Secret Telegram Bot API token (never echoed back in status responses). */
+	bot_token: string,
+	/**  Target chat or channel ID where backups will be stored. */
+	target_chat_id: number,
+	/**  Optional custom Bot API endpoint (for self-hosted or local Bot API servers). */
+	api_endpoint: string | null,
+};
+
 /**  User-facing representation of a recurring backup schedule. */
 export type ScheduleDto = {
 	/**  Unique schedule identifier. */
@@ -689,6 +707,53 @@ export type SystemPathsDto = {
 	logs_dir: string,
 	/**  Path to application config directory. */
 	config_dir: string,
+};
+
+/**  High-level Telegram cloud connection health status for the desktop UI. */
+export type TelegramConnectionStatus = 
+/**  Telegram credentials are not configured. */
+"NotConfigured" | 
+/**  Credentials configured locally but not yet validated against Telegram servers. */
+"Configured" | 
+/**  Connection handshake or test currently in progress. */
+"Connecting" | 
+/**  Connection verified successfully; credentials and chat access confirmed. */
+"Connected" | 
+/**  Connection test failed or service unreachable. */
+"ConnectionFailed" | 
+/**  Transient network reconnect attempt in progress. */
+"Reconnecting";
+
+/**  Result returned from an explicit connection test. */
+export type TelegramConnectionTestResultDto = {
+	/**  Whether connection and chat accessibility succeeded. */
+	success: boolean,
+	/**  Bot username verified from Telegram. */
+	bot_username: string | null,
+	/**  Bot numerical user ID verified from Telegram. */
+	bot_id: number | null,
+	/**  Title or username of the target channel/chat. */
+	chat_title: string | null,
+	/**  Sanitized, safe error message if the connection test failed. */
+	error_message: string | null,
+};
+
+/**  Safe Telegram status DTO exposed to the UI without sensitive credentials. */
+export type TelegramStatusDto = {
+	/**  Whether valid Telegram credentials exist on the local machine. */
+	is_configured: boolean,
+	/**  High-level connection health status. */
+	status: TelegramConnectionStatus,
+	/**  Configured target chat or channel ID. */
+	target_chat_id: number | null,
+	/**  Confirmed bot username (e.g., "TeleVaultBackupBot"). */
+	bot_username: string | null,
+	/**  ISO-8601 timestamp when connection was last tested. */
+	last_tested_at: string | null,
+	/**  Sanitized, safe error message if last connection test or transfer failed. */
+	last_error: string | null,
+	/**  Name of the active storage provider backend currently processing transfers. */
+	active_backend: string,
 };
 
 /**  Transfer workers and concurrency throttling parameters. */
