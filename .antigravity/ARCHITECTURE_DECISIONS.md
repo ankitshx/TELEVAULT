@@ -340,8 +340,17 @@
 - Reason: Complies strictly with the single-process architecture freeze, avoids external binaries, and strictly enforces the 64 KiB bounded memory invariant regardless of logical file sizes.
 - Date: 2026-10-08
 
-## AD-069: Redacted Telegram Credentials with File-Based Secret Persistence
-- Decision: Implemented `TelegramCredentials` with secure file persistence (`telegram_credentials.json` in the application config directory, git-ignored), custom token syntax validation (`<bot_id>:<token>`), and secret redaction (`[REDACTED]`) in `Debug` and `Display` traits. Secret tokens are strictly excluded from IPC DTOs, React state, logs, and database plaintext columns.
-- Reason: Mathematical isolation of credentials prevents accidental secret leakage in logs, diagnostics, frontend state inspection, or Git commits.
+## AD-070: Deterministic Startup Recovery and State Machine Reconciliation
+- Decision: Implemented deterministic startup recovery in `DesktopAppState::new`:
+  1. Executes SQLite `PRAGMA integrity_check` and `PRAGMA foreign_key_check` to validate database health.
+  2. Executes `reconcile_interrupted_operations` in `televault-db` inside an atomic transaction: any snapshots stuck in transient active states (`BackingUp`, `Scanning`) and transfer jobs stuck in `Transferring` are transitioned to `Failed` with diagnostic reason annotations.
+  3. Purges orphaned staging files from the transient temporary directory (`TempPayloadManager::cleanup_stale_staging_files`).
+  4. Bundles diagnostic telemetry into `StartupRecoveryReportDto` exposed via Specta IPC (`get_startup_recovery_report`).
+- Reason: Guarantees no operation remains permanently stuck in active states after unexpected process terminations or machine reboots, and preserves the cloud-first storage invariant by reclaiming orphaned staging space.
+- Date: 2026-10-08
+
+## AD-071: Atomic Configuration Updates via Temporary File Replace
+- Decision: Hardened `update_app_config` and credential persistence to write JSON updates to `.tmp` files, synchronize to disk, and atomically replace the destination configuration file via filesystem rename.
+- Reason: Guarantees atomicity under abrupt power loss or process kill; the configuration is either completely updated or untouched, eliminating corrupt or truncated configuration files.
 - Date: 2026-10-08
 

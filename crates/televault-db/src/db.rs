@@ -201,6 +201,46 @@ impl Database {
         })
     }
 
+    /// Reconciles interrupted or crashed operations upon application startup.
+    ///
+    /// Atomically transitions any snapshots stuck in non-terminal transient states
+    /// (`scanning`, `backing_up`) to `failed`, and any transfer jobs stuck in `transferring`
+    /// to `failed`, recording descriptive diagnostic messages.
+    ///
+    /// Returns `(reconciled_snapshots, reconciled_transfer_jobs)`.
+    pub fn reconcile_interrupted_operations(&self) -> Result<(usize, usize)> {
+        self.with_transaction(|tx| {
+            let interruption_msg = "Operation interrupted by unexpected process termination";
+
+            // 1. Reconcile snapshots stuck in active states
+            let reconciled_snapshots = tx.execute(
+                "UPDATE snapshots
+                 SET status = 'failed',
+                     metadata = json_insert(
+                         COALESCE(NULLIF(metadata, ''), '{}'),
+                         '$.interruption_reason',
+                         ?1,
+                         '$.interrupted_at',
+                         strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                     )
+                 WHERE status IN ('scanning', 'backing_up');",
+                params![interruption_msg],
+            )?;
+
+            // 2. Reconcile transfer jobs stuck in transferring state
+            let reconciled_transfers = tx.execute(
+                "UPDATE transfer_jobs
+                 SET status = 'failed',
+                     error_message = ?1,
+                     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                 WHERE status = 'transferring';",
+                params![interruption_msg],
+            )?;
+
+            Ok((reconciled_snapshots, reconciled_transfers))
+        })
+    }
+
     // =========================================================================
     // Backup Profiles
     // =========================================================================

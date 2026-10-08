@@ -966,6 +966,50 @@
 
 ---
 
-## Next Phase: Phase 18
-- Phase 18 has NOT started.
+## Phase 18: Combined Production Hardening, Recovery, Reliability & Final Core Integration
+- Status: COMPLETED
+- Date: 2026-10-08
+- Objectives:
+  - Consolidate recovery, crash resilience, operational state management, production reliability, security hardening, database integrity, and end-to-end integration into a single hardening phase.
+  - Implement deterministic startup recovery: automatic database PRAGMA integrity and foreign key checks, reconciliation of operations interrupted by unexpected process termination (snapshots stuck in `BackingUp`/`Scanning` and transfer jobs in `Transferring` transitioned to `Failed`), and orphaned temporary staging payload cleanup.
+  - Ensure zero operations remain permanently stuck in transient non-terminal states after crashes or reboots.
+  - Audit database integrity and transaction boundaries (`PRAGMA integrity_check = ok`, `foreign_key_check = 0 violations`).
+  - Enforce configuration atomicity on `AppConfig` and `TelegramCredentials` via temporary file writing, byte flushing, and atomic rename/replacement.
+  - Validate restore interruption recovery and collision resolution across `Overwrite`, `Skip`, and `KeepBoth`.
+  - Validate scheduler recovery across restarts without execution storms, bounded by the concurrency guard.
+  - Enforce the absolute cloud-first storage invariant: zero permanent backup payloads retained on local disk.
+  - Provide a typed diagnostic report `StartupRecoveryReportDto` accessible over typed Tauri Specta IPC (`get_startup_recovery_report`).
+  - Maintain clean-machine readiness with dynamically resolved paths (zero hardcoded developer paths).
+
+### Key Engineering Accomplishments:
+1. **Startup Recovery Subsystem & State Reconciliation**:
+   - Implemented `reconcile_interrupted_operations` in `televault-db`: executes an atomic SQLite transaction transitioning stale snapshots to `Failed` (annotating `interruption_reason` and `interrupted_at` in JSON metadata) and stale transfer jobs to `Failed`.
+   - Wired recovery execution into `DesktopAppState::new`: executes `full_integrity_check`, `foreign_key_check`, `reconcile_interrupted_operations`, and `temp_manager.cleanup_stale_staging_files(0)`.
+   - Generates `StartupRecoveryReportDto` containing validation status, violation counts, and reconciled operation tallies.
+   - Added `get_startup_recovery_report` IPC command registered in `builder.rs` and generated in TypeScript bindings.
+2. **Atomic Configuration Updates**:
+   - Hardened `update_app_config` in `apps/desktop/src/commands/system.rs` to write JSON payloads to `.tmp` files before atomically renaming to `televault.json`, preventing config corruption on power failure.
+3. **Database Integrity & Transaction Boundaries**:
+   - Validated that `full_integrity_check` returns `["ok"]` and `foreign_key_check` returns 0 violations on both clean and recovered databases.
+4. **Collision & Restore Safety**:
+   - Comprehensive testing of `CollisionPolicy::Skip`, `CollisionPolicy::KeepBoth` (generating deterministic `(1)`, `(2)` filenames), and `CollisionPolicy::Overwrite`.
+   - Proved temporary files in restore pipeline are cleaned up completely without payload leakage.
+5. **Scheduler Recovery & Guard Bounds**:
+   - Validated that schedules with past next-run timestamps do not storm background execution workers; in-memory `ExecutionGuard` cleanly resets on startup.
+6. **Retention Safety & Cloud-First Invariant**:
+   - Proved retention pruning remains strictly transactional and local, never touching remote Telegram backup objects.
+7. **Comprehensive Test Suite & Verification Results**:
+   - Rust test count: **318 passed, 0 failed, 0 ignored** (+6 new tests: 1 reconciliation test in `televault-db`, 5 recovery/integration tests in `televault-desktop`).
+   - Frontend Vitest suite: **28 passed, 0 failed, 0 ignored**.
+   - Total authoritative test count: **346 passed, 0 failed, 0 ignored**.
+   - Rust formatting check (`cargo fmt --all -- --check`): PASSED.
+   - Rust clippy lint check (`cargo clippy --workspace --all-targets --all-features -- -D warnings`): PASSED (0 warnings).
+   - Frontend production bundle build (`tsc && vite build`): PASSED.
+   - Security audit: 0 secrets committed, 0 session tokens committed, 0 credentials in git diff.
+   - Dynamic path audit: 0 machine-specific paths present.
+
+---
+
+## Phase 19: Not Started
+- Phase 19 has NOT started.
 

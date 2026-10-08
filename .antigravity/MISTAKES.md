@@ -247,10 +247,12 @@
 
 ## Phase 17 — Staged Upload Lacked Automatic Retry Loop
 - Mistake: `TransferEngine::execute_staged_upload` executed a single attempt; when `upload_stream` failed on a transient network reset, the job was transitioned to `Retrying` but returned `Err` to the caller, failing the backup prematurely.
-- Root Cause: Assumed retry scheduling was exclusively handled by the transfer queue worker rather than the staged upload pipeline.
-- Fix: Wrapped `execute_staged_upload` in a loop that checks `is_retryable()` and `retry_policy.can_retry(job.retry_count)`, sleeps for `calculate_backoff()`, and retries streaming from the staged file.
-- Regression Test: `test_telegram_network_retry_and_idempotency` in `apps/desktop/tests/telegram_integration_e2e_tests.rs`.
-- Prevention Rule: Transfer pipeline methods accepting local staged files must loop with exponential backoff on retryable errors until success or retry exhaustion.
+## Phase 18 — Specta Type Export Rejection on usize Fields in DTOs
+- Mistake: In `StartupRecoveryReportDto`, count fields (`foreign_key_violations`, `reconciled_snapshots_count`, `reconciled_transfers_count`, `purged_staging_files_count`) were initially typed as `usize`, causing `--export-types` to exit with an error because Specta forbids unannotated `usize` to avoid JavaScript precision issues.
+- Root Cause: Defaulted to Rust's native container index type (`usize`) in an IPC DTO struct intended for TypeScript export.
+- Fix: Converted all count fields in `StartupRecoveryReportDto` to `u32`, which cleanly translates to TypeScript `number`.
+- Regression Test: `cargo run -p televault-desktop -- --export-types` successfully exported TypeScript bindings without errors.
+- Prevention Rule: DTO structs exported via `specta` should use fixed-width integer types (`u32`, `i32`) or annotate 64-bit values with `#[specta(type = Number)]` instead of `usize`.
 
 
 

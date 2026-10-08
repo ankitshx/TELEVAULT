@@ -78,12 +78,33 @@ pub fn update_app_config(
     let json_bytes = serde_json::to_string_pretty(&config)
         .map_err(|e| IpcError::internal(format!("Failed to serialize config: {e}")))?;
 
-    std::fs::write(state.paths.config_file(), json_bytes).map_err(|e| {
+    let target_file = state.paths.config_file();
+    let temp_file = target_file.with_extension("tmp");
+
+    std::fs::write(&temp_file, json_bytes.as_bytes()).map_err(|e| {
         IpcError::new(
             "FILESYSTEM_ERROR",
-            format!("Failed to write config file: {e}"),
+            format!("Failed to write temporary config file: {e}"),
+        )
+    })?;
+
+    std::fs::rename(&temp_file, &target_file).map_err(|e| {
+        // Clean up temp file on rename failure
+        let _ = std::fs::remove_file(&temp_file);
+        IpcError::new(
+            "FILESYSTEM_ERROR",
+            format!("Failed to commit config file atomically: {e}"),
         )
     })?;
 
     Ok(config.into())
+}
+
+/// Returns the deterministic startup recovery and state reconciliation diagnostic report.
+#[tauri::command]
+#[specta::specta]
+pub fn get_startup_recovery_report(
+    state: State<'_, DesktopAppState>,
+) -> IpcResult<crate::dto::StartupRecoveryReportDto> {
+    Ok((*state.startup_recovery_report).clone())
 }

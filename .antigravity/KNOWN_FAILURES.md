@@ -89,3 +89,13 @@
 - Failure Mode: Bot token compromise, unauthorized channel access, credential leakage in bug reports or Git.
 - Mitigation in Phase 17: `TelegramCredentials` redacts secrets in `Debug` and `Display` (`[REDACTED]`), persists solely to a git-ignored file (`telegram_credentials.json`), excludes secrets from Specta DTOs (`TelegramStatusDto` returns only `is_configured`, `target_chat_id`, and `bot_username`), and rejects plaintext storage in database tables.
 
+## KF-019: Stale In-Flight Operations After Abnormal Process Termination
+- Risk: Process kill, OS reboot, or power outage occurs during active chunk uploading or scanning, leaving snapshots in `BackingUp`/`Scanning` and transfer jobs in `Transferring`.
+- Failure Mode: Subsequent launches perceive active jobs in flight, blocking scheduled backups or reporting false activity.
+- Mitigation in Phase 18: Deterministic Startup Recovery (`reconcile_interrupted_operations`) automatically runs inside a transaction on `DesktopAppState::new`, identifying non-terminal active operations and marking them `Failed` with diagnostic reason annotations, while purging orphaned temporary staging files.
+
+## KF-020: Truncated Configuration Files from Interrupted Writes
+- Risk: System crash or power interruption while writing `televault.json` leaves zero-byte or truncated JSON on disk.
+- Failure Mode: Application fails to start or defaults unexpectedly on subsequent launches.
+- Mitigation in Phase 18: Configuration updates execute atomically by writing to `.tmp`, flushing to disk, and renaming to replace the destination file.
+

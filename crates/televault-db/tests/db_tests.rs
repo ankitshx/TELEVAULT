@@ -1487,3 +1487,167 @@ fn test_database_foreign_key_and_full_integrity_checks() {
     assert!(health.foreign_keys_enabled);
     assert_eq!(health.integrity_check, "ok");
 }
+
+#[test]
+fn test_reconcile_interrupted_operations() {
+    let db = Database::open_in_memory().expect("open in-memory db");
+
+    let pid = ProfileId::new("prof-reconcile").unwrap();
+    let profile = ProfileRecord {
+        profile_id: pid.clone(),
+        name: "Reconcile Profile".into(),
+        description: None,
+        source_path: "D:\\Reconcile".into(),
+        enabled: true,
+        created_at: "2026-10-08T10:00:00Z".into(),
+        updated_at: "2026-10-08T10:00:00Z".into(),
+    };
+    db.create_profile(&profile).expect("create profile");
+
+    // Insert 1 completed, 1 scanning, 1 backing_up snapshot
+    let s_completed = SnapshotRecord {
+        snapshot_id: SnapshotId::new("snap-comp").unwrap(),
+        profile_id: pid.clone(),
+        status: BackupStatus::Completed,
+        metadata: None,
+        created_at: "2026-10-08T10:01:00Z".into(),
+    };
+    let s_scanning = SnapshotRecord {
+        snapshot_id: SnapshotId::new("snap-scan").unwrap(),
+        profile_id: pid.clone(),
+        status: BackupStatus::Scanning,
+        metadata: Some("{\"test\":1}".into()),
+        created_at: "2026-10-08T10:02:00Z".into(),
+    };
+    let s_backingup = SnapshotRecord {
+        snapshot_id: SnapshotId::new("snap-back").unwrap(),
+        profile_id: pid.clone(),
+        status: BackupStatus::BackingUp,
+        metadata: None,
+        created_at: "2026-10-08T10:03:00Z".into(),
+    };
+    db.create_snapshot(&s_completed).expect("create completed");
+    db.create_snapshot(&s_scanning).expect("create scanning");
+    db.create_snapshot(&s_backingup).expect("create backing_up");
+
+    // Insert a file record for foreign key integrity
+    let fid = FileId::new("file-reconcile-01").unwrap();
+    let file = FileRecord {
+        file_id: fid.clone(),
+        profile_id: Some(pid.clone()),
+        file_name: "data.bin".into(),
+        relative_path: "data.bin".into(),
+        original_size: 4096,
+        mime_type: None,
+        status: "active".into(),
+        logical_file_hash: Some("hash_rec".into()),
+        created_at: "2026-10-08T10:00:30Z".into(),
+        modified_at: None,
+        created_timestamp: "2026-10-08T10:00:30Z".into(),
+        updated_timestamp: "2026-10-08T10:00:30Z".into(),
+    };
+    db.create_file(&file).expect("create file");
+
+    // Insert 1 completed, 1 pending, 1 transferring transfer jobs
+    let j_comp = TransferJobRecord {
+        job_id: JobId::new("job-comp").unwrap(),
+        file_id: fid.clone(),
+        chunk_id: None,
+        direction: TransferDirection::Upload,
+        status: TransferStatus::Completed,
+        progress: 1000,
+        retry_count: 0,
+        error_message: None,
+        created_at: "2026-10-08T10:01:00Z".into(),
+        updated_at: "2026-10-08T10:01:30Z".into(),
+    };
+    let j_pending = TransferJobRecord {
+        job_id: JobId::new("job-pending").unwrap(),
+        file_id: fid.clone(),
+        chunk_id: None,
+        direction: TransferDirection::Upload,
+        status: TransferStatus::Pending,
+        progress: 0,
+        retry_count: 0,
+        error_message: None,
+        created_at: "2026-10-08T10:02:00Z".into(),
+        updated_at: "2026-10-08T10:02:00Z".into(),
+    };
+    let j_transferring = TransferJobRecord {
+        job_id: JobId::new("job-trans").unwrap(),
+        file_id: fid.clone(),
+        chunk_id: None,
+        direction: TransferDirection::Upload,
+        status: TransferStatus::Transferring,
+        progress: 1500,
+        retry_count: 0,
+        error_message: None,
+        created_at: "2026-10-08T10:03:00Z".into(),
+        updated_at: "2026-10-08T10:03:10Z".into(),
+    };
+    db.create_transfer_job(&j_comp).expect("create j_comp");
+    db.create_transfer_job(&j_pending)
+        .expect("create j_pending");
+    db.create_transfer_job(&j_transferring)
+        .expect("create j_transferring");
+
+    // Perform startup reconciliation
+    let (reconciled_snaps, reconciled_trans) = db
+        .reconcile_interrupted_operations()
+        .expect("reconcile interrupted operations");
+
+    assert_eq!(
+        reconciled_snaps, 2,
+        "Scanning and BackingUp snapshots reconciled"
+    );
+    assert_eq!(reconciled_trans, 1, "Transferring job reconciled");
+
+    // Verify completed snapshot untouched
+    let snap_c = db
+        .get_snapshot(&SnapshotId::new("snap-comp").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(snap_c.status, BackupStatus::Completed);
+
+    // Verify interrupted snapshots are Failed and have diagnostic metadata
+    let snap_s = db
+        .get_snapshot(&SnapshotId::new("snap-scan").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(snap_s.status, BackupStatus::Failed);
+    assert!(snap_s
+        .metadata
+        .as_ref()
+        .unwrap()
+        .contains("interruption_reason"));
+
+    let snap_b = db
+        .get_snapshot(&SnapshotId::new("snap-back").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(snap_b.status, BackupStatus::Failed);
+    assert!(snap_b
+        .metadata
+        .as_ref()
+        .unwrap()
+        .contains("interruption_reason"));
+
+    // Verify pending job untouched
+    let job_p = db
+        .get_transfer_job(&JobId::new("job-pending").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(job_p.status, TransferStatus::Pending);
+
+    // Verify transferring job is Failed
+    let job_t = db
+        .get_transfer_job(&JobId::new("job-trans").unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(job_t.status, TransferStatus::Failed);
+    assert!(job_t
+        .error_message
+        .as_ref()
+        .unwrap()
+        .contains("Operation interrupted"));
+}

@@ -23,8 +23,8 @@ use televault_transfer::cancellation::CancellationToken;
 use televault_transfer::engine::{TransferEngine, TransferEngineConfig};
 
 use crate::dto::{
-    SaveTelegramConfigDto, TelegramConnectionStatus, TelegramConnectionTestResultDto,
-    TelegramStatusDto,
+    SaveTelegramConfigDto, StartupRecoveryReportDto, TelegramConnectionStatus,
+    TelegramConnectionTestResultDto, TelegramStatusDto,
 };
 
 /// Thread-safe delegating storage provider routing operations to the active backend.
@@ -140,6 +140,8 @@ pub struct DesktopAppState {
     pub cancellation_registry: Arc<Mutex<HashMap<String, CancellationToken>>>,
     /// Status tracking for Telegram connectivity.
     pub telegram_status_cache: Arc<Mutex<Option<TelegramTestCache>>>,
+    /// Diagnostic report from startup recovery and deterministic reconciliation.
+    pub startup_recovery_report: Arc<StartupRecoveryReportDto>,
 }
 
 /// Cached connection test result status.
@@ -168,6 +170,40 @@ impl DesktopAppState {
             Database::open(paths.db_file())
                 .map_err(|e| AppError::Io(std::io::Error::other(e.to_string())))?,
         );
+
+        // --- Deterministic Startup Recovery & Reconciliation ---
+        // 1. Run database integrity and foreign key checks
+        let database_integrity_details = db
+            .full_integrity_check()
+            .unwrap_or_else(|e| vec![format!("Integrity check error: {e}")]);
+        let database_integrity_ok = database_integrity_details
+            .iter()
+            .all(|s| s.eq_ignore_ascii_case("ok"));
+
+        let foreign_key_violation_details = db.foreign_key_check().unwrap_or_default();
+        let foreign_key_violations = foreign_key_violation_details.len();
+
+        // 2. Reconcile interrupted active operations (BackingUp/Scanning snapshots and Transferring jobs)
+        let (reconciled_snapshots_count, reconciled_transfers_count) =
+            db.reconcile_interrupted_operations().unwrap_or((0, 0));
+
+        // 3. Purge orphaned staging files from disk (staging files older than 0 duration on fresh startup)
+        let temp_manager = Arc::new(TempPayloadManager::new(paths.temp_dir()));
+        let purged_staging_files_count = temp_manager
+            .cleanup_stale_staging_files(std::time::Duration::from_secs(0))
+            .unwrap_or(0);
+
+        let recovered_at = chrono::Utc::now().to_rfc3339();
+        let startup_recovery_report = Arc::new(StartupRecoveryReportDto {
+            database_integrity_ok,
+            database_integrity_details,
+            foreign_key_violations: foreign_key_violations as u32,
+            foreign_key_violation_details,
+            reconciled_snapshots_count: reconciled_snapshots_count as u32,
+            reconciled_transfers_count: reconciled_transfers_count as u32,
+            purged_staging_files_count: purged_staging_files_count as u32,
+            recovered_at,
+        });
 
         let creds_file = paths.config_dir().join("telegram_credentials.json");
         let initial_provider: Arc<dyn StorageProvider + Send + Sync> = match custom_provider {
@@ -198,7 +234,6 @@ impl DesktopAppState {
         let storage_provider: Arc<dyn StorageProvider + Send + Sync> =
             Arc::clone(&dynamic_storage) as Arc<dyn StorageProvider + Send + Sync>;
 
-        let temp_manager = Arc::new(TempPayloadManager::new(paths.temp_dir()));
         let transfer_config = TransferEngineConfig::default();
         let transfer_engine = Arc::new(TransferEngine::new(
             Arc::clone(&storage_provider),
@@ -253,6 +288,7 @@ impl DesktopAppState {
             repair_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
             telegram_status_cache: Arc::new(Mutex::new(None)),
+            startup_recovery_report,
         })
     }
 
@@ -327,6 +363,16 @@ impl DesktopAppState {
             repair_engine,
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
             telegram_status_cache: Arc::new(Mutex::new(None)),
+            startup_recovery_report: Arc::new(StartupRecoveryReportDto {
+                database_integrity_ok: true,
+                database_integrity_details: vec!["ok".into()],
+                foreign_key_violations: 0,
+                foreign_key_violation_details: Vec::new(),
+                reconciled_snapshots_count: 0,
+                reconciled_transfers_count: 0,
+                purged_staging_files_count: 0,
+                recovered_at: chrono::Utc::now().to_rfc3339(),
+            }),
         }
     }
 

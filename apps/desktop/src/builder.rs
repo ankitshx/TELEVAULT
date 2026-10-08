@@ -16,6 +16,7 @@ pub fn create_ipc_builder() -> Builder<tauri::Wry> {
         system::get_system_paths,
         system::get_app_config,
         system::update_app_config,
+        system::get_startup_recovery_report,
         // Backup
         backup::list_backup_profiles,
         backup::get_backup_profile,

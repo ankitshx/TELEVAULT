@@ -122,6 +122,20 @@ Phase 17 transitions TELEVAULT from mock-only remote storage to a production-rea
 - **Remote Verification, Restore & Repair over Telegram**: Remote availability and SHA-256 integrity verification, incremental backup pipelines, byte-for-byte restore, and bitrot repair seamlessly operate against Telegram message documents and captions (`TELEVAULT:V1:...`).
 - **Resilient Retry & Backoff**: Automatic retry with exponential backoff on transient network interruptions (e.g. connection resets, peer closed stream) in `execute_staged_upload`, preserving idempotent database state and zero staging file leaks.
 
+### 3.10 Combined Production Hardening, Recovery & Final Core Integration (Phase 18)
+Phase 18 combines crash resilience, deterministic startup recovery, state machine auditing, configuration atomicity, and complete end-to-end integration:
+- **Startup Recovery & Reconciliation Engine**:
+  - Deterministically inspects database integrity on application boot via `PRAGMA integrity_check` and `PRAGMA foreign_key_check`.
+  - Reconciles active operations interrupted by abrupt process termination or system reboot: snapshots stuck in `BackingUp` or `Scanning` and transfer jobs stuck in `Transferring` are atomically marked `Failed` inside a transaction with descriptive diagnosis metadata.
+  - Automatically sweeps transient staging directories, purging orphaned temporary payload files to guarantee zero disk leakage.
+  - Generates a typed `StartupRecoveryReportDto` exposed across typed Tauri IPC via `get_startup_recovery_report`.
+- **Atomic Configuration Management**:
+  - All application configuration (`televault.json`) and Telegram credentials updates execute via temporary file writes, byte synchronization, and atomic filesystem rename/replace, preventing corrupt or partially written configs under power loss.
+- **Restore Interruption & Destination Collision Resilience**:
+  - Thoroughly validates collision policies (`Overwrite`, `Skip`, `KeepBoth` with deterministic `(1)`, `(2)` naming) and temporary destination spooling with zero payload leakage.
+- **Full End-to-End Core Verification**:
+  - Validates full end-to-end pipeline: Profile creation ➔ File Discovery ➔ Zstd Compression ➔ Optional Encryption ➔ Bounded 64 KiB Chunking ➔ Transfer Queue ➔ Storage Provider ➔ Remote Verification ➔ Atomic Commit ➔ Retention Evaluation ➔ Restore ➔ SHA-256 byte-for-byte matching.
+
 ---
 
 ## 4. Development Workflow & GitHub Integration
@@ -147,7 +161,6 @@ Phase 17 transitions TELEVAULT from mock-only remote storage to a production-rea
 - **Primary Branch**: `main`
 - **Continuous Cumulative Remote Checkpoints**: Every completed phase is pushed immediately to origin, creating an immutable chronological backup of code, tests, and documentation.
 
-
 ---
 
 ## 5. Completed Phases & Status
@@ -159,7 +172,7 @@ Phase 17 transitions TELEVAULT from mock-only remote storage to a production-rea
 | **Phase 2** | `televault-core` Domain Layer & PathManager | 19 | Approved |
 | **Phase 3** | `televault-crypto` AES-256-GCM & Argon2id KDF | 23 | Approved |
 | **Phase 4** | `televault-manifest` ManifestV1 & Chunk Specification | 20 | Approved |
-| **Phase 5** | `televault-db` SQLite Embedded Catalog & FTS5 | 16 | Approved |
+| **Phase 5** | `televault-db` SQLite Embedded Catalog & FTS5 | 17 | Approved |
 | **Phase 6** | `televault-storage` Cloud-First & Temp Staging | 13 | Approved |
 | **Phase 7** | `televault-transfer` Bounded Streaming Queue Engine | 27 | Approved |
 | **Phase 8** | `televault-backup` Snapshot & Incremental Backup Engine | 9 | Approved |
@@ -171,8 +184,9 @@ Phase 17 transitions TELEVAULT from mock-only remote storage to a production-rea
 | **Phase 14** | Remote Repair & Recovery, Disk Audit & GitHub Sync | 17 | Approved |
 | **Phase 15** | Production Desktop App Integration & UI Completion | 24 | Approved |
 | **Phase 16** | Production Hardening, End-to-End Integration & Reliability | 15 | Approved |
-| **Phase 17** | **Production Telegram Cloud Storage Integration** | **20** | **Completed** |
-| **Total** | **Authoritative Test Baseline (312 Rust + 28 UI)** | **340** | **100% Passed** |
+| **Phase 17** | Production Telegram Cloud Storage Integration | 20 | Approved |
+| **Phase 18** | **Production Hardening, Recovery, Reliability & Core Integration** | **31** | **Completed** |
+| **Total** | **Authoritative Test Baseline (318 Rust + 28 UI)** | **346** | **100% Passed** |
 
 ---
 
@@ -185,7 +199,7 @@ Phase 17 transitions TELEVAULT from mock-only remote storage to a production-rea
 
 ### Running Verification & Tests
 ```powershell
-# Run the Rust test suite (312 tests)
+# Run the Rust test suite (318 tests)
 cargo test --workspace --all-targets --all-features
 
 # Run strict Clippy lint checks
@@ -218,16 +232,16 @@ npm run tauri dev
 2. **No Localhost**: Zero HTTP/WebSocket servers running on `127.0.0.1`. All UI-to-backend communication uses direct in-process Tauri IPC.
 3. **No Unbounded Memory**: Maximum streaming buffer size is 64 KiB. Transferring 5.2 GB logical files allocates less than 50 MB RAM total.
 4. **No Secrets in Logs or Catalog**: Telegram tokens, encryption keys, and session credentials are never logged or stored in plain SQLite.
-5. **No Remote Deletion in Repair**: Remote Telegram chunks are never deleted during Phase 14 repair operations.
-6. **Zero Payload in UI**: React state never retains multi-gigabyte files or backup payload bytes.
+5. **No Remote Deletion in Repair or Retention**: Remote Telegram chunks are never deleted during repair or retention operations.
+6. **Zero Payload in UI or Local Storage**: React state never retains multi-gigabyte files or backup payload bytes; no permanent backup payloads accumulate locally.
 
 ---
 
-## 8. Known Limitations & Future Work
+## 8. Known Limitations & Clean-Machine Readiness
 
-- **Live Cloud Validation**: When live Telegram credentials are not present in the runtime environment, the application securely falls back to `MockStorageProvider` and deterministic mock-transport integration tests. Live verification with production cloud accounts will run when live credentials are provided.
-- **Telegram Bot API Size Limits**: Standard Telegram Bot API limits uploads to 50 MB (20 MB for downloads via default Bot API servers; up to 2 GB with custom local Bot API server). Chunks are tagged and partitioned according to standard constraints.
-- **Future Phase 18+**: Release packaging, code signing, and installer automation.
+- **Live Telegram Cloud Validation**: NOT EXECUTED due to absence of live production credentials in test environment. When live credentials are provided, `TelegramStorageProvider` connects directly to the Telegram Cloud Bot API.
+- **Telegram Bot API Size Limits**: Standard public Telegram Bot API limits uploads to 50 MB (20 MB for downloads via default Bot API servers; up to 2 GB with custom local Bot API server). Chunks are tagged and partitioned according to standard constraints.
+- **Clean-Machine Dynamic Pathing**: All filesystem directories resolve dynamically via `%LOCALAPPDATA%\TELEVAULT` on Windows (zero hardcoded developer paths).
 
 ---
 

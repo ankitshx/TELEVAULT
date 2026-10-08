@@ -12,6 +12,8 @@ export const commands = {
 	getAppConfig: () => typedError<AppConfigDto, IpcError>(__TAURI_INVOKE("get_app_config")),
 	/**  Validates, persists, and returns updated application configuration preferences. */
 	updateAppConfig: (request: AppConfigDto) => typedError<AppConfigDto, IpcError>(__TAURI_INVOKE("update_app_config", { request })),
+	/**  Returns the deterministic startup recovery and state reconciliation diagnostic report. */
+	getStartupRecoveryReport: () => typedError<StartupRecoveryReportDto, IpcError>(__TAURI_INVOKE("get_startup_recovery_report")),
 	/**  Lists all configured backup profiles from the database. */
 	listBackupProfiles: () => typedError<BackupProfileDto[], IpcError>(__TAURI_INVOKE("list_backup_profiles")),
 	/**  Retrieves a specific backup profile by ProfileId. */
@@ -685,6 +687,26 @@ export type StartBackupRequest = {
 	profile_id: string,
 	/**  Optional encryption passphrase if profile has encryption enabled. */
 	passphrase: string | null,
+};
+
+/**  Diagnostic report generated during deterministic startup recovery and state reconciliation. */
+export type StartupRecoveryReportDto = {
+	/**  Whether SQLite database integrity check reported healthy ("ok"). */
+	database_integrity_ok: boolean,
+	/**  Detailed messages from database integrity check. */
+	database_integrity_details: string[],
+	/**  Number of foreign key constraint violations detected (0 = clean). */
+	foreign_key_violations: number,
+	/**  Detailed foreign key violation descriptions. */
+	foreign_key_violation_details: string[],
+	/**  Number of stale snapshots reconciled from transient states (e.g. BackingUp/Scanning) to Failed. */
+	reconciled_snapshots_count: number,
+	/**  Number of stale transfer jobs reconciled from Transferring to Failed. */
+	reconciled_transfers_count: number,
+	/**  Number of orphaned temporary staging files purged from disk. */
+	purged_staging_files_count: number,
+	/**  ISO 8601 timestamp when recovery execution completed. */
+	recovered_at: string,
 };
 
 /**  Storage cache and temporary file retention parameters. */
