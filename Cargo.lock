@@ -4043,6 +4043,7 @@ dependencies = [
  "specta",
  "specta-typescript",
  "tauri",
+ "tauri-build",
  "tauri-specta",
  "televault-backup",
  "televault-core",

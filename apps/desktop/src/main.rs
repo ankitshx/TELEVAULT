@@ -28,8 +28,23 @@ fn main() {
         return;
     }
 
-    let base_dir = std::env::current_dir().unwrap_or_else(|_| ".".into());
+    let base_dir = std::env::var("TELEVAULT_BASE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            televault_core::paths::PathManager::system_default()
+                .base_dir()
+                .to_path_buf()
+        });
     let state = DesktopAppState::new(base_dir, None).expect("Failed to initialize DesktopAppState");
+
+    // Check if invoked with --check-startup flag for automated headless launch verification
+    if args.iter().any(|a| a == "--check-startup") {
+        println!(
+            "TELEVAULT Desktop v{} initialized successfully.",
+            env!("CARGO_PKG_VERSION")
+        );
+        return;
+    }
 
     let specta_builder = create_ipc_builder();
 
@@ -37,12 +52,11 @@ fn main() {
     tauri_builder = tauri_builder.manage(state);
 
     // Register all commands through specta handler
-    let _tauri_builder = tauri_builder.invoke_handler(specta_builder.invoke_handler());
+    let tauri_builder = tauri_builder.invoke_handler(specta_builder.invoke_handler());
 
-    println!(
-        "TELEVAULT Desktop v{} initialized successfully.",
-        env!("CARGO_PKG_VERSION")
-    );
+    tauri_builder
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
 
 #[cfg(test)]

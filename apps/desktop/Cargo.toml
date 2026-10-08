@@ -11,7 +11,7 @@ name = "televault_desktop"
 path = "src/lib.rs"
 
 [[bin]]
-name = "televault-desktop"
+name = "TELEVAULT"
 path = "src/main.rs"
 
 [dependencies]
@@ -40,3 +40,6 @@ chrono = { workspace = true }
 
 [dev-dependencies]
 tauri = { version = "2", default-features = false, features = ["wry", "test"] }
+
+[build-dependencies]
+tauri-build = { version = "2", default-features = false }

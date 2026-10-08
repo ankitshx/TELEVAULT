@@ -11,6 +11,7 @@ node_modules/
 /apps/desktop/node_modules/
 /apps/desktop/dist/
 /apps/desktop/build/
+/apps/desktop/gen/
 /apps/desktop/ui/node_modules/
 /apps/desktop/ui/dist/
 /apps/desktop/ui/build/
