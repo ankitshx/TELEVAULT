@@ -199,7 +199,7 @@ Phase 18 combines crash resilience, deterministic startup recovery, state machin
 
 ### Running Verification & Tests
 ```powershell
-# Run the Rust test suite (318 tests)
+# Run the Rust test suite (326 tests)
 cargo test --workspace --all-targets --all-features
 
 # Run strict Clippy lint checks
