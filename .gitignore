@@ -5,12 +5,16 @@
 **/*.rs.bk
 
 # Node & Frontend dependencies and bundles
-/node_modules/
+node_modules/
 /dist/
 /build/
 /apps/desktop/node_modules/
 /apps/desktop/dist/
 /apps/desktop/build/
+/apps/desktop/ui/node_modules/
+/apps/desktop/ui/dist/
+/apps/desktop/ui/build/
+
 
 # Local databases and SQLite journals (never track runtime local database instances)
 *.db

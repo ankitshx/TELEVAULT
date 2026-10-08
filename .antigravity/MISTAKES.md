@@ -196,6 +196,21 @@
 - Regression Test: `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 - Prevention Rule: Explicitly allow `clippy::too_many_arguments` on multi-table database transaction methods when bundling entities into a synthetic wrapper reduces domain readability.
 
+## Phase 15 — Vite Windows Drive Letter Normalization (d: vs D:)
+- Mistake: In `apps/desktop/ui/vite.config.ts`, Vitest and Vite root resolution on Windows caused module discovery failure when drive letters differed in case (`d:` vs `D:`).
+- Root Cause: `__dirname` supplied lowercase `d:\Projects\Televalut\apps\desktop\ui` while Node's `fs.realpathSync` normalized to uppercase `D:`, causing Vite to treat paths outside root as external.
+- Fix: Used `fs.realpathSync(__dirname).replace(/^[a-z]:/, m => m.toUpperCase()).replace(/\\/g, "/")` for root and test configuration in `vite.config.ts`.
+- Regression Test: `npm.cmd test -- --run` and `npm.cmd run build` inside `apps/desktop/ui`.
+- Prevention Rule: Always normalize drive letter casing and forward slashes when configuring Vite/Vitest root paths on Windows environments.
+
+## Phase 15 — Specta TypeScript DTO Field Alignment
+- Mistake: Initial frontend type definitions used informal field names (`destination`, `repaired_count`, `next_run`) instead of matching authoritative Rust Specta structs (`destination_directory`, `pruned_versions_count`, `next_run_at`).
+- Root Cause: Drafted frontend component props before regenerating and checking the authoritative TypeScript bindings file `bindings.ts`.
+- Fix: Regenerated `bindings.ts` via `--export-types` and strictly aligned all frontend component props and form handlers with `bindings.ts` and `types.ts`.
+- Regression Test: `npm.cmd run build` (`tsc && vite build`) passing with zero type errors.
+- Prevention Rule: Always export and inspect generated Specta bindings before implementing frontend forms and IPC consumption.
+
+
 
 
 

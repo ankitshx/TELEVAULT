@@ -89,6 +89,22 @@ When verification detects damaged or missing remote chunks, the **Remote Repair 
 - **Atomic Database Transactions**: Local catalog updates execute inside an atomic SQLite transaction; any failure immediately triggers rollback.
 - **Idempotence & Cancellation**: Already-healthy chunks are skipped without duplicate uploads. Cooperative cancellation via `CancellationToken` ensures immediate abort with complete cleanup of temporary staging files.
 
+### 3.7 Desktop UI & Application Integration Model (Phase 15)
+TELEVAULT features a unified, dark-theme desktop user experience integrated directly into Tauri 2:
+- **Zero Network Drift**: Pure in-process architecture connecting React 19 and TypeScript to the Rust core strictly via `tauri-specta` typed IPC bindings. Zero localhost HTTP, zero WebSocket servers, zero Python runtimes, and zero sidecar executables.
+- **10 Core Views Integrated**:
+  1. **Dashboard**: Live system status, profile inventory, recent backups, active transfers, verification, and repair summary.
+  2. **Backups**: Manual and profile-driven backup trigger, live execution status, cancellation, and error reporting.
+  3. **Restore**: Historical snapshot browser, point-in-time file catalog inspection, destination path selection, and deterministic collision policies (`Overwrite`, `Skip`, `KeepBoth`).
+  4. **Schedules**: Automation manager supporting Interval, Daily, Weekly, and Cron triggers, with run history and manual trigger overrides.
+  5. **Retention**: Multi-rule snapshot retention policy designer (keep latest N, age window, keep latest successful) with dry-run preview and safe atomic execution (zero remote deletion).
+  6. **Verification**: 4-level integrity auditor (`MetadataOnly`, `RemoteAvailability`, `RemoteIntegrity`, `RestoreReadiness`) displaying health indicators, finding codes, and repair eligibility.
+  7. **Repair**: Guided remote repair wizard with pre-execution eligibility validation, dry-run preview, single-chunk isolated streaming repair, and persistent audit history.
+  8. **Activity**: Transfer and operational job monitor showing queued, active, completed, failed, and cancelled transfers with bounded byte counters and throughput tracking.
+  9. **Profiles**: Complete profile CRUD management (target paths, exclusion patterns, Zstd compression, and AES-256-GCM encryption configuration).
+  10. **Settings**: Centralized application configuration (`AppConfig`) covering general preferences, storage limits, transfer concurrency, and backup defaults.
+- **Zero-Payload Streaming UI Contract**: React state never loads, buffers, or retains actual backup payloads or multi-gigabyte files (e.g. 5.2 GB archives). The UI consumes and displays bounded metadata, percentages, and status codes while the Rust backend streams payloads in 64 KiB bounded chunks.
+
 ---
 
 ## 4. Development Workflow & GitHub Integration
@@ -135,8 +151,9 @@ When verification detects damaged or missing remote chunks, the **Remote Repair 
 | **Phase 11** | `televault-scheduler` Background Scheduling Engine | 15 | Approved |
 | **Phase 12** | `televault-backup` Snapshot Retention & Pruning Engine | 34 | Approved |
 | **Phase 13** | `televault-integrity` Remote Verification & Audit Engine | 50 | Approved |
-| **Phase 14** | **Remote Repair & Recovery, Disk Audit & GitHub Sync** | **17** | **Completed** |
-| **Total** | **Authoritative Test Baseline** | **281** | **100% Passed** |
+| **Phase 14** | Remote Repair & Recovery, Disk Audit & GitHub Sync | 17 | Approved |
+| **Phase 15** | **Production Desktop App Integration & UI Completion** | **24** | **Completed** |
+| **Total** | **Authoritative Test Baseline (282 Rust + 23 UI)** | **305** | **100% Passed** |
 
 ---
 
@@ -149,7 +166,7 @@ When verification detects damaged or missing remote chunks, the **Remote Repair 
 
 ### Running Verification & Tests
 ```powershell
-# Run the complete test suite (281 tests)
+# Run the Rust test suite (282 tests)
 cargo test --workspace
 
 # Run strict Clippy lint checks
@@ -158,8 +175,12 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 # Verify code formatting
 cargo fmt --all -- --check
 
-# Enumerate authoritative test inventory
-cargo test --workspace -- --list
+# Run Frontend test suite (23 Vitest tests across 6 suites)
+cd apps/desktop/ui
+npm test -- --run
+
+# Build Frontend production assets
+npm run build
 ```
 
 ### Running the Desktop Application Locally
@@ -179,13 +200,13 @@ npm run tauri dev
 3. **No Unbounded Memory**: Maximum streaming buffer size is 64 KiB. Transferring 5.2 GB logical files allocates less than 50 MB RAM total.
 4. **No Secrets in Logs or Catalog**: Telegram tokens, encryption keys, and session credentials are never logged or stored in plain SQLite.
 5. **No Remote Deletion in Repair**: Remote Telegram chunks are never deleted during Phase 14 repair operations.
+6. **Zero Payload in UI**: React state never retains multi-gigabyte files or backup payload bytes.
 
 ---
 
 ## 8. Known Limitations & Future Work
 
-- **Future Phase 15+**: Remote garbage collection and explicit user-authorized remote Telegram chunk deletion.
-- **Future Phase 16+**: End-user UI visual dashboard for real-time repair progress visualization.
+- **Future Phase 16+**: Remote garbage collection and explicit user-authorized remote Telegram chunk deletion.
 - **Future Phase 17+**: Release packaging, code signing, and installer automation.
 
 ---

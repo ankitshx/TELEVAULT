@@ -1,59 +1,229 @@
-import React, { useEffect, useState } from "react";
-import { commands } from "./bindings";
+import { useState, useEffect, useCallback } from "react";
+import {
+  commands,
+  AppInfoDto,
+  BackupProfileDto,
+} from "./bindings";
+import { Sidebar } from "./components/Sidebar";
+import { Header } from "./components/Header";
+import { ToastContainer } from "./components/ToastContainer";
+import { NavTab, ToastMessage } from "./types";
 
-interface AppInfo {
-  app_name: string;
-  version: string;
-  platform: string;
-}
+// Views
+import { DashboardView } from "./views/DashboardView";
+import { BackupsView } from "./views/BackupsView";
+import { RestoreView } from "./views/RestoreView";
+import { SchedulesView } from "./views/SchedulesView";
+import { VerificationView } from "./views/VerificationView";
+import { RepairView } from "./views/RepairView";
+import { ActivityView } from "./views/ActivityView";
+import { ProfilesView } from "./views/ProfilesView";
+import { RetentionView } from "./views/RetentionView";
+import { SettingsView } from "./views/SettingsView";
+
+const screenTitles: Record<NavTab, { title: string; subtitle: string }> = {
+  dashboard: {
+    title: "System Dashboard",
+    subtitle: "Real-time overview of backup targets, schedules, and cloud activity",
+  },
+  backups: {
+    title: "Backup Management",
+    subtitle: "Coordinate point-in-time snapshots, incremental scans, and file catalogs",
+  },
+  restore: {
+    title: "Disaster Recovery & Restore",
+    subtitle: "Reconstruct backed-up files and snapshots with verified checksum integrity",
+  },
+  schedules: {
+    title: "Automated Schedules",
+    subtitle: "Event-driven background backup coordination with zero idle CPU overhead",
+  },
+  verification: {
+    title: "Remote Storage Verification",
+    subtitle: "Four-level cryptographic integrity audits across Telegram Cloud chunks",
+  },
+  repair: {
+    title: "Remote Repair & Chunk Recovery",
+    subtitle: "Isolated reconstruction of damaged chunks into fresh remote references",
+  },
+  activity: {
+    title: "Transfer Activity & Queue",
+    subtitle: "Monitor active transfer workers, network speeds, and cancellation status",
+  },
+  profiles: {
+    title: "Backup Profiles",
+    subtitle: "Configure source folders, exclusions, compression, and encryption keys",
+  },
+  retention: {
+    title: "Snapshot Retention Policies",
+    subtitle: "Local metadata pruning preserving immutable remote Telegram objects",
+  },
+  settings: {
+    title: "Application Settings",
+    subtitle: "AppConfig preferences, transfer limits, and filesystem diagnostic paths",
+  },
+};
 
 export default function App() {
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [schedulerStatus, setSchedulerStatus] = useState<string>("unknown");
-  const [status, setStatus] = useState<string>("Initializing typed Tauri IPC connection...");
-  const [error, setError] = useState<string | null>(null);
+  const [currentTab, setCurrentTab] = useState<NavTab>("dashboard");
+  const [appInfo, setAppInfo] = useState<AppInfoDto | null>(null);
+  const [schedulerStatus, setSchedulerStatus] = useState<string>("Unknown");
+  const [activeTransfers, setActiveTransfers] = useState<number>(0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  useEffect(() => {
-    async function testIpc() {
-      try {
-        const infoRes = await commands.getAppInfo();
-        const schedRes = await commands.getSchedulerStatus();
+  // Navigation contextual parameters
+  const [contextProfileId, setContextProfileId] = useState<string | undefined>(undefined);
+  const [contextSnapshotId, setContextSnapshotId] = useState<string | undefined>(undefined);
 
-        if (infoRes.status === "ok" && schedRes.status === "ok") {
-          setAppInfo(infoRes.data);
-          setSchedulerStatus(schedRes.data.status);
-          setStatus("Connected to in-process Rust core & Scheduler via typed Tauri IPC");
-        } else {
-          setError("IPC query returned error");
-          setStatus("IPC error encountered");
-        }
-      } catch (err: unknown) {
-        setError(typeof err === "object" && err !== null ? JSON.stringify(err) : String(err));
-        setStatus("IPC verification failed");
-      }
-    }
-    testIpc();
+  const addToast = useCallback(
+    (type: "success" | "error" | "warning" | "info", title: string, message: string) => {
+      const id = `${Date.now()}-${Math.random()}`;
+      setToasts((prev) => [...prev, { id, type, title, message }]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 5000);
+    },
+    []
+  );
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const loadGlobalTelemetry = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      const [infoRes, schedRes, transferRes] = await Promise.all([
+        commands.getAppInfo(),
+        commands.getSchedulerStatus(),
+        commands.getTransferStatus(),
+      ]);
+
+      if (infoRes.status === "ok") setAppInfo(infoRes.data);
+      if (schedRes.status === "ok") setSchedulerStatus(schedRes.data.status);
+      if (transferRes.status === "ok") setActiveTransfers(transferRes.data.active_count);
+    } catch (err: unknown) {
+      console.error("Global telemetry error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGlobalTelemetry();
+    // Heartbeat poll for global status bar every 5 seconds
+    const interval = setInterval(loadGlobalTelemetry, 5000);
+    return () => clearInterval(interval);
+  }, [loadGlobalTelemetry]);
+
+  const handleNavigate = (tab: NavTab, profileId?: string, snapshotId?: string) => {
+    setContextProfileId(profileId);
+    setContextSnapshotId(snapshotId);
+    setCurrentTab(tab);
+  };
+
+  const handleStartBackupFromProfile = (profile: BackupProfileDto) => {
+    setContextProfileId(profile.profile_id);
+    setCurrentTab("backups");
+  };
+
+  const activeMeta = screenTitles[currentTab];
+
   return (
-    <div style={{ fontFamily: "Segoe UI, sans-serif", padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
-      <h1 style={{ color: "#1e293b", fontSize: "1.5rem" }}>TELEVAULT Desktop Core</h1>
-      <p style={{ color: "#475569" }}>
-        <strong>IPC Status:</strong> {status}
-      </p>
-      {appInfo && (
-        <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
-          <p style={{ margin: "0.25rem 0" }}><strong>Application:</strong> {appInfo.app_name}</p>
-          <p style={{ margin: "0.25rem 0" }}><strong>Version:</strong> {appInfo.version}</p>
-          <p style={{ margin: "0.25rem 0" }}><strong>Platform:</strong> {appInfo.platform}</p>
-          <p style={{ margin: "0.25rem 0" }}><strong>Scheduler Status:</strong> {schedulerStatus}</p>
+    <div className="app-container">
+      <Sidebar
+        currentTab={currentTab}
+        onTabChange={(tab) => {
+          setContextProfileId(undefined);
+          setContextSnapshotId(undefined);
+          setCurrentTab(tab);
+        }}
+        appVersion={appInfo?.version}
+        schedulerStatus={schedulerStatus}
+      />
+
+      <main className="main-content">
+        <Header
+          title={activeMeta.title}
+          subtitle={activeMeta.subtitle}
+          schedulerStatus={schedulerStatus}
+          activeTransfers={activeTransfers}
+          onRefresh={loadGlobalTelemetry}
+          isRefreshing={isRefreshing}
+        />
+
+        <div className="content-body">
+          {currentTab === "dashboard" && (
+            <DashboardView
+              onNavigate={handleNavigate}
+              onStartBackup={handleStartBackupFromProfile}
+            />
+          )}
+
+          {currentTab === "backups" && (
+            <BackupsView
+              initialProfileId={contextProfileId}
+              onNavigate={handleNavigate}
+              onNotify={addToast}
+            />
+          )}
+
+          {currentTab === "restore" && (
+            <RestoreView
+              initialProfileId={contextProfileId}
+              initialSnapshotId={contextSnapshotId}
+              onNotify={addToast}
+            />
+          )}
+
+          {currentTab === "schedules" && (
+            <SchedulesView onNotify={addToast} />
+          )}
+
+          {currentTab === "verification" && (
+            <VerificationView
+              initialProfileId={contextProfileId}
+              initialSnapshotId={contextSnapshotId}
+              onNavigate={handleNavigate}
+              onNotify={addToast}
+            />
+          )}
+
+          {currentTab === "repair" && (
+            <RepairView
+              initialProfileId={contextProfileId}
+              initialSnapshotId={contextSnapshotId}
+              onNotify={addToast}
+            />
+          )}
+
+          {currentTab === "activity" && (
+            <ActivityView onNotify={addToast} />
+          )}
+
+          {currentTab === "profiles" && (
+            <ProfilesView
+              onNavigate={handleNavigate}
+              onStartBackup={handleStartBackupFromProfile}
+              onNotify={addToast}
+            />
+          )}
+
+          {currentTab === "retention" && (
+            <RetentionView
+              initialProfileId={contextProfileId}
+              onNotify={addToast}
+            />
+          )}
+
+          {currentTab === "settings" && (
+            <SettingsView onNotify={addToast} />
+          )}
         </div>
-      )}
-      {error && (
-        <div style={{ color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
-          <p style={{ margin: 0 }}><strong>Error:</strong> {error}</p>
-        </div>
-      )}
+      </main>
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

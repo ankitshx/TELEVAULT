@@ -346,3 +346,41 @@ fn test_error_mapping_and_validation() {
 
     let _ = fs::remove_dir_all(temp_dir);
 }
+
+#[test]
+fn test_app_config_lifecycle() {
+    let (app, temp_dir) = setup_test_state();
+    let tauri_state = app.state::<DesktopAppState>();
+
+    // 1. Initial get returns defaults
+    let initial_config = get_app_config(tauri_state.clone()).expect("get_app_config default");
+    assert_eq!(initial_config.general.theme, "dark");
+    assert_eq!(initial_config.transfer.chunk_size_kb, 4096);
+    assert_eq!(initial_config.storage.max_cache_size_mb, 2048);
+
+    // 2. Update config with valid values
+    let mut updated_req = initial_config.clone();
+    updated_req.general.theme = "light".into();
+    updated_req.transfer.chunk_size_kb = 8192;
+    updated_req.transfer.max_concurrent_transfers = 5;
+    updated_req.backup.default_compression = "None".into();
+
+    let saved = update_app_config(tauri_state.clone(), updated_req).expect("update_app_config");
+    assert_eq!(saved.general.theme, "light");
+    assert_eq!(saved.transfer.chunk_size_kb, 8192);
+    assert_eq!(saved.transfer.max_concurrent_transfers, 5);
+    assert_eq!(saved.backup.default_compression, "None");
+
+    // 3. Re-read from disk matches updated values
+    let reloaded = get_app_config(tauri_state.clone()).expect("get_app_config reloaded");
+    assert_eq!(reloaded.general.theme, "light");
+    assert_eq!(reloaded.transfer.chunk_size_kb, 8192);
+
+    // 4. Invariant validation rejects invalid chunk size (< 64)
+    let mut bad_config = reloaded;
+    bad_config.transfer.chunk_size_kb = 32;
+    let err = update_app_config(tauri_state, bad_config).unwrap_err();
+    assert_eq!(err.code, "VALIDATION_ERROR");
+
+    let _ = fs::remove_dir_all(temp_dir);
+}

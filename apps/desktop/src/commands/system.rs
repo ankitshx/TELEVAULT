@@ -1,7 +1,7 @@
 //! System and diagnostic IPC commands.
 
-use crate::dto::{AppInfoDto, SystemPathsDto};
-use crate::error::IpcResult;
+use crate::dto::{AppConfigDto, AppInfoDto, SystemPathsDto};
+use crate::error::{IpcError, IpcResult};
 use crate::state::DesktopAppState;
 use tauri::State;
 
@@ -33,4 +33,57 @@ pub fn get_system_paths(state: State<'_, DesktopAppState>) -> IpcResult<SystemPa
         logs_dir: state.paths.logs_dir().to_string_lossy().to_string(),
         config_dir: state.paths.config_dir().to_string_lossy().to_string(),
     })
+}
+
+/// Returns the current application configuration preferences from disk or default.
+#[tauri::command]
+#[specta::specta]
+pub fn get_app_config(state: State<'_, DesktopAppState>) -> IpcResult<AppConfigDto> {
+    let config_path = state.paths.config_file();
+    if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path).map_err(|e| {
+            IpcError::new(
+                "FILESYSTEM_ERROR",
+                format!("Failed to read config file: {e}"),
+            )
+        })?;
+        let config: televault_core::config::AppConfig = serde_json::from_str(&content)
+            .map_err(|e| IpcError::internal(format!("Failed to parse config file: {e}")))?;
+        Ok(config.into())
+    } else {
+        Ok(televault_core::config::AppConfig::default().into())
+    }
+}
+
+/// Validates, persists, and returns updated application configuration preferences.
+#[tauri::command]
+#[specta::specta]
+pub fn update_app_config(
+    state: State<'_, DesktopAppState>,
+    request: AppConfigDto,
+) -> IpcResult<AppConfigDto> {
+    let config: televault_core::config::AppConfig = request.try_into()?;
+    config
+        .validate()
+        .map_err(|e| IpcError::validation(e.to_string()))?;
+
+    let config_dir = state.paths.config_dir();
+    std::fs::create_dir_all(&config_dir).map_err(|e| {
+        IpcError::new(
+            "FILESYSTEM_ERROR",
+            format!("Failed to create config directory: {e}"),
+        )
+    })?;
+
+    let json_bytes = serde_json::to_string_pretty(&config)
+        .map_err(|e| IpcError::internal(format!("Failed to serialize config: {e}")))?;
+
+    std::fs::write(state.paths.config_file(), json_bytes).map_err(|e| {
+        IpcError::new(
+            "FILESYSTEM_ERROR",
+            format!("Failed to write config file: {e}"),
+        )
+    })?;
+
+    Ok(config.into())
 }

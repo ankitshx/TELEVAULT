@@ -8,6 +8,10 @@ export const commands = {
 	getAppInfo: () => typedError<AppInfoDto, IpcError>(__TAURI_INVOKE("get_app_info")),
 	/**  Returns the resolved canonical filesystem paths used by TELEVAULT. */
 	getSystemPaths: () => typedError<SystemPathsDto, IpcError>(__TAURI_INVOKE("get_system_paths")),
+	/**  Returns the current application configuration preferences from disk or default. */
+	getAppConfig: () => typedError<AppConfigDto, IpcError>(__TAURI_INVOKE("get_app_config")),
+	/**  Validates, persists, and returns updated application configuration preferences. */
+	updateAppConfig: (request: AppConfigDto) => typedError<AppConfigDto, IpcError>(__TAURI_INVOKE("update_app_config", { request })),
 	/**  Lists all configured backup profiles from the database. */
 	listBackupProfiles: () => typedError<BackupProfileDto[], IpcError>(__TAURI_INVOKE("list_backup_profiles")),
 	/**  Retrieves a specific backup profile by ProfileId. */
@@ -103,6 +107,18 @@ export const commands = {
 };
 
 /* Types */
+/**  Full application configuration DTO reflecting the validated AppConfig model. */
+export type AppConfigDto = {
+	/**  General UI and update preferences. */
+	general: GeneralConfigDto,
+	/**  Storage cache and retention limits. */
+	storage: StorageConfigDto,
+	/**  Transfer worker concurrency and chunk settings. */
+	transfer: TransferConfigDto,
+	/**  Default backup engine preferences. */
+	backup: BackupPreferencesDto,
+};
+
 /**  Diagnostic metadata describing the running TELEVAULT application instance. */
 export type AppInfoDto = {
 	/**  Canonical application name. */
@@ -115,6 +131,16 @@ export type AppInfoDto = {
 	arch: string,
 	/**  Release or debug build mode. */
 	build_mode: string,
+};
+
+/**  Default backup preferences for profiles. */
+export type BackupPreferencesDto = {
+	/**  Default compression algorithm ("None" or "Zstd"). */
+	default_compression: string,
+	/**  Default snapshot retention period in days (0 = keep indefinitely). */
+	retention_days: number,
+	/**  Whether to verify cryptographic hashes immediately following backup upload. */
+	verify_after_backup: boolean,
 };
 
 /**  Stable DTO representing a configured backup profile. */
@@ -224,6 +250,16 @@ export type FullVerificationReportDto = {
 	size_match: boolean,
 	duration_ms: number,
 	error: string | null,
+};
+
+/**  General application user interface preferences. */
+export type GeneralConfigDto = {
+	/**  Visual theme ("dark", "light", "system"). */
+	theme: string,
+	/**  UI language code (e.g. "en-US"). */
+	language: string,
+	/**  Whether automatic update check is active. */
+	check_updates: boolean,
 };
 
 /**
@@ -633,6 +669,14 @@ export type StartBackupRequest = {
 	passphrase: string | null,
 };
 
+/**  Storage cache and temporary file retention parameters. */
+export type StorageConfigDto = {
+	/**  Maximum cache size allowed in megabytes. */
+	max_cache_size_mb: number,
+	/**  Retention period for temporary staging files in hours. */
+	temp_retention_hours: number,
+};
+
 /**  Standardized resolved system directories managed by PathManager. */
 export type SystemPathsDto = {
 	/**  Root data directory (e.g. %LOCALAPPDATA%\TELEVAULT). */
@@ -645,6 +689,16 @@ export type SystemPathsDto = {
 	logs_dir: string,
 	/**  Path to application config directory. */
 	config_dir: string,
+};
+
+/**  Transfer workers and concurrency throttling parameters. */
+export type TransferConfigDto = {
+	/**  Standard chunk size for file slicing in kilobytes (64 to 32768). */
+	chunk_size_kb: number,
+	/**  Maximum number of concurrent transfer workers (1 to 16). */
+	max_concurrent_transfers: number,
+	/**  Maximum upload bandwidth limit in KB/s (0 = unlimited). */
+	upload_limit_kbps: number,
 };
 
 /**  Snapshot of a transfer job record. */

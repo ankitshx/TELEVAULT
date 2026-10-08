@@ -58,6 +58,17 @@
 - Failure Mode: Irrevocable loss of remote objects.
 - Mitigation in Phase 14: Strict Remote Non-Deletion Invariant. Replacement chunks are uploaded to fresh Telegram references; old references remain intact in remote cloud storage.
 
+## KF-013: Memory Bloat from Buffering Large File Payloads in React
+- Risk: A future UI feature attempting to preview or display a 5.2 GB file by reading chunk contents over IPC into JavaScript state.
+- Failure Mode: JavaScript heap exhaustion, browser tab crash, desktop UI freeze.
+- Protection in Phase 15: Pure metadata-driven UI architecture. Restore, backup, verification, and repair commands only pass file paths and identifiers across IPC; the Rust engine streams data in 64 KiB chunks directly to disk or network without exposing raw payload bytes to React.
+
+## KF-014: Frontend Stale State during Concurrent Long-Running Tasks
+- Risk: Triggering backup, restore, verification, or repair while another operation is in flight on the same profile causing unhandled conflict errors.
+- Failure Mode: Silent button stalls or unexpected error popups.
+- Protection in Phase 15: Global status indicators, button disabling during in-flight operations, and robust handling of `SCHEDULE_ALREADY_RUNNING` and conflict errors with clear, actionable user messages.
+
+
 
 
 

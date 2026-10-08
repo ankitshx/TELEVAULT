@@ -300,6 +300,22 @@
 - Reason: Guarantees mutual exclusion between repairs, backups, and restores on the same profile without introducing cyclic crate dependencies.
 - Date: 2026-10-08
 
+## AD-061: Single-Process Desktop React Application Shell via Typed Tauri Specta IPC
+- Decision: Integrated the complete TELEVAULT desktop UI inside `apps/desktop/ui` built with React 19, TypeScript, and standard CSS design tokens. All UI-to-core interactions execute strictly through `tauri-specta` generated IPC bindings (`apps/desktop/ui/src/bindings.ts`). Direct network access, HTTP REST endpoints, localhost ports, WebSocket connections, and external sidecar binaries are strictly prohibited.
+- Reason: Enforces the architectural rule that TELEVAULT is a single Windows desktop process (`TELEVAULT.exe`) with zero network surface and zero port collision risks.
+- Date: 2026-10-08
+
+## AD-062: Bounded Metadata-Only UI State Architecture
+- Decision: The React application state stores strictly bounded metadata (job identifiers, progress percentages, byte counts, transfer throughput, and log messages). Actual multi-gigabyte backup payloads and files (e.g. 5.2 GB archives across 3 chunks) are never buffered into JavaScript memory.
+- Reason: Guarantees an exceptionally lightweight memory footprint (< 60 MB RAM) and prevents UI thread blocking during high-throughput cloud backup and restore streaming.
+- Date: 2026-10-08
+
+## AD-063: In-Process Vitest Component Testing with Contract Mocking
+- Decision: Built an automated frontend unit and integration test suite using Vitest, `@testing-library/react`, and `@testing-library/jest-dom` under `apps/desktop/ui/src/__tests__/`. The test suite verifies shell navigation, dashboard metric rollups, backup execution, restore collision handling, scheduler automation, retention dry-runs, verification auditing, remote repair workflows, and IPC contract conformance.
+- Reason: Provides instant, deterministic regression detection for all 10 desktop views without requiring an active WebView2 graphical window or display server.
+- Date: 2026-10-08
+
+
 
 
 

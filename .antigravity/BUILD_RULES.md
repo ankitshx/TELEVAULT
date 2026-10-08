@@ -49,4 +49,7 @@
     11. Stop and report.
 36. Remote Repair Safety & Non-Deletion Rule: Remote repair must be opt-in, verification-driven, and strictly ownership-isolated (Profile -> Snapshot -> File -> Manifest -> Chunk -> Remote Reference). Damaged chunks are reconstructed and uploaded to fresh remote references without mutating or deleting old remote references. Remote deletion is deferred to an explicitly authorized future phase.
 37. Large-File Single-Chunk Repair Rule: For multi-chunk logical files (e.g. 5.2 GB across 3 chunks), repair must reconstruct and upload ONLY the affected chunk(s) using bounded 64 KiB streaming buffers. RAM allocations exceeding streaming boundaries are strictly prohibited.
+38. Windows Node.js & npm.cmd Execution Rule: On Windows environments, ensure the system Node.js directory is explicitly prepended to `$env:PATH` when running scripts and invoke `npm.cmd` directly to guarantee deterministic execution across PowerShell sessions.
+39. Bounded React State Invariant: The desktop React frontend must never buffer file contents, backup payload streams, or raw chunk binary data. All state binding is strictly restricted to typed DTO metadata, progress notifications, and bounded list models.
+
 
