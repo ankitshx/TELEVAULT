@@ -18,10 +18,9 @@ describe("Application Shell & Navigation", () => {
   it("renders shell with default Dashboard view on startup", async () => {
     render(<App />);
 
-    expect(screen.getByText("TELEVAULT")).toBeDefined();
-    expect(screen.getByText("System Dashboard")).toBeDefined();
-
     await waitFor(() => {
+      expect(screen.getByText("TELEVAULT")).toBeDefined();
+      expect(screen.getByText("System Dashboard")).toBeDefined();
       expect(screen.getByText("Backup Profiles")).toBeDefined();
       expect(screen.getByText("Active Schedules")).toBeDefined();
       expect(screen.getByText("Transfer Queue")).toBeDefined();
@@ -32,7 +31,7 @@ describe("Application Shell & Navigation", () => {
   it("navigates across all primary views via Sidebar links", async () => {
     render(<App />);
 
-    const nav = screen.getByRole("navigation");
+    const nav = await screen.findByRole("navigation");
 
     // 1. Backups
     fireEvent.click(within(nav).getByRole("button", { name: /Backups/i }));

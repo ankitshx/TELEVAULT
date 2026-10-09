@@ -1118,4 +1118,38 @@
    - `cargo build --release -p televault-desktop`: Standalone Windows binary compiled successfully.
    - Reporting statement: `LIVE TELEGRAM VALIDATION: NOT EXECUTED`.
 
+---
+
+## Phase 20 (P0 + P1 Corrective Implementation) — Build Pipeline, Windows GUI Subsystem & Startup Auth Guard
+- Started: 2026-10-09 18:00 IST
+- Completed: 2026-10-09 18:20 IST
+- Status: Completed
+
+### Objectives:
+- P0: Rebuild frontend bundle (`npm run build`), wire `beforeBuildCommand` and `beforeDevCommand` in `tauri.conf.json`, and create canonical release script `scripts/build_release.ps1` to ensure `TELEVAULT.exe` embeds the fresh production frontend.
+- P0: Configure `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` in `apps/desktop/src/main.rs` to eliminate unwanted console/CMD windows on Windows launch.
+- P1: Implement explicit initial loading/splash screen (`.app-splash`) in `App.tsx` and `index.css` to prevent premature dashboard exposure and eliminate dashboard flash before authentication resolves.
+- P1: Provide safe error screen with retry button when authentication check fails.
+- P1: Expand Vitest test suite with explicit tests for pending, error/retry, and ready states.
+
+### Key Engineering Accomplishments:
+1. **P0 Build Pipeline & Asset Embedding (`apps/desktop/tauri.conf.json`, `scripts/build_release.ps1`)**:
+   - Added `"beforeDevCommand": "npm --prefix ui run dev"` and `"beforeBuildCommand": "npm --prefix ui run build"` to `tauri.conf.json`.
+   - Created `scripts/build_release.ps1` automating the frontend compile and Cargo packaging workflow.
+   - Compiled fresh React bundle into `apps/desktop/ui/dist`: verified that `target/release/TELEVAULT.exe` embeds `"Created by Ankit Sharma"`, `"Always safe"`, `"app-splash"`, and `"welcome-gate-container"`.
+2. **P0 Windows GUI Subsystem Configuration (`apps/desktop/src/main.rs`)**:
+   - Added `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` to the top of `main.rs`.
+   - Verified compiled PE header of `target/release/TELEVAULT.exe`: `Subsystem Value: 2 (IMAGE_SUBSYSTEM_WINDOWS_GUI)`. Launching directly from Windows Explorer spawns pure GUI without console windows.
+3. **P1 Authentication Startup State Machine & UX (`apps/desktop/ui/src/App.tsx`, `index.css`)**:
+   - Introduced `isAuthInitializing` and `initError` state in `App.tsx`.
+   - Guaranteed that while authentication status is unresolved, the application renders a branded splash screen (`.app-splash`) with spinner and `"Created by Ankit Sharma"`. The protected dashboard is strictly blocked from mounting.
+   - Added safe error and retry screen (`.splash-card-error`) if core IPC communication fails.
+   - Preserved all backend security gates (`state.check_auth_gate()`).
+4. **Verification & Testing (`vitest`, `cargo test`, `cargo clippy`, `cargo fmt`)**:
+   - Vitest test suite: 8 test files, 33 tests passing (100%).
+   - Workspace tests: `cargo test --workspace` passing 100%.
+   - Clippy: `cargo clippy --workspace -- -D warnings` passing with 0 warnings.
+   - Format: `cargo fmt --check` passing with 0 discrepancies.
+   - Release binary: `TELEVAULT.exe` compiled and verified with PE Subsystem 2.
+
 

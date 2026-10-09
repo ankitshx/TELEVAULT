@@ -91,7 +91,6 @@ export function DashboardView({ onNavigate, onStartBackup }: DashboardViewProps)
   }
 
   const latestSnapshot = snapshots[0]?.snapshot;
-  const totalSnapshotsCount = snapshots.length;
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return "0 B";

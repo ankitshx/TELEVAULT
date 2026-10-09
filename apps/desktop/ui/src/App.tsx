@@ -72,6 +72,8 @@ export default function App() {
   const [schedulerStatus, setSchedulerStatus] = useState<string>("Unknown");
   const [activeTransfers, setActiveTransfers] = useState<number>(0);
   const [authStatus, setAuthStatus] = useState<TelegramAuthStatusDto | null>(null);
+  const [isAuthInitializing, setIsAuthInitializing] = useState<boolean>(true);
+  const [initError, setInitError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -107,11 +109,23 @@ export default function App() {
       if (infoRes.status === "ok") setAppInfo(infoRes.data);
       if (schedRes.status === "ok") setSchedulerStatus(schedRes.data.status);
       if (transferRes.status === "ok") setActiveTransfers(transferRes.data.active_count);
-      if (authRes.status === "ok") setAuthStatus(authRes.data);
+      if (authRes.status === "ok") {
+        setAuthStatus(authRes.data);
+        setInitError(null);
+      } else {
+        const errObj = authRes.error as { message?: string; code?: string } | string | undefined;
+        const msg =
+          typeof errObj === "string"
+            ? errObj
+            : errObj?.message || errObj?.code || "Failed to retrieve Telegram authentication state";
+        setInitError((prev) => prev || msg);
+      }
     } catch (err: unknown) {
       console.error("Global telemetry error:", err);
+      setInitError((prev) => prev || (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsRefreshing(false);
+      setIsAuthInitializing(false);
     }
   }, []);
 
@@ -133,10 +147,51 @@ export default function App() {
     setCurrentTab("backups");
   };
 
-  // Centralized Authentication Gate
+  // State 1: Explicit initial loading splash — protects against dashboard flash
+  if (isAuthInitializing && !authStatus && !initError) {
+    return (
+      <div className="app-splash" data-testid="app-splash">
+        <div className="splash-card">
+          <div className="splash-logo">🛡️</div>
+          <h1 className="splash-title">TELEVAULT</h1>
+          <p className="splash-subtitle">Initializing secure Telegram vault environment...</p>
+          <div className="splash-spinner" data-testid="splash-spinner"></div>
+          <div className="splash-attribution">Created by Ankit Sharma</div>
+        </div>
+      </div>
+    );
+  }
+
+  // State 2: Initialization failure — safe retry screen without exposing dashboard
+  if (initError && !authStatus) {
+    return (
+      <div className="app-splash" data-testid="app-splash-error">
+        <div className="splash-card splash-card-error">
+          <div className="splash-logo">⚠️</div>
+          <h1 className="splash-title">Initialization Failed</h1>
+          <p className="splash-subtitle">Unable to establish connection with TELEVAULT desktop core.</p>
+          <div className="splash-error-message">{initError}</div>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setInitError(null);
+              setIsAuthInitializing(true);
+              loadGlobalTelemetry();
+            }}
+          >
+            🔄 Retry Connection
+          </button>
+          <div className="splash-attribution">Created by Ankit Sharma</div>
+        </div>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
+
+  // State 3: Centralized Authentication Gate — unauthenticated or channel setup required
   if (authStatus && authStatus.state !== "ready") {
     return (
-      <div className="app-container">
+      <div className="app-container" data-testid="welcome-gate-container">
         <WelcomeGate onAuthenticated={loadGlobalTelemetry} authStatus={authStatus} />
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       </div>

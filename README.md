@@ -213,9 +213,19 @@ Phase 20 introduces direct personal Telegram authentication and a complete moder
 - **Node.js**: v20+ with npm
 - **Windows**: Windows 10/11 with WebView2 Runtime
 
+### Building the Production Desktop Application
+```powershell
+# Canonical Windows Release Build (compiles frontend + packages TELEVAULT.exe)
+powershell -ExecutionPolicy Bypass -File scripts\build_release.ps1
+
+# Or manually in two steps:
+npm.cmd --prefix apps/desktop/ui run build
+cargo build --release -p televault-desktop
+```
+
 ### Running Verification & Tests
 ```powershell
-# Run the Rust test suite (326 tests)
+# Run the Rust test suite
 cargo test --workspace --all-targets --all-features
 
 # Run strict Clippy lint checks
@@ -224,12 +234,9 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 # Verify code formatting
 cargo fmt --all -- --check
 
-# Run Frontend test suite (28 Vitest tests across 7 suites)
+# Run Frontend test suite (33 Vitest tests across 8 suites)
 cd apps/desktop/ui
 npm test -- --run
-
-# Build Frontend production assets
-npm run build
 ```
 
 ### Running the Desktop Application Locally

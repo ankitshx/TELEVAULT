@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.televault.desktop",
   "build": {
+    "beforeDevCommand": "npm --prefix ui run dev",
+    "beforeBuildCommand": "npm --prefix ui run build",
     "frontendDist": "./ui/dist"
   },
   "app": {

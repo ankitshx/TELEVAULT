@@ -282,6 +282,27 @@
 - Regression Test: `src/__tests__/welcome_gate_and_auth.test.tsx`.
 - Prevention Rule: When testing screens that include global attributions or recurring brand labels, avoid generic substring regex queries and use specific text queries or `getAllByText`.
 
+## Phase 20 (P0) — Missing beforeBuildCommand Inlined Stale Frontend in Desktop Binary
+- Mistake: In `apps/desktop/tauri.conf.json`, `beforeBuildCommand` was omitted, and `cargo build --release` was run directly without compiling the frontend. Tauri inlined stale assets from `apps/desktop/ui/dist` (from Phase 19), resulting in the compiled binary serving the old UI despite source code modifications.
+- Root Cause: Relied on `cargo build` alone without configuring automated frontend build triggers or running `npm run build` prior to cargo compilation.
+- Fix: Added `"beforeBuildCommand": "npm --prefix ui run build"` to `tauri.conf.json` and established canonical `scripts/build_release.ps1`.
+- Regression Test: Binary string search verified that `target/release/TELEVAULT.exe` contains `"Created by Ankit Sharma"`, `"Always safe"`, and `"app-splash"`.
+- Prevention Rule: Always configure `beforeBuildCommand` in `tauri.conf.json` and mandate that release packaging scripts execute frontend compilation before Cargo packaging.
+
+## Phase 20 (P0) — Missing windows_subsystem Attribute Spawned Unwanted Console Window
+- Mistake: Launching `TELEVAULT.exe` on Windows opened an unwanted command prompt/console window (`conhost.exe`) alongside the GUI.
+- Root Cause: `apps/desktop/src/main.rs` omitted `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`, causing the MSVC linker to default to the Console subsystem (`/SUBSYSTEM:CONSOLE`, PE Subsystem 3).
+- Fix: Added `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` to `apps/desktop/src/main.rs`.
+- Regression Test: Inspected PE header of `target/release/TELEVAULT.exe`: `Subsystem Value: 2` (`IMAGE_SUBSYSTEM_WINDOWS_GUI`).
+- Prevention Rule: Every Tauri Windows desktop entry point (`main.rs`) must include `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`.
+
+## Phase 20 (P1) — Synchronous Initial Render Flash Bypassed Authentication Gate
+- Mistake: `authStatus` initialized to `null` in `App.tsx` without an initial loading guard, allowing the component to fall through on first render and briefly mount the protected dashboard before asynchronous IPC resolved.
+- Root Cause: Handled authentication gating conditionally on `authStatus && authStatus.state !== "ready"` without guarding against the initial unpopulated `null` state.
+- Fix: Added `isAuthInitializing` state and rendered a branded `.app-splash` screen during initial mount, blocking dashboard rendering until authentication status is explicitly determined.
+- Regression Test: `it("renders startup splash screen while authentication check is pending and never flashes dashboard")` in `welcome_gate_and_auth.test.tsx`.
+- Prevention Rule: Never allow protected application views to render when authentication state is pending or unresolved; always guard with explicit initialization states.
+
 
 
 

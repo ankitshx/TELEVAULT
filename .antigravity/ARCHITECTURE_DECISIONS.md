@@ -369,3 +369,22 @@
 - Reason: Guarantees 100% deterministic test execution in CI/CD and offline developer environments while exercising the identical state machine and IPC contracts used in production.
 - Date: 2026-10-09
 
+## AD-075: Automated Frontend Pre-Build Pipeline Invariant
+- Decision: Configured `beforeBuildCommand: "npm --prefix ui run build"` in `tauri.conf.json` and established canonical `scripts/build_release.ps1` to guarantee that the React frontend is freshly compiled into `ui/dist` before the desktop release binary is compiled.
+- Reason: Eliminates the risk of Tauri embedding stale static assets from prior phases or builds.
+- Date: 2026-10-09
+
+## AD-076: Release Windows GUI Subsystem Directive
+- Decision: Added `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` to `apps/desktop/src/main.rs`. In release builds, the binary links against PE Subsystem 2 (`IMAGE_SUBSYSTEM_WINDOWS_GUI`), completely suppressing unwanted console host windows. Debug builds preserve the console for diagnostics.
+- Reason: Delivers an authentic, premium Windows desktop application experience without distracting terminal windows.
+- Date: 2026-10-09
+
+## AD-077: Guarded Tri-State Frontend Authentication Mounting Architecture
+- Decision: Implemented an explicit tri-state lifecycle in `App.tsx`:
+  1. `Initializing`: Renders a branded `.app-splash` screen while authentication status is being queried via IPC. Protected application routes and navigation are strictly not mounted.
+  2. `Authentication Required / Channel Setup`: Renders `<WelcomeGate />`.
+  3. `Ready`: Renders the authenticated application shell (`DashboardView`, `Sidebar`, etc.).
+  4. `Error`: Renders a dedicated error screen with retry controls without exposing protected content.
+- Reason: Eliminates the race condition where `authStatus = null` caused a momentary or permanent flash of the protected dashboard before IPC resolved.
+- Date: 2026-10-09
+

@@ -99,3 +99,18 @@
 - Failure Mode: Application fails to start or defaults unexpectedly on subsequent launches.
 - Mitigation in Phase 18: Configuration updates execute atomically by writing to `.tmp`, flushing to disk, and renaming to replace the destination file.
 
+## KF-021: Stale Frontend Artifact Inlining during Desktop Compilation
+- Risk: Developer or build script modifies React code in `apps/desktop/ui/src` but runs `cargo build --release` without running `npm run build`.
+- Failure Mode: Tauri embeds stale assets from `ui/dist`, causing the application to display obsolete UI components.
+- Mitigation in Phase 20 P0: Configured `beforeBuildCommand: "npm --prefix ui run build"` in `tauri.conf.json` and established `scripts/build_release.ps1` to enforce compilation of frontend assets prior to executable assembly.
+
+## KF-022: Windows Console Host Window Spawning on GUI Application Launch
+- Risk: Omitting `windows_subsystem = "windows"` causes Rust to link Windows binaries with `/SUBSYSTEM:CONSOLE`.
+- Failure Mode: A command prompt / CMD window appears whenever the desktop application is opened.
+- Mitigation in Phase 20 P0: Declared `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` in `main.rs`, ensuring the release binary compiles as PE Subsystem 2 (`IMAGE_SUBSYSTEM_WINDOWS_GUI`).
+
+## KF-023: Startup Authentication Status Race Condition & Dashboard Flash
+- Risk: React `authStatus` state defaults to `null`, allowing an unguarded conditional check to fall through and mount the protected dashboard before asynchronous IPC returns.
+- Failure Mode: Unauthenticated user sees a momentary flash of the protected dashboard or remains on the dashboard if IPC query fails.
+- Mitigation in Phase 20 P1: Implemented explicit `isAuthInitializing` state rendering a branded `.app-splash` screen, blocking protected routes until authentication status is confirmed. If initialization fails, renders an error screen with retry rather than falling through.
+
