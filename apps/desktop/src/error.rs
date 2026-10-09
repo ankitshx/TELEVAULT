@@ -66,6 +66,11 @@ impl IpcError {
         Self::new("UNSAFE_PATH", reason).with_details(path)
     }
 
+    /// Convenience constructor for unauthorized or unauthenticated operations.
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new("UNAUTHORIZED", message)
+    }
+
     /// Convenience constructor for internal errors.
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new("INTERNAL_ERROR", message)

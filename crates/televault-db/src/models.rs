@@ -371,3 +371,56 @@ pub struct RepairHistoryRecord {
     /// Timestamp of repair execution (ISO-8601).
     pub repaired_at: String,
 }
+
+/// Stored Telegram account record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelegramAccountRecord {
+    /// Telegram numeric user ID.
+    pub user_id: i64,
+    /// First name.
+    pub first_name: String,
+    /// Optional last name.
+    pub last_name: Option<String>,
+    /// Optional username.
+    pub username: Option<String>,
+    /// Redacted phone number (e.g. "+1 *** *** 1234").
+    pub phone_redacted: String,
+    /// Timestamp when authenticated (RFC-3339).
+    pub authenticated_at: String,
+    /// Last seen / active timestamp (RFC-3339).
+    pub last_seen_at: String,
+}
+
+/// Stored Telegram backup channel record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelegramChannelRecord {
+    /// Telegram numeric channel ID.
+    pub channel_id: i64,
+    /// Associated user ID who owns or configured the channel.
+    pub user_id: i64,
+    /// Channel title.
+    pub title: String,
+    /// Whether the channel is private.
+    pub is_private: bool,
+    /// Whether permissions and connectivity were verified.
+    pub verified: bool,
+    /// Whether this channel was created automatically by TELEVAULT.
+    pub created_by_televault: bool,
+    /// Creation timestamp (RFC-3339).
+    pub created_at: String,
+    /// Verification timestamp (RFC-3339), if verified.
+    pub verified_at: Option<String>,
+}
+
+/// Stored Telegram auth state record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelegramAuthStateRecord {
+    /// Current auth state machine tag.
+    pub current_state: String,
+    /// Active authenticated user ID, if any.
+    pub active_user_id: Option<i64>,
+    /// Active verified backup channel ID, if any.
+    pub active_channel_id: Option<i64>,
+    /// Last update timestamp (RFC-3339).
+    pub updated_at: String,
+}

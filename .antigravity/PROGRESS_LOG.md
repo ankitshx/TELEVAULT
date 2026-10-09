@@ -1070,4 +1070,52 @@
 5. **Human User Acceptance Requirements**:
    - Visual styling, layout balance, spacing, contrast, animations, typography, and interactive feel have been cataloged as `USER VALIDATION REQUIRED` for the user's manual review.
 
+---
+
+## Phase 20 — Personal Telegram Authentication, Private Channel Setup & Premium Dashboard Redesign
+- Started: 2026-10-09 14:00 IST
+- Completed: 2026-10-09 15:55 IST
+- Status: Completed
+
+### Objectives:
+- Personal Telegram Account Authentication (MTProto) via phone number, verification code, and optional 2FA cloud password.
+- Dedicated Private Channel Setup: automatic creation named "TELEVAULT Backup Vault" with guided fallback to user-specified private channel and write-access verification.
+- Centralized Authentication Gate in Rust Core (`check_auth_gate()`) protecting all sensitive operations (backup, restore, verification, repair, scheduler).
+- Premium Dashboard Redesign adhering to Direction B + C (Modern Premium + Classic TELEVAULT): hero greeting "Your files. Always safe.", KPI cards, Quick Action cards, Storage & Cloud Overview, and recent backups table.
+- Subtle Creator Attribution ("Created by Ankit Sharma") placed strictly in Sidebar footer, Welcome Gate footer, and Settings About card.
+- 100% deterministic testing via offline mock MTProto driver without requiring live Telegram servers or phone OTPs.
+
+### Key Engineering Accomplishments:
+1. **Embedded Database (`crates/televault-db`)**:
+   - Added migration `V6__telegram_auth.sql` creating `telegram_accounts`, `telegram_channels`, and `telegram_auth_state` tables.
+   - Implemented Rust models (`TelegramAccountRecord`, `TelegramChannelRecord`, `TelegramAuthStateRecord`) and CRUD operations in `db.rs`.
+   - Verified schema and data isolation with 21 unit and integration tests passing in 0.07s.
+2. **MTProto Authentication Engine (`crates/televault-telegram`)**:
+   - Added `MtprotoAuthManager` supporting phone verification, OTP code submission, 2FA cloud password submission, automated channel creation, manual channel fallback, and session logout.
+   - Built offline mock MTProto driver (`new_mock_ready`) for deterministic testing.
+   - Validated phone number redaction in logs and DTOs (`+1 555 *** 4567`).
+   - 17 unit and integration tests passing in 0.03s.
+3. **Desktop Application Core & Tauri IPC (`apps/desktop`)**:
+   - Implemented centralized authentication gate `DesktopAppState::check_auth_gate()`:
+     - Rejects unauthenticated calls to `start_backup`, `restore_file`, `restore_manifest`, `restore_snapshot`, `verify_full_restore`, `verify_file_backup`, `verify_manifest`, `verify_snapshot`, `verify_profile`, `preview_repair`, `repair_file`, `repair_snapshot`, and `run_schedule_now` with `UNAUTHORIZED`.
+   - Implemented 9 new Tauri IPC commands in `commands/telegram_auth.rs`.
+   - Exported updated TypeScript contracts (`apps/desktop/ui/src/bindings.ts`).
+   - Created integration test `apps/desktop/tests/auth_gate_tests.rs` verifying gate enforcement across unauthenticated, authenticated, and logged-out states.
+   - Updated `phase19_desktop_smoke_tests.rs` to use `new_mock_ready`: all 8 smoke tests passed.
+4. **Frontend UI Redesign & Components (`apps/desktop/ui`)**:
+   - Implemented `<WelcomeGate />` with multi-step progression (Phone ➔ Code ➔ 2FA ➔ Dedicated Channel Setup), error handling, and creator attribution.
+   - Redesigned `<DashboardView />` with hero greeting ("Your files. Always safe."), KPI metrics, 4 quick action cards, cloud storage card, and backups table.
+   - Updated `<Sidebar />` with Telegram account status badge and footer attribution ("Created by Ankit Sharma").
+   - Updated `<SettingsView />` with active Telegram account profile, channel status, reverify button, logout modal, and creator attribution in Diagnostics card.
+   - Protected `<App />` root behind WelcomeGate when authentication state is not `ready`.
+   - Added comprehensive CSS design tokens and responsive styles in `index.css`.
+   - Validated 30 unit and integration tests across 8 test suites in Vitest.
+5. **Quality & Release Validation**:
+   - `cargo test --workspace`: 100% clean pass across all 12 crates and all integration tests.
+   - `cargo clippy --workspace -- -D warnings`: 0 warnings.
+   - `cargo fmt --check`: 0 formatting discrepancies.
+   - `npx.cmd vitest run`: 8 test files, 30 tests passed.
+   - `cargo build --release -p televault-desktop`: Standalone Windows binary compiled successfully.
+   - Reporting statement: `LIVE TELEGRAM VALIDATION: NOT EXECUTED`.
+
 

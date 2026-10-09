@@ -67,3 +67,113 @@ pub struct TelegramConnectionTestResultDto {
     /// Sanitized, safe error message if the connection test failed.
     pub error_message: Option<String>,
 }
+
+/// High-level authentication and authorization states for personal Telegram account integration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthStateDto {
+    /// Initializing session state.
+    Initializing,
+    /// Login required before application can be unlocked.
+    AuthenticationRequired,
+    /// Authentication in progress (code or password challenge).
+    Authenticating,
+    /// Authentication failed.
+    AuthenticationFailed,
+    /// Account verified; channel setup required.
+    Authenticated,
+    /// Channel setup required.
+    ChannelSetupRequired,
+    /// Channel setup in progress.
+    ChannelSetupInProgress,
+    /// Channel verification failed.
+    ChannelVerificationFailed,
+    /// Fully ready and unlocked.
+    Ready,
+    /// Session expired or revoked.
+    SessionExpired,
+    /// Logging out.
+    LoggingOut,
+    /// Recoverable error.
+    RecoverableError,
+}
+
+/// Safe personal Telegram account profile details.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct TelegramAccountInfoDto {
+    /// Telegram user ID.
+    #[specta(type = Number)]
+    pub user_id: i64,
+    /// First name.
+    pub first_name: String,
+    /// Optional last name.
+    pub last_name: Option<String>,
+    /// Optional username.
+    pub username: Option<String>,
+    /// Redacted phone number for safe display.
+    pub phone_number: String,
+}
+
+/// Metadata and status for dedicated private backup channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct TelegramChannelInfoDto {
+    /// Telegram channel ID.
+    #[specta(type = Number)]
+    pub channel_id: i64,
+    /// Channel title.
+    pub channel_title: String,
+    /// Whether channel is private.
+    pub is_private: bool,
+    /// Whether channel permissions were verified.
+    pub verified: bool,
+    /// Whether created automatically by TELEVAULT.
+    pub created_by_televault: bool,
+}
+
+/// Complete current authentication and channel setup status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct TelegramAuthStatusDto {
+    /// Current state machine status.
+    pub state: AuthStateDto,
+    /// Authenticated account details.
+    pub account: Option<TelegramAccountInfoDto>,
+    /// Dedicated backup channel details.
+    pub channel: Option<TelegramChannelInfoDto>,
+    /// Whether 2FA password is required.
+    pub requires_password: bool,
+    /// Safe error message.
+    pub error_message: Option<String>,
+}
+
+/// Payload to initiate personal Telegram login.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct StartTelegramAuthDto {
+    /// Phone number with country code (e.g. +1234567890).
+    pub phone_number: String,
+    /// Telegram API ID (optional: if omitted, uses application default).
+    pub api_id: Option<i32>,
+    /// Telegram API Hash (optional: if omitted, uses application default).
+    pub api_hash: Option<String>,
+}
+
+/// Payload to submit Telegram verification code.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct SubmitAuthCodeDto {
+    /// Verification code received from Telegram.
+    pub code: String,
+}
+
+/// Payload to submit Two-Step Verification (2FA) cloud password.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct SubmitAuthPasswordDto {
+    /// Cloud password.
+    pub password: String,
+}
+
+/// Payload to setup or configure private backup channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct SetupChannelDto {
+    /// Optional manual channel ID. If None, automatically creates dedicated channel.
+    #[specta(type = Option<Number>)]
+    pub channel_id: Option<i64>,
+}

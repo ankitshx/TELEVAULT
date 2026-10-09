@@ -183,6 +183,8 @@ pub async fn run_schedule_now(
     state: State<'_, DesktopAppState>,
     schedule_id: String,
 ) -> IpcResult<Option<String>> {
+    state.check_auth_gate().await?;
+
     let sid = ScheduleId::new(&schedule_id)
         .map_err(|e| IpcError::validation(format!("Invalid schedule ID: {e}")))?;
 

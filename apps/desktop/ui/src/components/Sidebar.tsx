@@ -5,6 +5,8 @@ interface SidebarProps {
   onTabChange: (tab: NavTab) => void;
   appVersion?: string;
   schedulerStatus?: string;
+  telegramUser?: string;
+  channelTitle?: string;
 }
 
 interface NavItemDef {
@@ -31,6 +33,8 @@ export function Sidebar({
   onTabChange,
   appVersion = "0.1.0",
   schedulerStatus = "Active",
+  telegramUser,
+  channelTitle,
 }: SidebarProps) {
   return (
     <aside className="sidebar">
@@ -39,7 +43,7 @@ export function Sidebar({
           <div className="brand-logo">TV</div>
           <div>
             <div className="brand-title">TELEVAULT</div>
-            <div className="brand-subtitle">Cloud Backup Core</div>
+            <div className="brand-subtitle">Secure Cloud Backup</div>
           </div>
         </div>
       </div>
@@ -58,6 +62,23 @@ export function Sidebar({
         ))}
       </nav>
 
+      {/* Account Mini Badge */}
+      {telegramUser && (
+        <div
+          className="sidebar-account-badge"
+          onClick={() => onTabChange("settings")}
+          role="button"
+          tabIndex={0}
+          title="Manage connected Telegram account"
+        >
+          <div className="account-dot-online" />
+          <div className="account-badge-info">
+            <div className="account-badge-name">{telegramUser}</div>
+            <div className="account-badge-channel">{channelTitle || "Vault Connected"}</div>
+          </div>
+        </div>
+      )}
+
       <div className="sidebar-footer">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>TELEVAULT Core</span>
@@ -71,15 +92,18 @@ export function Sidebar({
               width: "6px",
               height: "6px",
               borderRadius: "50%",
-              backgroundColor: schedulerStatus === "running" || schedulerStatus === "Active" ? "var(--success)" : "var(--warning)",
+              backgroundColor:
+                schedulerStatus === "running" || schedulerStatus === "Active"
+                  ? "var(--success)"
+                  : "var(--warning)",
             }}
           />
           <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
             Scheduler: {schedulerStatus}
           </span>
         </div>
-        <div style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginTop: "0.2rem" }}>
-          Single Desktop Process • Wry IPC
+        <div className="sidebar-creator-attribution">
+          Created by Ankit Sharma
         </div>
       </div>
     </aside>

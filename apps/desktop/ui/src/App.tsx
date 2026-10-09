@@ -3,6 +3,7 @@ import {
   commands,
   AppInfoDto,
   BackupProfileDto,
+  TelegramAuthStatusDto,
 } from "./bindings";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
@@ -10,6 +11,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { NavTab, ToastMessage } from "./types";
 
 // Views
+import { WelcomeGate } from "./views/WelcomeGate";
 import { DashboardView } from "./views/DashboardView";
 import { BackupsView } from "./views/BackupsView";
 import { RestoreView } from "./views/RestoreView";
@@ -69,6 +71,7 @@ export default function App() {
   const [appInfo, setAppInfo] = useState<AppInfoDto | null>(null);
   const [schedulerStatus, setSchedulerStatus] = useState<string>("Unknown");
   const [activeTransfers, setActiveTransfers] = useState<number>(0);
+  const [authStatus, setAuthStatus] = useState<TelegramAuthStatusDto | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -94,15 +97,17 @@ export default function App() {
   const loadGlobalTelemetry = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const [infoRes, schedRes, transferRes] = await Promise.all([
+      const [infoRes, schedRes, transferRes, authRes] = await Promise.all([
         commands.getAppInfo(),
         commands.getSchedulerStatus(),
         commands.getTransferStatus(),
+        commands.getTelegramAuthStatus(),
       ]);
 
       if (infoRes.status === "ok") setAppInfo(infoRes.data);
       if (schedRes.status === "ok") setSchedulerStatus(schedRes.data.status);
       if (transferRes.status === "ok") setActiveTransfers(transferRes.data.active_count);
+      if (authRes.status === "ok") setAuthStatus(authRes.data);
     } catch (err: unknown) {
       console.error("Global telemetry error:", err);
     } finally {
@@ -128,7 +133,20 @@ export default function App() {
     setCurrentTab("backups");
   };
 
+  // Centralized Authentication Gate
+  if (authStatus && authStatus.state !== "ready") {
+    return (
+      <div className="app-container">
+        <WelcomeGate onAuthenticated={loadGlobalTelemetry} authStatus={authStatus} />
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
+
   const activeMeta = screenTitles[currentTab];
+  const telegramUser = authStatus?.account?.username
+    ? `@${authStatus.account.username}`
+    : authStatus?.account?.first_name;
 
   return (
     <div className="app-container">
@@ -141,6 +159,8 @@ export default function App() {
         }}
         appVersion={appInfo?.version}
         schedulerStatus={schedulerStatus}
+        telegramUser={telegramUser}
+        channelTitle={authStatus?.channel?.channel_title}
       />
 
       <main className="main-content">

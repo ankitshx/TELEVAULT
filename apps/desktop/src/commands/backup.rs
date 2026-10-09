@@ -180,6 +180,8 @@ pub async fn start_backup(
     state: State<'_, DesktopAppState>,
     request: StartBackupRequest,
 ) -> IpcResult<BackupSummaryDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
 

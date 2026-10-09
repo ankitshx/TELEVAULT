@@ -38,8 +38,8 @@ fn setup_temp_desktop_env(name: &str) -> (tauri::App<tauri::test::MockRuntime>, 
     let root = std::env::temp_dir().join(format!("televault_p19_{name}_{nanos}"));
     fs::create_dir_all(&root).unwrap();
 
-    let state =
-        DesktopAppState::new(root.clone(), None).expect("Initialize DesktopAppState on disk");
+    let state = DesktopAppState::new_mock_ready(root.clone(), None)
+        .expect("Initialize DesktopAppState on disk");
     let app = tauri::test::mock_app();
     app.manage(state);
     (app, root)
@@ -513,7 +513,7 @@ async fn test_p19_smoke_restart_persistence_and_deterministic_recovery() {
 
     // --- INSTANCE 1: Create state, run backup, configure schedule ---
     {
-        let state1 = DesktopAppState::new(root.clone(), None).expect("Instance 1 start");
+        let state1 = DesktopAppState::new_mock_ready(root.clone(), None).expect("Instance 1 start");
         let app1 = tauri::test::mock_app();
         app1.manage(state1);
         let tauri_state1 = app1.state::<DesktopAppState>();
@@ -562,7 +562,8 @@ async fn test_p19_smoke_restart_persistence_and_deterministic_recovery() {
 
     // --- INSTANCE 2: Restart application from the exact same disk directory ---
     {
-        let state2 = DesktopAppState::new(root.clone(), None).expect("Instance 2 restart");
+        let state2 =
+            DesktopAppState::new_mock_ready(root.clone(), None).expect("Instance 2 restart");
         let app2 = tauri::test::mock_app();
         app2.manage(state2);
         let tauri_state2 = app2.state::<DesktopAppState>();

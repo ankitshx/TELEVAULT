@@ -6,6 +6,7 @@ pub mod contracts;
 pub mod credentials;
 pub mod error;
 pub mod http;
+pub mod mtproto;
 pub mod provider;
 pub mod reference;
 pub mod transport;
@@ -14,6 +15,10 @@ pub use contracts::{TelegramChunkHeader, TelegramDocumentMessage, TelegramStorag
 pub use credentials::TelegramCredentials;
 pub use error::{Result, TelegramError};
 pub use http::HttpTelegramTransport;
+pub use mtproto::{
+    AuthState, GrammersMtprotoDriver, MockMtprotoDriver, MtprotoAuthManager, MtprotoDriver,
+    PersistedTelegramSession, TelegramAccountInfo, TelegramAuthStatus, TelegramChannelInfo,
+};
 pub use provider::TelegramStorageProvider;
 pub use reference::TelegramReference;
 pub use transport::{MockTelegramTransport, TelegramConnectionInfo, TelegramTransport};

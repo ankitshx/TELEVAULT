@@ -16,16 +16,18 @@ use televault_storage::mock::MockStorageProvider;
 use televault_storage::temp::TempPayloadManager;
 use televault_storage::StorageProvider;
 use televault_telegram::{
-    HttpTelegramTransport, TelegramCredentials, TelegramStorageConfig, TelegramStorageProvider,
-    TelegramTransport,
+    HttpTelegramTransport, MtprotoAuthManager, TelegramCredentials, TelegramStorageConfig,
+    TelegramStorageProvider, TelegramTransport,
 };
 use televault_transfer::cancellation::CancellationToken;
 use televault_transfer::engine::{TransferEngine, TransferEngineConfig};
 
 use crate::dto::{
-    SaveTelegramConfigDto, StartupRecoveryReportDto, TelegramConnectionStatus,
+    AuthStateDto, SaveTelegramConfigDto, StartupRecoveryReportDto, TelegramAccountInfoDto,
+    TelegramAuthStatusDto, TelegramChannelInfoDto, TelegramConnectionStatus,
     TelegramConnectionTestResultDto, TelegramStatusDto,
 };
+use crate::error::IpcError;
 
 /// Thread-safe delegating storage provider routing operations to the active backend.
 ///
@@ -142,6 +144,8 @@ pub struct DesktopAppState {
     pub telegram_status_cache: Arc<Mutex<Option<TelegramTestCache>>>,
     /// Diagnostic report from startup recovery and deterministic reconciliation.
     pub startup_recovery_report: Arc<StartupRecoveryReportDto>,
+    /// Personal Telegram MTProto authentication and private channel manager.
+    pub mtproto_auth: Arc<MtprotoAuthManager>,
 }
 
 /// Cached connection test result status.
@@ -272,6 +276,9 @@ impl DesktopAppState {
             Arc::clone(&verification_engine),
         ));
 
+        let session_file = paths.config_dir().join("telegram_session.json");
+        let mtproto_auth = Arc::new(MtprotoAuthManager::new_mock(session_file));
+
         Ok(Self {
             db,
             transfer_engine,
@@ -289,6 +296,7 @@ impl DesktopAppState {
             cancellation_registry: Arc::new(Mutex::new(HashMap::new())),
             telegram_status_cache: Arc::new(Mutex::new(None)),
             startup_recovery_report,
+            mtproto_auth,
         })
     }
 
@@ -347,6 +355,9 @@ impl DesktopAppState {
             Arc::clone(&verification_engine),
         ));
 
+        let session_file = paths.config_dir().join("telegram_session.json");
+        let mtproto_auth = Arc::new(MtprotoAuthManager::new_mock_ready(session_file));
+
         Self {
             db,
             transfer_engine,
@@ -373,7 +384,19 @@ impl DesktopAppState {
                 purged_staging_files_count: 0,
                 recovered_at: chrono::Utc::now().to_rfc3339(),
             }),
+            mtproto_auth,
         }
+    }
+
+    /// Initializes application state with a mock Telegram account and verified channel in Ready state.
+    pub fn new_mock_ready(
+        base_dir: PathBuf,
+        custom_provider: Option<Arc<dyn StorageProvider + Send + Sync>>,
+    ) -> Result<Self, AppError> {
+        let mut state = Self::new(base_dir, custom_provider)?;
+        let session_file = state.paths.config_dir().join("telegram_session.json");
+        state.mtproto_auth = Arc::new(MtprotoAuthManager::new_mock_ready(session_file));
+        Ok(state)
     }
 
     /// Path to the secure local Telegram credentials file.
@@ -588,5 +611,118 @@ impl DesktopAppState {
             .lock()
             .unwrap()
             .remove(operation_id);
+    }
+
+    /// Centralized authorization gate enforcing personal Telegram authentication and channel verification.
+    pub async fn check_auth_gate(&self) -> Result<(), IpcError> {
+        self.mtproto_auth
+            .check_auth_gate()
+            .await
+            .map_err(|e| IpcError::unauthorized(e.to_string()))
+    }
+
+    /// Queries safe personal Telegram authentication and dedicated backup channel setup status.
+    pub async fn get_telegram_auth_status(&self) -> TelegramAuthStatusDto {
+        let status = self.mtproto_auth.status().await;
+        if let Some(ref acc) = status.account {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = self
+                .db
+                .save_telegram_account(&televault_db::TelegramAccountRecord {
+                    user_id: acc.user_id,
+                    first_name: acc.first_name.clone(),
+                    last_name: acc.last_name.clone(),
+                    username: acc.username.clone(),
+                    phone_redacted: acc.phone_number.clone(),
+                    authenticated_at: now.clone(),
+                    last_seen_at: now,
+                });
+        }
+        if let (Some(ref acc), Some(ref ch)) = (&status.account, &status.channel) {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = self
+                .db
+                .save_telegram_channel(&televault_db::TelegramChannelRecord {
+                    channel_id: ch.channel_id,
+                    user_id: acc.user_id,
+                    title: ch.channel_title.clone(),
+                    is_private: ch.is_private,
+                    verified: ch.verified,
+                    created_by_televault: ch.created_by_televault,
+                    created_at: now.clone(),
+                    verified_at: if ch.verified { Some(now) } else { None },
+                });
+        }
+        let _ = self.db.update_telegram_auth_state(
+            &format!("{:?}", status.state).to_lowercase(),
+            status.account.as_ref().map(|a| a.user_id),
+            status.channel.as_ref().map(|c| c.channel_id),
+        );
+        status.into()
+    }
+}
+
+impl From<televault_telegram::AuthState> for AuthStateDto {
+    fn from(s: televault_telegram::AuthState) -> Self {
+        match s {
+            televault_telegram::AuthState::Initializing => AuthStateDto::Initializing,
+            televault_telegram::AuthState::AuthenticationRequired => {
+                AuthStateDto::AuthenticationRequired
+            }
+            televault_telegram::AuthState::Authenticating => AuthStateDto::Authenticating,
+            televault_telegram::AuthState::AuthenticationFailed => {
+                AuthStateDto::AuthenticationFailed
+            }
+            televault_telegram::AuthState::Authenticated => AuthStateDto::Authenticated,
+            televault_telegram::AuthState::ChannelSetupRequired => {
+                AuthStateDto::ChannelSetupRequired
+            }
+            televault_telegram::AuthState::ChannelSetupInProgress => {
+                AuthStateDto::ChannelSetupInProgress
+            }
+            televault_telegram::AuthState::ChannelVerificationFailed => {
+                AuthStateDto::ChannelVerificationFailed
+            }
+            televault_telegram::AuthState::Ready => AuthStateDto::Ready,
+            televault_telegram::AuthState::SessionExpired => AuthStateDto::SessionExpired,
+            televault_telegram::AuthState::LoggingOut => AuthStateDto::LoggingOut,
+            televault_telegram::AuthState::RecoverableError => AuthStateDto::RecoverableError,
+        }
+    }
+}
+
+impl From<televault_telegram::TelegramAccountInfo> for TelegramAccountInfoDto {
+    fn from(a: televault_telegram::TelegramAccountInfo) -> Self {
+        Self {
+            user_id: a.user_id,
+            first_name: a.first_name,
+            last_name: a.last_name,
+            username: a.username,
+            phone_number: a.phone_number,
+        }
+    }
+}
+
+impl From<televault_telegram::TelegramChannelInfo> for TelegramChannelInfoDto {
+    fn from(c: televault_telegram::TelegramChannelInfo) -> Self {
+        Self {
+            channel_id: c.channel_id,
+            channel_title: c.channel_title,
+            is_private: c.is_private,
+            verified: c.verified,
+            created_by_televault: c.created_by_televault,
+        }
+    }
+}
+
+impl From<televault_telegram::TelegramAuthStatus> for TelegramAuthStatusDto {
+    fn from(s: televault_telegram::TelegramAuthStatus) -> Self {
+        Self {
+            state: s.state.into(),
+            account: s.account.map(Into::into),
+            channel: s.channel.map(Into::into),
+            requires_password: s.requires_password,
+            error_message: s.error_message,
+        }
     }
 }

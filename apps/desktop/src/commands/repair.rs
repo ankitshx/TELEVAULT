@@ -39,6 +39,8 @@ pub async fn preview_repair(
     state: State<'_, DesktopAppState>,
     request: PreviewRepairRequest,
 ) -> IpcResult<RepairPreviewDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
 
@@ -92,6 +94,8 @@ pub async fn repair_file(
     state: State<'_, DesktopAppState>,
     request: RepairFileRequest,
 ) -> IpcResult<RepairExecutionResultDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
     let fid = FileId::new(&request.file_id)
@@ -138,6 +142,8 @@ pub async fn repair_snapshot(
     state: State<'_, DesktopAppState>,
     request: RepairSnapshotRequest,
 ) -> IpcResult<RepairExecutionResultDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
     let sid = SnapshotId::new(&request.snapshot_id)

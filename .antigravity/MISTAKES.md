@@ -254,6 +254,34 @@
 - Regression Test: `cargo run -p televault-desktop -- --export-types` successfully exported TypeScript bindings without errors.
 - Prevention Rule: DTO structs exported via `specta` should use fixed-width integer types (`u32`, `i32`) or annotate 64-bit values with `#[specta(type = Number)]` instead of `usize`.
 
+## Phase 20 — EmptyState Action ReactNode Object Type Mismatch
+- Mistake: In `DashboardView.tsx`, passed `{ label: "Create Your First Profile", onClick: ... }` to `EmptyState` component's `action` prop, triggering React runtime error #31 ("Objects are not valid as a React child").
+- Root Cause: `EmptyState` expects `action?: ReactNode` (a JSX element), not a plain configuration object.
+- Fix: Passed `<button className="btn btn-primary" onClick={...}>Create Your First Profile</button>` as the `action` prop.
+- Regression Test: `src/__tests__/dashboard_and_profiles.test.tsx` in Vitest.
+- Prevention Rule: Always check the TypeScript interface definition of shared UI components before passing prop values.
+
+## Phase 20 — Table Row Key Collision on Mock Snapshot IDs
+- Mistake: React warning about duplicate keys in children: multiple mock backup profiles in test fixtures used `snapshot.snapshot_id = "snap-001"`.
+- Root Cause: Used `key={snapshot.snapshot_id}` across multiple profile snapshots in the dashboard table.
+- Fix: Keyed rows by `${profileName}-${snapshot.snapshot_id}` ensuring absolute uniqueness across profile boundaries.
+- Regression Test: `src/__tests__/dashboard_and_profiles.test.tsx`.
+- Prevention Rule: In cross-entity aggregations (e.g. all recent snapshots across all profiles), compose composite keys combining parent entity ID and child entity ID.
+
+## Phase 20 — Duplicate Role="button" on Interactive Cards Triggered Ambiguous Queries
+- Mistake: Setting `role="button"` on the parent `.action-card` element caused testing-library `getByRole("button", { name: /Restore Files/i })` to find multiple matching elements.
+- Root Cause: Both the outer card container and the inner `<button>` element matched the button accessibility role with the same text label.
+- Fix: Removed `role="button"` from the wrapper container, leaving it as an interactive card with `onClick` while allowing the inner button to serve as the accessible button target.
+- Regression Test: `src/__tests__/navigation_and_shell.test.tsx`.
+- Prevention Rule: Do not assign `role="button"` to container elements that already enclose explicit HTML `<button>` elements.
+
+## Phase 20 — Vitest Text Match Ambiguity on Creator Attribution
+- Mistake: In `welcome_gate_and_auth.test.tsx`, `screen.getByText(/Ankit/i)` threw `TestingLibraryElementError: Found multiple elements with the text: /Ankit/i`.
+- Root Cause: The test mock user account was named "Ankit Sharma", while the Welcome Gate footer concurrently rendered "Created by Ankit Sharma".
+- Fix: Used `expect(screen.getAllByText(/Ankit/i).length).toBeGreaterThanOrEqual(1)` and targeted specific container selectors for attribution verification.
+- Regression Test: `src/__tests__/welcome_gate_and_auth.test.tsx`.
+- Prevention Rule: When testing screens that include global attributions or recurring brand labels, avoid generic substring regex queries and use specific text queries or `getAllByText`.
+
 
 
 

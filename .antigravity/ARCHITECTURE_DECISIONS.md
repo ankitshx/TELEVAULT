@@ -354,3 +354,18 @@
 - Reason: Guarantees atomicity under abrupt power loss or process kill; the configuration is either completely updated or untouched, eliminating corrupt or truncated configuration files.
 - Date: 2026-10-08
 
+## AD-072: Centralized MTProto Authentication Gate in Desktop State Core
+- Decision: Implemented a mandatory centralized authentication gate `DesktopAppState::check_auth_gate()` in Rust desktop core. All sensitive commands (`start_backup`, `restore_*`, `verify_*`, `repair_*`, `run_schedule_now`) call `state.check_auth_gate().await?` before beginning any work. If the auth state is not `Ready` (verified account and verified dedicated channel), the command is aborted immediately with `AppError::unauthorized`.
+- Reason: Guarantees security and operational boundaries are enforced at the native Rust core level, completely independent of frontend UI state. Unauthenticated requests are physically impossible to execute.
+- Date: 2026-10-09
+
+## AD-073: Dedicated Private Channel Backup Vault Invariant
+- Decision: TELEVAULT operates exclusively against a verified, private, dedicated Telegram channel (by default created as "TELEVAULT Backup Vault"). Users cannot direct backups to public channels or unverified destinations. Automatic creation is offered as the primary flow, with guided fallback to an existing private channel only after write and admin access is programmatically verified.
+- Reason: Safeguards privacy, guarantees backups are never mixed with personal chats or public posts, and ensures write permissions are verified before initiating multi-gigabyte transfers.
+- Date: 2026-10-09
+
+## AD-074: Offline Mock MTProto Driver for Deterministic Testing
+- Decision: Implemented `MtprotoAuthManager::new_mock_ready()` alongside the live Grammers MTProto driver. In mock mode, the manager executes full simulated multi-step authentication flows (phone, OTP, 2FA, channel creation, channel verification, logout) entirely offline in RAM with zero live network requests, zero Telegram server hits, and zero phone OTP dependencies.
+- Reason: Guarantees 100% deterministic test execution in CI/CD and offline developer environments while exercising the identical state machine and IPC contracts used in production.
+- Date: 2026-10-09
+

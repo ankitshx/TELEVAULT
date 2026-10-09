@@ -4,8 +4,8 @@ use std::path::Path;
 use tauri_specta::Builder;
 
 use crate::commands::{
-    backup, checker, repair, restore, retention, scheduler, system, telegram, transfer,
-    verification,
+    backup, checker, repair, restore, retention, scheduler, system, telegram, telegram_auth,
+    transfer, verification,
 };
 
 /// Configures and returns the central [`Builder`] registering all TELEVAULT IPC commands.
@@ -74,6 +74,16 @@ pub fn create_ipc_builder() -> Builder<tauri::Wry> {
         telegram::save_telegram_config,
         telegram::test_telegram_connection,
         telegram::disconnect_telegram,
+        // Telegram Personal MTProto Account & Dedicated Backup Channel (Phase 20)
+        telegram_auth::get_telegram_auth_status,
+        telegram_auth::start_telegram_auth,
+        telegram_auth::submit_telegram_auth_code,
+        telegram_auth::submit_telegram_auth_password,
+        telegram_auth::cancel_telegram_auth,
+        telegram_auth::setup_backup_channel,
+        telegram_auth::verify_backup_channel,
+        telegram_auth::logout_telegram,
+        telegram_auth::get_account_info,
     ])
 }
 

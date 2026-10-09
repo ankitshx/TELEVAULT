@@ -49,6 +49,26 @@ pub enum TelegramError {
         message_id: i64,
     },
 
+    /// Telegram MTProto personal account authentication error.
+    #[error("Telegram authentication error: {0}")]
+    AuthError(String),
+
+    /// Telegram Two-Factor Authentication password is required.
+    #[error("Two-step verification password is required")]
+    PasswordRequired,
+
+    /// Telegram dedicated backup channel setup or verification error.
+    #[error("Telegram channel setup failed: {0}")]
+    ChannelSetupFailed(String),
+
+    /// Telegram authentication session has expired or was revoked.
+    #[error("Telegram session has expired or was revoked")]
+    SessionExpired,
+
+    /// Operation requires successful authentication and a verified backup channel.
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
     /// Underlying I/O error during document streaming.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
@@ -100,6 +120,26 @@ impl From<TelegramError> for televault_storage::StorageError {
             TelegramError::Transport(msg) => {
                 televault_storage::StorageError::ProviderUnavailable(msg)
             }
+            TelegramError::AuthError(msg) | TelegramError::Unauthorized(msg) => {
+                televault_storage::StorageError::UploadFailed {
+                    reason: msg,
+                    retryable: false,
+                }
+            }
+            TelegramError::PasswordRequired => televault_storage::StorageError::UploadFailed {
+                reason: "Two-step verification password required".into(),
+                retryable: false,
+            },
+            TelegramError::ChannelSetupFailed(msg) => {
+                televault_storage::StorageError::UploadFailed {
+                    reason: msg,
+                    retryable: false,
+                }
+            }
+            TelegramError::SessionExpired => televault_storage::StorageError::UploadFailed {
+                reason: "Telegram session expired".into(),
+                retryable: false,
+            },
         }
     }
 }

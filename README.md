@@ -136,6 +136,20 @@ Phase 18 combines crash resilience, deterministic startup recovery, state machin
 - **Full End-to-End Core Verification**:
   - Validates full end-to-end pipeline: Profile creation ➔ File Discovery ➔ Zstd Compression ➔ Optional Encryption ➔ Bounded 64 KiB Chunking ➔ Transfer Queue ➔ Storage Provider ➔ Remote Verification ➔ Atomic Commit ➔ Retention Evaluation ➔ Restore ➔ SHA-256 byte-for-byte matching.
 
+### 3.11 Personal Telegram MTProto Authentication, Dedicated Channels & Premium Dashboard (Phase 20)
+Phase 20 introduces direct personal Telegram authentication and a complete modern premium UI redesign:
+- **Personal Telegram MTProto Authentication**: Native Telegram client authentication via phone number, SMS/Telegram verification code, and optional 2FA cloud password.
+- **Dedicated Private Channel Vault**: Automated creation of a dedicated private channel named `"TELEVAULT Backup Vault"` with verified write permissions, or guided fallback to a user-specified private channel with write-access verification.
+- **Centralized Core Authentication Gate**: Rust core enforces `state.check_auth_gate()` across all sensitive backup, restore, verification, repair, and scheduler commands, immediately rejecting unauthenticated calls with `UNAUTHORIZED`.
+- **Direction B + C Premium Dashboard Redesign**: Modern, high-craft UI redesign featuring:
+  - Hero greeting: *"Your files. Always safe."*
+  - KPI metric cards: Backup Profiles, Active Schedules, Transfer Queue, and Total Snapshots.
+  - 4 primary quick action cards: Back Up Now, Restore Files, Backup Schedule, and Verify Backups.
+  - Telegram Storage & Cloud connection overview card with live account and channel telemetry.
+  - Comprehensive recent backups table with status badges and quick-action buttons.
+- **Creator Attribution**: *"Created by Ankit Sharma"* respectfully placed in the Sidebar footer, Welcome Gate footer, and Settings About section.
+- **Offline Mock MTProto Driver**: Fully testable state machine driver supporting 100% deterministic testing without requiring live Telegram servers or phone OTPs.
+
 ---
 
 ## 4. Development Workflow & GitHub Integration
@@ -185,8 +199,10 @@ Phase 18 combines crash resilience, deterministic startup recovery, state machin
 | **Phase 15** | Production Desktop App Integration & UI Completion | 24 | Approved |
 | **Phase 16** | Production Hardening, End-to-End Integration & Reliability | 15 | Approved |
 | **Phase 17** | Production Telegram Cloud Storage Integration | 20 | Approved |
-| **Phase 18** | **Production Hardening, Recovery, Reliability & Core Integration** | **31** | **Completed** |
-| **Total** | **Authoritative Test Baseline (318 Rust + 28 UI)** | **346** | **100% Passed** |
+| **Phase 18** | Production Hardening, Recovery, Reliability & Core Integration | 31 | Approved |
+| **Phase 19** | Desktop Smoke Testing & Startup Verification | 8 | Approved |
+| **Phase 20** | **Personal Telegram MTProto Auth, Private Channel & Premium UI** | **15** | **Completed** |
+| **Total** | **Authoritative Test Baseline (Rust + UI Suites)** | **360+** | **100% Passed** |
 
 ---
 

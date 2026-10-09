@@ -6,6 +6,7 @@ import {
   SystemPathsDto,
   TelegramStatusDto,
   SaveTelegramConfigDto,
+  TelegramAuthStatusDto,
 } from "../bindings";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -19,9 +20,13 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
   const [appInfo, setAppInfo] = useState<AppInfoDto | null>(null);
   const [paths, setPaths] = useState<SystemPathsDto | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<TelegramStatusDto | null>(null);
+  const [authStatus, setAuthStatus] = useState<TelegramAuthStatusDto | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [verifyingChannel, setVerifyingChannel] = useState<boolean>(false);
+  const [loggingOut, setLoggingOut] = useState<boolean>(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
 
   // Telegram Configuration Form Fields
   const [botToken, setBotToken] = useState<string>("");
@@ -52,11 +57,12 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
       setLoading(true);
       setError(null);
 
-      const [cfgRes, infoRes, pathsRes, tgRes] = await Promise.all([
+      const [cfgRes, infoRes, pathsRes, tgRes, authRes] = await Promise.all([
         commands.getAppConfig(),
         commands.getAppInfo(),
         commands.getSystemPaths(),
         commands.getTelegramStatus(),
+        commands.getTelegramAuthStatus(),
       ]);
 
       if (cfgRes.status === "ok") {
@@ -88,12 +94,51 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
           setTargetChatId(tgRes.data.target_chat_id.toString());
         }
       }
+      if (authRes.status === "ok") {
+        setAuthStatus(authRes.data);
+      }
     } catch (err: unknown) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleVerifyChannel = async () => {
+    try {
+      setVerifyingChannel(true);
+      const res = await commands.verifyBackupChannel();
+      if (res.status === "ok") {
+        setAuthStatus(res.data);
+        onNotify("success", "Channel Verified", "Private backup channel connectivity and permissions confirmed.");
+      } else {
+        onNotify("error", "Verification Failed", res.error.message || "Failed to verify channel.");
+      }
+    } catch (err: unknown) {
+      onNotify("error", "Verification Error", String(err));
+    } finally {
+      setVerifyingChannel(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      const res = await commands.logoutTelegram();
+      if (res.status === "ok") {
+        setAuthStatus(res.data);
+        onNotify("info", "Logged Out", "Telegram session cleared. Returning to welcome gate.");
+        window.location.reload();
+      } else {
+        onNotify("error", "Logout Failed", res.error.message || "Failed to log out.");
+      }
+    } catch (err: unknown) {
+      onNotify("error", "Logout Error", String(err));
+    } finally {
+      setLoggingOut(false);
+      setShowLogoutConfirm(false);
+    }
+  };
 
   useEffect(() => {
     loadSettings();
@@ -254,6 +299,106 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {error && <ErrorBanner error={error} title="Configuration Error" onDismiss={() => setError(null)} />}
+
+      {/* Personal Telegram Account & Dedicated Private Channel Section */}
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-title">Personal Telegram Account & Backup Channel</div>
+            <div className="card-subtitle">
+              Direct MTProto connection and private cloud vault for backup payloads
+            </div>
+          </div>
+          <span
+            className={`badge ${authStatus?.state === "ready" ? "badge-success" : "badge-warning"}`}
+            style={{ padding: "0.3rem 0.6rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}
+          >
+            {authStatus?.state === "ready" ? "🟢 Vault Ready" : `🟡 State: ${authStatus?.state || "Unknown"}`}
+          </span>
+        </div>
+
+        <div className="grid-2" style={{ gap: "1.5rem" }}>
+          <div style={{ background: "var(--bg-card)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border-card)" }}>
+            <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--text-main)" }}>
+              Authenticated Account
+            </div>
+            {authStatus?.account ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
+                <div><strong>Name:</strong> {authStatus.account.first_name} {authStatus.account.last_name || ""}</div>
+                <div><strong>User ID:</strong> <span className="mono">{authStatus.account.user_id}</span></div>
+                {authStatus.account.username && <div><strong>Username:</strong> @{authStatus.account.username}</div>}
+                <div><strong>Phone:</strong> {authStatus.account.phone_number}</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: "0.2rem" }}>
+                  Connected via official Telegram MTProto protocol
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>No personal account active</div>
+            )}
+          </div>
+
+          <div style={{ background: "var(--bg-card)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border-card)" }}>
+            <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--text-main)" }}>
+              Dedicated Backup Channel
+            </div>
+            {authStatus?.channel ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
+                <div><strong>Channel Title:</strong> {authStatus.channel.channel_title}</div>
+                <div><strong>Channel ID:</strong> <span className="mono">{authStatus.channel.channel_id}</span></div>
+                <div><strong>Privacy:</strong> {authStatus.channel.is_private ? "✓ Private Channel (Restricted)" : "Public"}</div>
+                <div><strong>Status:</strong> {authStatus.channel.verified ? "✓ Verified & Write-Ready" : "Unverified"}</div>
+                <div style={{ marginTop: "0.5rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleVerifyChannel}
+                    disabled={verifyingChannel}
+                  >
+                    {verifyingChannel ? "Verifying..." : "🔄 Re-verify Channel"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>No channel configured</div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem", borderTop: "1px solid var(--border-subtle)", paddingTop: "1rem" }}>
+          {showLogoutConfirm ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--danger)" }}>
+                Sign out of Telegram? This locks the desktop application until you re-authenticate.
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowLogoutConfirm(false)}
+                disabled={loggingOut}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={handleLogout}
+                disabled={loggingOut}
+              >
+                {loggingOut ? "Signing Out..." : "Confirm Sign Out"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setShowLogoutConfirm(true)}
+              disabled={loggingOut}
+            >
+              🚪 Sign Out of Telegram Account
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Telegram Cloud Storage Section */}
       <div className="card">
@@ -640,6 +785,7 @@ export function SettingsView({ onNotify }: SettingsViewProps) {
               <div><strong>Platform:</strong> {appInfo.platform} ({appInfo.arch})</div>
               <div><strong>Build Mode:</strong> {appInfo.build_mode}</div>
               <div><strong>Architecture:</strong> Rust + Tauri 2 + React (Single Process)</div>
+              <div><strong>Author:</strong> Created by Ankit Sharma</div>
             </div>
           )}
 

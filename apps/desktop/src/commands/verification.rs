@@ -32,6 +32,8 @@ pub async fn verify_file_backup(
     state: State<'_, DesktopAppState>,
     request: VerifyTargetRequest,
 ) -> IpcResult<VerificationResultDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
 
@@ -67,6 +69,8 @@ pub async fn verify_manifest(
     state: State<'_, DesktopAppState>,
     request: VerifyTargetRequest,
 ) -> IpcResult<VerificationResultDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
 
@@ -107,6 +111,8 @@ pub async fn verify_snapshot(
     state: State<'_, DesktopAppState>,
     request: VerifyTargetRequest,
 ) -> IpcResult<VerificationResultDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
 
@@ -142,6 +148,8 @@ pub async fn verify_profile(
     state: State<'_, DesktopAppState>,
     request: VerifyTargetRequest,
 ) -> IpcResult<VerificationResultDto> {
+    state.check_auth_gate().await?;
+
     let pid = ProfileId::new(&request.profile_id)
         .map_err(|e| IpcError::validation(format!("Invalid profile ID: {e}")))?;
 

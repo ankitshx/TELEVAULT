@@ -26,6 +26,8 @@ pub async fn restore_file(
     state: State<'_, DesktopAppState>,
     request: RestoreFileRequest,
 ) -> IpcResult<RestoreResultDto> {
+    state.check_auth_gate().await?;
+
     let fid = FileId::new(&request.file_id)
         .map_err(|e| IpcError::validation(format!("Invalid file ID: {e}")))?;
 
@@ -101,6 +103,8 @@ pub async fn restore_manifest(
     state: State<'_, DesktopAppState>,
     request: RestoreManifestRequest,
 ) -> IpcResult<RestoreResultDto> {
+    state.check_auth_gate().await?;
+
     let manifest = ManifestV1::from_json(&request.manifest_json)
         .map_err(|e| IpcError::validation(format!("Invalid manifest JSON: {e}")))?;
 
@@ -172,6 +176,8 @@ pub async fn restore_snapshot(
     state: State<'_, DesktopAppState>,
     request: RestoreSnapshotRequest,
 ) -> IpcResult<SnapshotRestoreResultDto> {
+    state.check_auth_gate().await?;
+
     let sid = SnapshotId::new(&request.snapshot_id)
         .map_err(|e| IpcError::validation(format!("Invalid snapshot ID: {e}")))?;
 
@@ -271,6 +277,8 @@ pub async fn verify_full_restore(
     state: State<'_, DesktopAppState>,
     request: RestoreFileRequest,
 ) -> IpcResult<FullVerificationReportDto> {
+    state.check_auth_gate().await?;
+
     let fid = FileId::new(&request.file_id)
         .map_err(|e| IpcError::validation(format!("Invalid file ID: {e}")))?;
 

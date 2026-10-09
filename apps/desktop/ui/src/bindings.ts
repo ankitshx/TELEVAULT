@@ -114,6 +114,35 @@ export const commands = {
 	testTelegramConnection: () => typedError<TelegramConnectionTestResultDto, IpcError>(__TAURI_INVOKE("test_telegram_connection")),
 	/**  Disconnects Telegram configuration and falls back to mock storage. */
 	disconnectTelegram: () => typedError<TelegramStatusDto, IpcError>(__TAURI_INVOKE("disconnect_telegram")),
+	/**  Returns current personal Telegram authentication and dedicated backup channel setup status. */
+	getTelegramAuthStatus: () => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("get_telegram_auth_status")),
+	/**  Initiates personal Telegram account authentication by requesting a verification code. */
+	startTelegramAuth: (request: StartTelegramAuthDto) => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("start_telegram_auth", { request })),
+	/**  Submits the verification code received via Telegram. */
+	submitTelegramAuthCode: (request: SubmitAuthCodeDto) => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("submit_telegram_auth_code", { request })),
+	/**  Submits the Two-Step Verification (2FA) cloud password. */
+	submitTelegramAuthPassword: (request: SubmitAuthPasswordDto) => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("submit_telegram_auth_password", { request })),
+	/**  Cancels an in-progress authentication attempt and safely resets state. */
+	cancelTelegramAuth: () => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("cancel_telegram_auth")),
+	/**  Sets up the private backup channel (auto-creates if channel_id is None, or verifies manual channel). */
+	setupBackupChannel: (request: SetupChannelDto) => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("setup_backup_channel", { request })),
+	/**  Explicitly verifies connectivity and permissions on the configured private backup channel. */
+	verifyBackupChannel: () => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("verify_backup_channel")),
+	/**  Logs out of Telegram, purges session material from disk, and locks the application gate. */
+	logoutTelegram: () => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("logout_telegram")),
+	/**  Retrieves safe personal account details if currently authenticated. */
+	getAccountInfo: () => typedError<{
+	/**  Telegram user ID. */
+	user_id: number,
+	/**  First name. */
+	first_name: string,
+	/**  Optional last name. */
+	last_name: string | null,
+	/**  Optional username. */
+	username: string | null,
+	/**  Redacted phone number for safe display. */
+	phone_number: string,
+} | null, IpcError>(__TAURI_INVOKE("get_account_info")),
 };
 
 /* Types */
@@ -142,6 +171,33 @@ export type AppInfoDto = {
 	/**  Release or debug build mode. */
 	build_mode: string,
 };
+
+/**  High-level authentication and authorization states for personal Telegram account integration. */
+export type AuthStateDto = 
+/**  Initializing session state. */
+"initializing" | 
+/**  Login required before application can be unlocked. */
+"authentication_required" | 
+/**  Authentication in progress (code or password challenge). */
+"authenticating" | 
+/**  Authentication failed. */
+"authentication_failed" | 
+/**  Account verified; channel setup required. */
+"authenticated" | 
+/**  Channel setup required. */
+"channel_setup_required" | 
+/**  Channel setup in progress. */
+"channel_setup_in_progress" | 
+/**  Channel verification failed. */
+"channel_verification_failed" | 
+/**  Fully ready and unlocked. */
+"ready" | 
+/**  Session expired or revoked. */
+"session_expired" | 
+/**  Logging out. */
+"logging_out" | 
+/**  Recoverable error. */
+"recoverable_error";
 
 /**  Default backup preferences for profiles. */
 export type BackupPreferencesDto = {
@@ -651,6 +707,12 @@ export type SetRetentionPolicyRequest = {
 	enabled: boolean | null,
 };
 
+/**  Payload to setup or configure private backup channel. */
+export type SetupChannelDto = {
+	/**  Optional manual channel ID. If None, automatically creates dedicated channel. */
+	channel_id: number | null,
+};
+
 /**  Historical snapshot metadata record. */
 export type SnapshotDto = {
 	snapshot_id: string,
@@ -689,6 +751,16 @@ export type StartBackupRequest = {
 	passphrase: string | null,
 };
 
+/**  Payload to initiate personal Telegram login. */
+export type StartTelegramAuthDto = {
+	/**  Phone number with country code (e.g. +1234567890). */
+	phone_number: string,
+	/**  Telegram API ID (optional: if omitted, uses application default). */
+	api_id: number | null,
+	/**  Telegram API Hash (optional: if omitted, uses application default). */
+	api_hash: string | null,
+};
+
 /**  Diagnostic report generated during deterministic startup recovery and state reconciliation. */
 export type StartupRecoveryReportDto = {
 	/**  Whether SQLite database integrity check reported healthy ("ok"). */
@@ -717,6 +789,18 @@ export type StorageConfigDto = {
 	temp_retention_hours: number,
 };
 
+/**  Payload to submit Telegram verification code. */
+export type SubmitAuthCodeDto = {
+	/**  Verification code received from Telegram. */
+	code: string,
+};
+
+/**  Payload to submit Two-Step Verification (2FA) cloud password. */
+export type SubmitAuthPasswordDto = {
+	/**  Cloud password. */
+	password: string,
+};
+
 /**  Standardized resolved system directories managed by PathManager. */
 export type SystemPathsDto = {
 	/**  Root data directory (e.g. %LOCALAPPDATA%\TELEVAULT). */
@@ -729,6 +813,48 @@ export type SystemPathsDto = {
 	logs_dir: string,
 	/**  Path to application config directory. */
 	config_dir: string,
+};
+
+/**  Safe personal Telegram account profile details. */
+export type TelegramAccountInfoDto = {
+	/**  Telegram user ID. */
+	user_id: number,
+	/**  First name. */
+	first_name: string,
+	/**  Optional last name. */
+	last_name: string | null,
+	/**  Optional username. */
+	username: string | null,
+	/**  Redacted phone number for safe display. */
+	phone_number: string,
+};
+
+/**  Complete current authentication and channel setup status. */
+export type TelegramAuthStatusDto = {
+	/**  Current state machine status. */
+	state: AuthStateDto,
+	/**  Authenticated account details. */
+	account: TelegramAccountInfoDto | null,
+	/**  Dedicated backup channel details. */
+	channel: TelegramChannelInfoDto | null,
+	/**  Whether 2FA password is required. */
+	requires_password: boolean,
+	/**  Safe error message. */
+	error_message: string | null,
+};
+
+/**  Metadata and status for dedicated private backup channel. */
+export type TelegramChannelInfoDto = {
+	/**  Telegram channel ID. */
+	channel_id: number,
+	/**  Channel title. */
+	channel_title: string,
+	/**  Whether channel is private. */
+	is_private: boolean,
+	/**  Whether channel permissions were verified. */
+	verified: boolean,
+	/**  Whether created automatically by TELEVAULT. */
+	created_by_televault: boolean,
 };
 
 /**  High-level Telegram cloud connection health status for the desktop UI. */

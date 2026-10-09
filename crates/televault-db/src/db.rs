@@ -5,7 +5,8 @@ use crate::migrations::run_migrations;
 use crate::models::{
     ChunkRecord, FileRecord, HealthStatus, ManifestRecord, ProfileRecord, RepairHistoryRecord,
     RetentionHistoryRecord, RetentionPolicyRecord, ScheduleHistoryRecord, ScheduleRecord,
-    SearchResult, SnapshotRecord, TransferJobRecord, VerificationHistoryRecord, VersionRecord,
+    SearchResult, SnapshotRecord, TelegramAccountRecord, TelegramAuthStateRecord,
+    TelegramChannelRecord, TransferJobRecord, VerificationHistoryRecord, VersionRecord,
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::Path;
@@ -2585,6 +2586,185 @@ fn map_repair_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RepairHisto
     })
 }
 
+impl Database {
+    // =========================================================================
+    // Telegram Account & Backup Channel Metadata (Phase 20)
+    // =========================================================================
+
+    /// Saves or updates the Telegram authenticated account record.
+    pub fn save_telegram_account(&self, account: &TelegramAccountRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO telegram_accounts (
+                    user_id, first_name, last_name, username, phone_redacted, authenticated_at, last_seen_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(user_id) DO UPDATE SET
+                    first_name = excluded.first_name,
+                    last_name = excluded.last_name,
+                    username = excluded.username,
+                    phone_redacted = excluded.phone_redacted,
+                    last_seen_at = excluded.last_seen_at;",
+                params![
+                    account.user_id,
+                    account.first_name,
+                    account.last_name,
+                    account.username,
+                    account.phone_redacted,
+                    account.authenticated_at,
+                    account.last_seen_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Retrieves a Telegram account by user ID.
+    pub fn get_telegram_account(&self, user_id: i64) -> Result<Option<TelegramAccountRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT user_id, first_name, last_name, username, phone_redacted, authenticated_at, last_seen_at
+                 FROM telegram_accounts WHERE user_id = ?1;",
+            )?;
+            let mut rows = stmt.query(params![user_id])?;
+            if let Some(r) = rows.next()? {
+                Ok(Some(TelegramAccountRecord {
+                    user_id: r.get(0)?,
+                    first_name: r.get(1)?,
+                    last_name: r.get(2)?,
+                    username: r.get(3)?,
+                    phone_redacted: r.get(4)?,
+                    authenticated_at: r.get(5)?,
+                    last_seen_at: r.get(6)?,
+                }))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Saves or updates the Telegram backup channel metadata.
+    pub fn save_telegram_channel(&self, channel: &TelegramChannelRecord) -> Result<()> {
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO telegram_channels (
+                    channel_id, user_id, title, is_private, verified, created_by_televault, created_at, verified_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                 ON CONFLICT(channel_id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    title = excluded.title,
+                    is_private = excluded.is_private,
+                    verified = excluded.verified,
+                    created_by_televault = excluded.created_by_televault,
+                    verified_at = excluded.verified_at;",
+                params![
+                    channel.channel_id,
+                    channel.user_id,
+                    channel.title,
+                    if channel.is_private { 1 } else { 0 },
+                    if channel.verified { 1 } else { 0 },
+                    if channel.created_by_televault { 1 } else { 0 },
+                    channel.created_at,
+                    channel.verified_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Retrieves a Telegram backup channel by channel ID.
+    pub fn get_telegram_channel(&self, channel_id: i64) -> Result<Option<TelegramChannelRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT channel_id, user_id, title, is_private, verified, created_by_televault, created_at, verified_at
+                 FROM telegram_channels WHERE channel_id = ?1;",
+            )?;
+            let mut rows = stmt.query(params![channel_id])?;
+            if let Some(r) = rows.next()? {
+                let is_priv: i64 = r.get(3)?;
+                let ver: i64 = r.get(4)?;
+                let cb: i64 = r.get(5)?;
+                Ok(Some(TelegramChannelRecord {
+                    channel_id: r.get(0)?,
+                    user_id: r.get(1)?,
+                    title: r.get(2)?,
+                    is_private: is_priv != 0,
+                    verified: ver != 0,
+                    created_by_televault: cb != 0,
+                    created_at: r.get(6)?,
+                    verified_at: r.get(7)?,
+                }))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Updates the singleton Telegram authentication state machine record.
+    pub fn update_telegram_auth_state(
+        &self,
+        current_state: &str,
+        active_user_id: Option<i64>,
+        active_channel_id: Option<i64>,
+    ) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO telegram_auth_state (
+                    singleton_id, current_state, active_user_id, active_channel_id, updated_at
+                 ) VALUES (1, ?1, ?2, ?3, ?4)
+                 ON CONFLICT(singleton_id) DO UPDATE SET
+                    current_state = excluded.current_state,
+                    active_user_id = excluded.active_user_id,
+                    active_channel_id = excluded.active_channel_id,
+                    updated_at = excluded.updated_at;",
+                params![current_state, active_user_id, active_channel_id, now],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Gets the current stored singleton Telegram auth state.
+    pub fn get_telegram_auth_state(&self) -> Result<Option<TelegramAuthStateRecord>> {
+        self.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT current_state, active_user_id, active_channel_id, updated_at
+                 FROM telegram_auth_state WHERE singleton_id = 1;",
+            )?;
+            let mut rows = stmt.query([])?;
+            if let Some(r) = rows.next()? {
+                Ok(Some(TelegramAuthStateRecord {
+                    current_state: r.get(0)?,
+                    active_user_id: r.get(1)?,
+                    active_channel_id: r.get(2)?,
+                    updated_at: r.get(3)?,
+                }))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Clears the active authentication and channel records on logout, preserving all backups,
+    /// profiles, snapshots, and file metadata.
+    pub fn clear_telegram_auth_data(&self) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO telegram_auth_state (
+                    singleton_id, current_state, active_user_id, active_channel_id, updated_at
+                 ) VALUES (1, 'authentication_required', NULL, NULL, ?1)
+                 ON CONFLICT(singleton_id) DO UPDATE SET
+                    current_state = 'authentication_required',
+                    active_user_id = NULL,
+                    active_channel_id = NULL,
+                    updated_at = excluded.updated_at;",
+                params![now],
+            )?;
+            Ok(())
+        })
+    }
+}
+
 /// Sanitizes user queries for safe execution inside SQLite FTS5 MATCH expressions.
 ///
 /// Strips characters that have syntactic meaning in FTS5 boolean grammar unless quoted.
@@ -2615,5 +2795,63 @@ mod tests {
             "\"secret\"* \"OR\"* \"DROP\"*"
         );
         assert_eq!(sanitize_fts5_query("   "), "");
+    }
+
+    #[test]
+    fn test_telegram_auth_persistence() {
+        let db = Database::open_in_memory().expect("open db");
+        let account = TelegramAccountRecord {
+            user_id: 123456789,
+            first_name: "TestUser".into(),
+            last_name: Some("Vault".into()),
+            username: Some("test_vault".into()),
+            phone_redacted: "+1 *** *** 1234".into(),
+            authenticated_at: "2026-10-09T10:00:00Z".into(),
+            last_seen_at: "2026-10-09T10:00:00Z".into(),
+        };
+        db.save_telegram_account(&account).expect("save account");
+        let loaded = db
+            .get_telegram_account(123456789)
+            .expect("get account")
+            .expect("exists");
+        assert_eq!(loaded.first_name, "TestUser");
+        assert_eq!(loaded.phone_redacted, "+1 *** *** 1234");
+
+        let channel = TelegramChannelRecord {
+            channel_id: -1001987654321,
+            user_id: 123456789,
+            title: "TELEVAULT Backup Vault".into(),
+            is_private: true,
+            verified: true,
+            created_by_televault: true,
+            created_at: "2026-10-09T10:01:00Z".into(),
+            verified_at: Some("2026-10-09T10:01:05Z".into()),
+        };
+        db.save_telegram_channel(&channel).expect("save channel");
+        let loaded_ch = db
+            .get_telegram_channel(-1001987654321)
+            .expect("get channel")
+            .expect("exists");
+        assert_eq!(loaded_ch.title, "TELEVAULT Backup Vault");
+        assert!(loaded_ch.verified);
+
+        db.update_telegram_auth_state("ready", Some(123456789), Some(-1001987654321))
+            .expect("update state");
+        let state = db
+            .get_telegram_auth_state()
+            .expect("get state")
+            .expect("exists");
+        assert_eq!(state.current_state, "ready");
+        assert_eq!(state.active_user_id, Some(123456789));
+        assert_eq!(state.active_channel_id, Some(-1001987654321));
+
+        db.clear_telegram_auth_data().expect("clear auth data");
+        let cleared_state = db
+            .get_telegram_auth_state()
+            .expect("get state")
+            .expect("exists");
+        assert_eq!(cleared_state.current_state, "authentication_required");
+        assert_eq!(cleared_state.active_user_id, None);
+        assert_eq!(cleared_state.active_channel_id, None);
     }
 }
