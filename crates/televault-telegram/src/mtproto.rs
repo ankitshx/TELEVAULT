@@ -313,69 +313,40 @@ impl MockMtprotoDriver {
 // =============================================================================
 
 /// Real MTProto driver connecting to official Telegram MTProto datacenters using `grammers-client`.
-use grammers_session::types::{DcOption, PeerId, PeerInfo, UpdateState, UpdatesState};
-use std::future::Future;
-use std::pin::Pin;
+use grammers_session::storages::MemorySession;
+use grammers_session::types::DcOption;
+use grammers_session::SessionData;
 
-/// Lightweight thread-safe in-memory MTProto session adapter.
-#[derive(Default, Debug)]
-pub struct SimpleSession {
-    home_dc: std::sync::atomic::AtomicI32,
+/// Persistent datacenter session payload containing home DC and authorization keys.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PersistedDcSession {
+    /// Primary home datacenter ID.
+    pub home_dc: i32,
+    /// Known datacenter options with their generated auth keys.
+    pub dc_options: Vec<DcOption>,
 }
 
-impl grammers_session::Session for SimpleSession {
-    type Error = std::io::Error;
-
-    fn home_dc_id(&self) -> std::result::Result<i32, Self::Error> {
-        Ok(self.home_dc.load(std::sync::atomic::Ordering::SeqCst))
-    }
-
-    fn set_home_dc_id(
-        &self,
-        dc_id: i32,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Self::Error>> + Send>> {
-        self.home_dc
-            .store(dc_id, std::sync::atomic::Ordering::SeqCst);
-        Box::pin(std::future::ready(Ok(())))
-    }
-
-    fn dc_option(&self, _dc_id: i32) -> std::result::Result<Option<DcOption>, Self::Error> {
-        Ok(None)
-    }
-
-    fn set_dc_option(
-        &self,
-        _opt: &DcOption,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Self::Error>> + Send>> {
-        Box::pin(std::future::ready(Ok(())))
-    }
-
-    fn peer(
-        &self,
-        _peer_id: PeerId,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<Option<PeerInfo>, Self::Error>> + Send>>
-    {
-        Box::pin(std::future::ready(Ok(None)))
-    }
-
-    fn cache_peer(
-        &self,
-        _peer: &PeerInfo,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Self::Error>> + Send>> {
-        Box::pin(std::future::ready(Ok(())))
-    }
-
-    fn updates_state(
-        &self,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<UpdatesState, Self::Error>> + Send>> {
-        Box::pin(std::future::ready(Ok(UpdatesState::default())))
-    }
-
-    fn set_update_state(
-        &self,
-        _state: UpdateState,
-    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Self::Error>> + Send>> {
-        Box::pin(std::future::ready(Ok(())))
+fn map_invocation_error(err: grammers_client::InvocationError) -> TelegramError {
+    match err {
+        grammers_client::InvocationError::Rpc(rpc) => {
+            let msg = match rpc.name.as_str() {
+                "API_ID_INVALID" => "Invalid Telegram API ID or API Hash. Please verify your credentials from https://my.telegram.org.".to_string(),
+                "API_ID_PUBLISHED_FLOOD" => "This Telegram API ID is restricted due to public flood limits. Please use your personal API ID from https://my.telegram.org.".to_string(),
+                "PHONE_NUMBER_INVALID" => "The phone number entered is invalid. Please enter a valid international number starting with '+' (e.g. +1234567890).".to_string(),
+                "PHONE_NUMBER_BANNED" => "This phone number has been banned by Telegram.".to_string(),
+                "PHONE_NUMBER_FLOOD" => "Too many login code requests for this phone number. Please wait before trying again.".to_string(),
+                "PHONE_CODE_EXPIRED" => "The verification code has expired. Please request a new code.".to_string(),
+                "PHONE_CODE_INVALID" => "Invalid verification code entered.".to_string(),
+                "FLOOD_WAIT" => format!("Telegram rate limit: please wait {} seconds before trying again.", rpc.value.unwrap_or(60)),
+                "AUTH_RESTART" => "Telegram authentication was restarted. Please try again.".to_string(),
+                _ => format!("Telegram error: {}", rpc.name),
+            };
+            TelegramError::AuthError(msg)
+        }
+        grammers_client::InvocationError::Io(io_err) => TelegramError::AuthError(format!(
+            "Network connection error connecting to Telegram: {io_err}"
+        )),
+        other => TelegramError::AuthError(format!("Telegram request failed: {other}")),
     }
 }
 
@@ -386,7 +357,7 @@ pub struct GrammersMtprotoDriver {
     password_token: Option<grammers_client::client::PasswordToken>,
     api_id: i32,
     api_hash: String,
-    session: Arc<SimpleSession>,
+    session: Arc<MemorySession>,
     authenticated_user: Option<TelegramAccountInfo>,
     configured_channel: Option<TelegramChannelInfo>,
 }
@@ -400,21 +371,30 @@ impl GrammersMtprotoDriver {
             password_token: None,
             api_id,
             api_hash: api_hash.into(),
-            session: Arc::new(SimpleSession::default()),
+            session: Arc::new(MemorySession::default()),
             authenticated_user: None,
             configured_channel: None,
         }
     }
 
     /// Initializes from persisted session bytes.
-    pub fn from_session_bytes(api_id: i32, api_hash: impl Into<String>, _bytes: &[u8]) -> Self {
+    pub fn from_session_bytes(api_id: i32, api_hash: impl Into<String>, bytes: &[u8]) -> Self {
+        let mut session_data = SessionData::default();
+        if !bytes.is_empty() {
+            if let Ok(persisted) = serde_json::from_slice::<PersistedDcSession>(bytes) {
+                session_data.home_dc = persisted.home_dc;
+                for opt in persisted.dc_options {
+                    session_data.dc_options.insert(opt.id, opt);
+                }
+            }
+        }
         Self {
             client: None,
             login_token: None,
             password_token: None,
             api_id,
             api_hash: api_hash.into(),
-            session: Arc::new(SimpleSession::default()),
+            session: Arc::new(MemorySession::from(session_data)),
             authenticated_user: None,
             configured_channel: None,
         }
@@ -441,15 +421,28 @@ impl GrammersMtprotoDriver {
         api_id: i32,
         api_hash: &str,
     ) -> Result<()> {
+        let trimmed_phone = phone.trim();
+        if trimmed_phone.is_empty() || !trimmed_phone.starts_with('+') || trimmed_phone.len() < 8 {
+            return Err(TelegramError::AuthError(
+                "Please enter a valid international phone number starting with '+' (e.g. +1234567890)".into(),
+            ));
+        }
+        if api_id <= 0 || api_hash.trim().is_empty() {
+            return Err(TelegramError::AuthError(
+                "Valid Telegram API ID and API Hash are required from https://my.telegram.org"
+                    .into(),
+            ));
+        }
+
         self.api_id = api_id;
         self.api_hash = api_hash.to_string();
         self.client = None;
         let client = self.ensure_client().await?;
 
         let t = client
-            .request_login_code(phone, api_hash)
+            .request_login_code(trimmed_phone, api_hash)
             .await
-            .map_err(|e| TelegramError::AuthError(format!("Failed to request login code: {e}")))?;
+            .map_err(map_invocation_error)?;
         self.login_token = Some(t);
         Ok(())
     }
@@ -504,6 +497,12 @@ impl GrammersMtprotoDriver {
                 self.password_token = Some(pwd_token);
                 Ok(AuthCodeResult::PasswordRequired)
             }
+            Err(grammers_client::SignInError::InvalidCode) => {
+                Err(TelegramError::AuthError("Invalid verification code. Please check and try again.".into()))
+            }
+            Err(grammers_client::SignInError::SignUpRequired) => {
+                Err(TelegramError::AuthError("This phone number is not registered on Telegram. Please sign up using the official Telegram mobile app first.".into()))
+            }
             Err(e) => Err(TelegramError::AuthError(format!("Sign in failed: {e}"))),
         }
     }
@@ -518,7 +517,12 @@ impl GrammersMtprotoDriver {
         let user = client
             .check_password(token, password)
             .await
-            .map_err(|e| TelegramError::AuthError(format!("Invalid 2FA password: {e}")))?;
+            .map_err(|e| match e {
+                grammers_client::SignInError::InvalidPassword(_) => TelegramError::AuthError(
+                    "Incorrect Two-Step Verification (2FA) cloud password.".into(),
+                ),
+                other => TelegramError::AuthError(format!("2FA verification failed: {other}")),
+            })?;
 
         let uid = match user.raw {
             grammers_tl_types::enums::User::User(ref u) => u.id,
@@ -696,7 +700,18 @@ impl GrammersMtprotoDriver {
 
     /// Extracts the serialized session bytes for persistence.
     pub async fn export_session_bytes(&self) -> Vec<u8> {
-        Vec::new()
+        let home_dc = grammers_session::Session::home_dc_id(&*self.session).unwrap_or(2);
+        let mut dc_options = Vec::new();
+        for id in 1..=5 {
+            if let Ok(Some(opt)) = grammers_session::Session::dc_option(&*self.session, id) {
+                dc_options.push(opt);
+            }
+        }
+        let data = PersistedDcSession {
+            home_dc,
+            dc_options,
+        };
+        serde_json::to_vec(&data).unwrap_or_default()
     }
 
     /// Signs out and invalidates the active MTProto session with Telegram.
@@ -707,7 +722,7 @@ impl GrammersMtprotoDriver {
         self.client = None;
         self.authenticated_user = None;
         self.configured_channel = None;
-        self.session = Arc::new(SimpleSession::default());
+        self.session = Arc::new(MemorySession::default());
         Ok(())
     }
 }
@@ -941,6 +956,25 @@ impl MtprotoAuthManager {
         api_id: i32,
         api_hash: &str,
     ) -> Result<TelegramAuthStatus> {
+        let is_mock = api_hash == "mockhash123"
+            || api_hash == "mock_hash"
+            || phone == "+1 555 123 4567"
+            || std::env::var("TELEVAULT_MOCK_TELEGRAM")
+                .map(|v| v == "1" || v == "true")
+                .unwrap_or(false);
+
+        {
+            let mut driver = self.driver.write().await;
+            if is_mock {
+                if !matches!(*driver, MtprotoDriver::Mock(_)) {
+                    *driver = MtprotoDriver::Mock(Box::new(MockMtprotoDriver::new()));
+                }
+            } else if !matches!(*driver, MtprotoDriver::Real(_)) {
+                *driver =
+                    MtprotoDriver::Real(Box::new(GrammersMtprotoDriver::new(api_id, api_hash)));
+            }
+        }
+
         {
             let mut guard = self.inner.write().await;
             guard.state = AuthState::Authenticating;

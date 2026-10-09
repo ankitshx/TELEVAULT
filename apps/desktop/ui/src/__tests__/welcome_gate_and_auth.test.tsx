@@ -278,4 +278,96 @@ describe("Phase 20: Welcome Gate & Telegram MTProto Auth Flow", () => {
     expect(screen.queryByTestId("app-splash")).toBeNull();
     expect(screen.queryByTestId("welcome-gate-container")).toBeNull();
   });
+
+  it("validates phone number format before sending request", async () => {
+    const onAuth = vi.fn();
+    render(
+      <WelcomeGate
+        onAuthenticated={onAuth}
+        authStatus={{
+          state: "authentication_required",
+          account: null,
+          channel: null,
+          requires_password: false,
+          error_message: null,
+        }}
+      />
+    );
+
+    const phoneInput = screen.getByLabelText(/Phone Number/i);
+    const submitBtn = screen.getByRole("button", { name: /Send Verification Code/i });
+
+    // Try without plus sign or too short
+    fireEvent.change(phoneInput, { target: { value: "12345" } });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Please enter a valid international phone number starting with '\+'/i)
+      ).toBeDefined();
+    });
+    expect(onAuth).not.toHaveBeenCalled();
+  });
+
+  it("displays explicit code-delivery directions in authenticating state", async () => {
+    render(
+      <WelcomeGate
+        onAuthenticated={vi.fn()}
+        authStatus={{
+          state: "authenticating",
+          account: null,
+          channel: null,
+          requires_password: false,
+          error_message: null,
+        }}
+      />
+    );
+
+    expect(screen.getByText(/How Telegram delivers your verification code/i)).toBeDefined();
+    expect(screen.getByText(/Active Sessions/i)).toBeDefined();
+    expect(screen.getByText(/SMS text message/i)).toBeDefined();
+  });
+
+  it("displays backend error message clearly without exposing internal secrets", async () => {
+    const onAuth = vi.fn();
+    (invoke as any).mockImplementation(
+      createTauriMock({
+        start_telegram_auth: () => ({
+          state: "authentication_failed",
+          account: null,
+          channel: null,
+          requires_password: false,
+          error_message:
+            "Telegram MTProto API ID and API Hash are required. Obtain them from https://my.telegram.org and configure them in settings or enter them above.",
+        }),
+      })
+    );
+
+    render(
+      <WelcomeGate
+        onAuthenticated={onAuth}
+        authStatus={{
+          state: "authentication_required",
+          account: null,
+          channel: null,
+          requires_password: false,
+          error_message: null,
+        }}
+      />
+    );
+
+    const phoneInput = screen.getByLabelText(/Phone Number/i);
+    fireEvent.change(phoneInput, { target: { value: "+15551234567" } });
+
+    const submitBtn = screen.getByRole("button", { name: /Send Verification Code/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Telegram MTProto API ID and API Hash are required/i)
+      ).toBeDefined();
+    });
+    expect(onAuth).not.toHaveBeenCalled();
+  });
 });
+

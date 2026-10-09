@@ -177,3 +177,12 @@ pub struct SetupChannelDto {
     #[specta(type = Option<Number>)]
     pub channel_id: Option<i64>,
 }
+
+/// Status indicating whether Telegram MTProto API credentials are configured.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct TelegramApiConfigStatusDto {
+    /// Whether valid Telegram API credentials are configured locally or via env.
+    pub is_configured: bool,
+    /// Telegram application numeric API ID (safe to display, API hash is redacted).
+    pub api_id: Option<i32>,
+}

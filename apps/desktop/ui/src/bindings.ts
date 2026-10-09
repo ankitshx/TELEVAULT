@@ -116,6 +116,8 @@ export const commands = {
 	disconnectTelegram: () => typedError<TelegramStatusDto, IpcError>(__TAURI_INVOKE("disconnect_telegram")),
 	/**  Returns current personal Telegram authentication and dedicated backup channel setup status. */
 	getTelegramAuthStatus: () => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("get_telegram_auth_status")),
+	/**  Returns whether Telegram MTProto API credentials are configured locally or via env. */
+	getTelegramApiConfig: () => typedError<TelegramApiConfigStatusDto, IpcError>(__TAURI_INVOKE("get_telegram_api_config")),
 	/**  Initiates personal Telegram account authentication by requesting a verification code. */
 	startTelegramAuth: (request: StartTelegramAuthDto) => typedError<TelegramAuthStatusDto, IpcError>(__TAURI_INVOKE("start_telegram_auth", { request })),
 	/**  Submits the verification code received via Telegram. */
@@ -827,6 +829,14 @@ export type TelegramAccountInfoDto = {
 	username: string | null,
 	/**  Redacted phone number for safe display. */
 	phone_number: string,
+};
+
+/**  Status indicating whether Telegram MTProto API credentials are configured. */
+export type TelegramApiConfigStatusDto = {
+	/**  Whether valid Telegram API credentials are configured locally or via env. */
+	is_configured: boolean,
+	/**  Telegram application numeric API ID (safe to display, API hash is redacted). */
+	api_id: number | null,
 };
 
 /**  Complete current authentication and channel setup status. */

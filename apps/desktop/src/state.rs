@@ -277,7 +277,23 @@ impl DesktopAppState {
         ));
 
         let session_file = paths.config_dir().join("telegram_session.json");
-        let mtproto_auth = Arc::new(MtprotoAuthManager::new_mock(session_file));
+        let is_mock_env = std::env::var("TELEVAULT_MOCK_TELEGRAM")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false);
+
+        let mtproto_auth = if is_mock_env {
+            Arc::new(MtprotoAuthManager::new_mock(session_file))
+        } else {
+            let (api_id, api_hash) = if let Some(creds) =
+                televault_telegram::TelegramApiCredentials::load_from_env_or_file(
+                    &paths.config_dir(),
+                ) {
+                (creds.api_id, creds.api_hash)
+            } else {
+                (0, String::new())
+            };
+            Arc::new(MtprotoAuthManager::new_live(session_file, api_id, api_hash))
+        };
 
         Ok(Self {
             db,

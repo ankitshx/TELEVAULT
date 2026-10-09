@@ -388,3 +388,19 @@
 - Reason: Eliminates the race condition where `authStatus = null` caused a momentary or permanent flash of the protected dashboard before IPC resolved.
 - Date: 2026-10-09
 
+## AD-078: Dynamic MTProto Driver Delegation
+- Decision: In `MtprotoAuthManager`, default to `GrammersMtprotoDriver` connected to live Telegram datacenters for production runs, but dynamically delegate to `MockMtprotoDriver` when `TELEVAULT_MOCK_TELEGRAM=1` or when test mock credentials (`mockhash123`) are provided.
+- Reason: Ensures production connects to real Telegram servers to deliver actual authentication codes, while permitting fully offline automated testing suites.
+- Date: 2026-10-09
+
+## AD-079: User-Configured Telegram MTProto API Credentials Architecture
+- Decision: Introduce `TelegramApiCredentials` supporting discovery from `TELEGRAM_API_ID` & `TELEGRAM_API_HASH` environment variables, or local `telegram_api.json` persisted in `%LOCALAPPDATA%\TELEVAULT\config`. Provide `get_telegram_api_config` command exposing `is_configured` and `api_id` while strictly redacting `api_hash`.
+- Reason: Telegram MTProto personal account authentication requires distinct application API credentials from `https://my.telegram.org`. Hardcoding legacy test IDs (such as 2040) causes rate-limiting and connection failure.
+- Date: 2026-10-09
+
+## AD-080: Telegram Datacenter Session Persistence with Key Serialization
+- Decision: Implement `PersistedDcSession` storing home DC index and all known DC options with auth keys serialized via `grammers-session` with `features = ["serde"]`. Pre-populate standard Telegram DC 1-5 configurations in `MemorySession` on boot.
+- Reason: Prevents `InvalidDc` connection errors and maintains continuous authentication session validity across application restarts.
+- Date: 2026-10-09
+
+

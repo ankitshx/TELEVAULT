@@ -201,8 +201,25 @@ Phase 20 introduces direct personal Telegram authentication and a complete moder
 | **Phase 17** | Production Telegram Cloud Storage Integration | 20 | Approved |
 | **Phase 18** | Production Hardening, Recovery, Reliability & Core Integration | 31 | Approved |
 | **Phase 19** | Desktop Smoke Testing & Startup Verification | 8 | Approved |
-| **Phase 20** | **Personal Telegram MTProto Auth, Private Channel & Premium UI** | **15** | **Completed** |
-| **Total** | **Authoritative Test Baseline (Rust + UI Suites)** | **360+** | **100% Passed** |
+| **Phase 20** | **Personal Telegram MTProto Auth, Private Channel & Premium UI** | **18** | **Completed** |
+| **Total** | **Authoritative Test Baseline (Rust + UI Suites)** | **365+** | **100% Passed** |
+
+---
+
+## 5.1 Telegram MTProto Account Authentication Setup
+
+TELEVAULT uses direct, official MTProto client-to-datacenter protocol to authenticate your personal Telegram account without bot tokens or third-party servers:
+
+1. **Obtain Telegram API Credentials**:
+   - Sign in to [https://my.telegram.org](https://my.telegram.org) with your phone number.
+   - Navigate to **"API development tools"** and create an application (e.g. named "TELEVAULT Desktop").
+   - Copy your numeric **App api_id** and 32-character hex **App api_hash**.
+2. **Configure Locally**:
+   - **Via GUI**: Enter your phone number, expand the Telegram API Credentials section in the Welcome Gate, enter your API ID and API Hash, and click **"Send Verification Code"**. The credentials will be saved securely to `%LOCALAPPDATA%\TELEVAULT\config\telegram_api.json`.
+   - **Via Environment Variables**: Alternatively, set `TELEGRAM_API_ID=<your_id>` and `TELEGRAM_API_HASH=<your_hash>` in your Windows user environment.
+3. **Verification Code Delivery**:
+   - **Active Sessions**: If you are logged into Telegram on another phone, PC, or browser, Telegram sends the login code directly into your official **Telegram** service notifications chat.
+   - **SMS Delivery**: Telegram only falls back to SMS text messages if your account has no active sessions.
 
 ---
 
@@ -234,7 +251,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 # Verify code formatting
 cargo fmt --all -- --check
 
-# Run Frontend test suite (33 Vitest tests across 8 suites)
+# Run Frontend test suite (36 Vitest tests across 8 suites)
 cd apps/desktop/ui
 npm test -- --run
 ```

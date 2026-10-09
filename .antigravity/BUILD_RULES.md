@@ -58,5 +58,7 @@
 44. Frontend Pre-Build Invariant for Desktop Packaging: Release packaging of `TELEVAULT.exe` must always trigger or require a clean compilation of `apps/desktop/ui` (`tsc && vite build`) before cargo packaging. Never package desktop binaries against unverified or stale `dist` directories.
 45. Windows GUI Subsystem Invariant: Application binary entry points must explicitly declare `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` to guarantee zero unwanted console windows on Windows release launches.
 46. Zero-Dashboard Flash Invariant: Frontend applications must never render protected or authenticated routes while initial authentication status is pending or unresolved; an explicit branded splash or loading screen must guard initial mounting.
+47. MTProto Production Initialization Rule: Desktop production runs must never initialize with mock authentication drivers. Mock behavior is restricted to explicit test runs (`TELEVAULT_MOCK_TELEGRAM=1`), and MTProto client drivers must pre-populate standard Telegram datacenters (DCs 1–5) to prevent `InvalidDc` connection failures.
+48. Transparent Verification Code Delivery Guidance Rule: The UI must never claim a code was sent without successful server confirmation, and must transparently educate users on Telegram's code delivery hierarchy: active sessions in the official Telegram app chat receive the code first, and SMS text messages are used only as a fallback when no sessions are active.
 
 

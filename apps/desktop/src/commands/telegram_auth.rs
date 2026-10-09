@@ -17,6 +17,21 @@ pub async fn get_telegram_auth_status(
     Ok(state.get_telegram_auth_status().await)
 }
 
+/// Returns whether Telegram MTProto API credentials are configured locally or via env.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_telegram_api_config(
+    state: State<'_, DesktopAppState>,
+) -> IpcResult<crate::dto::TelegramApiConfigStatusDto> {
+    let configured = televault_telegram::TelegramApiCredentials::load_from_env_or_file(
+        &state.paths.config_dir(),
+    );
+    Ok(crate::dto::TelegramApiConfigStatusDto {
+        is_configured: configured.is_some(),
+        api_id: configured.map(|c| c.api_id),
+    })
+}
+
 /// Initiates personal Telegram account authentication by requesting a verification code.
 #[tauri::command]
 #[specta::specta]
@@ -24,14 +39,45 @@ pub async fn start_telegram_auth(
     state: State<'_, DesktopAppState>,
     request: StartTelegramAuthDto,
 ) -> IpcResult<TelegramAuthStatusDto> {
-    let api_id = request.api_id.unwrap_or(2040);
-    let api_hash = request
-        .api_hash
-        .unwrap_or_else(|| "b18441a1ff607e10a989891a5462e627".to_string());
+    let phone = request.phone_number.trim();
+    if phone.is_empty() || !phone.starts_with('+') || phone.len() < 8 {
+        return Err(IpcError::validation(
+            "Please enter a valid international phone number starting with '+' (e.g. +1234567890)"
+                .to_string(),
+        ));
+    }
+
+    // Resolve API credentials:
+    // Priority: 1. Request parameters -> 2. telegram_api.json / env vars
+    let (api_id, api_hash) = match (request.api_id, request.api_hash.as_deref()) {
+        (Some(id), Some(hash)) if id > 0 && !hash.trim().is_empty() => {
+            let creds = televault_telegram::TelegramApiCredentials {
+                api_id: id,
+                api_hash: hash.trim().to_string(),
+            };
+            let _ = creds.save_to_file(&state.paths.config_dir());
+            (id, hash.trim().to_string())
+        }
+        _ => {
+            if let Some(loaded) = televault_telegram::TelegramApiCredentials::load_from_env_or_file(
+                &state.paths.config_dir(),
+            ) {
+                (loaded.api_id, loaded.api_hash)
+            } else if request.api_id.is_some() && request.api_hash.is_none() {
+                return Err(IpcError::validation(
+                    "Telegram API Hash is required when specifying custom API ID.".to_string(),
+                ));
+            } else {
+                return Err(IpcError::validation(
+                    "Telegram API ID and API Hash are required to connect via MTProto. Please enter your credentials from https://my.telegram.org in the API Credentials section, or set TELEGRAM_API_ID and TELEGRAM_API_HASH.".to_string(),
+                ));
+            }
+        }
+    };
 
     state
         .mtproto_auth
-        .start_auth(&request.phone_number, api_id, &api_hash)
+        .start_auth(phone, api_id, &api_hash)
         .await
         .map_err(|e| IpcError::validation(e.to_string()))?;
 

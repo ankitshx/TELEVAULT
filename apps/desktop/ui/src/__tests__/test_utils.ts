@@ -460,6 +460,10 @@ export function createTauriMock(customHandlers: Record<string, any> = {}) {
       requires_password: false,
       error_message: null,
     }),
+    get_telegram_api_config: () => ({
+      is_configured: true,
+      api_id: 123456,
+    }),
     start_telegram_auth: () => ({
       state: "authenticating",
       account: null,

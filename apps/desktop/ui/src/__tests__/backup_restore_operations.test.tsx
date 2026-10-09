@@ -34,7 +34,7 @@ describe("Backup & Restore Engine Integration", () => {
         expect(screen.getByText("Documents & Databases (prof-001)")).toBeDefined();
       });
 
-      const runBtn = screen.getByRole("button", { name: /Run Backup Now/i });
+      const runBtn = await screen.findByRole("button", { name: /Run Backup Now/i });
       fireEvent.click(runBtn);
 
       const startBtn = screen.getByRole("button", { name: /Start Backup/i });

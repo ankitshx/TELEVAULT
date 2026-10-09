@@ -1152,4 +1152,51 @@
    - Format: `cargo fmt --check` passing with 0 discrepancies.
    - Release binary: `TELEVAULT.exe` compiled and verified with PE Subsystem 2.
 
+---
+
+## Telegram Login Code Delivery Failure — Five-Agent Root-Cause Investigation & Corrective Implementation
+- Started: 2026-10-09 19:30 IST
+- Completed: 2026-10-09 22:15 IST
+- Status: Completed
+
+### Five Specialist Execution:
+1. **Agent 1 — Telegram Authentication Protocol Specialist**:
+   - Diagnosed Rust MTProto implementation: traced `start_telegram_auth` through `DesktopAppState::auth_manager` to `MtprotoAuthManager`.
+   - Discovered root causes:
+     - `DesktopAppState::new()` hardcoded `MtprotoAuthManager::new_mock(session_file)`, executing `MockMtprotoDriver::request_login_code` in production which returned `Ok(())` without ever contacting Telegram datacenters.
+     - `GrammersMtprotoDriver` used `SimpleSession` returning `dc_option: None` and `home_dc: 0`, which triggered `InvocationError::InvalidDc` on any live connection attempt.
+     - `api_id` defaulted to legacy `2040` (blocked by Telegram).
+     - `export_session_bytes` was a stub returning empty `Vec::new()`, discarding authenticated session keys.
+   - Fixed:
+     - Replaced `SimpleSession` with `grammers_session::storages::MemorySession` pre-populated with standard Telegram datacenters (DC1–5).
+     - Implemented `PersistedDcSession` serialization/deserialization for MTProto auth keys using `grammers-session` with `features = ["serde"]`.
+     - Added `map_invocation_error` translating Telegram RPC errors (`API_ID_INVALID`, `PHONE_NUMBER_INVALID`, `PHONE_NUMBER_FLOOD`, `FLOOD_WAIT`, `PHONE_CODE_EXPIRED`) to actionable user errors.
+     - Added dynamic driver delegation: uses `Mock` if `TELEVAULT_MOCK_TELEGRAM=1` or `api_hash == "mockhash123"`; otherwise uses live `GrammersMtprotoDriver`.
+2. **Agent 2 — Frontend, IPC & Login UX Specialist**:
+   - Inspected `WelcomeGate.tsx` and typed IPC contract in `bindings.ts`.
+   - Updated Step 1: added proactive API credential status checking (`getTelegramApiConfig`), automatic guidance on how to obtain API credentials from `https://my.telegram.org`, and client-side international phone number validation.
+   - Updated Step 2 (Verification Code): provided accurate delivery instructions explaining that Telegram delivers codes to active Telegram sessions (in the official service notifications chat) first, and only sends SMS if no active sessions exist.
+   - Added loading/disabled states preventing duplicate submissions while MTProto requests are pending.
+   - Updated test mocks and added comprehensive regression tests in `welcome_gate_and_auth.test.tsx`.
+3. **Agent 3 — Configuration & Secret-Handling Specialist**:
+   - Created `TelegramApiCredentials` in `televault-telegram/src/credentials.rs`.
+   - Supported environment variables (`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`), persistent local config (`telegram_api.json`), or session recovery.
+   - Redacted `api_hash` in `Debug`, `Display`, and IPC status (`TelegramApiConfigStatusDto`).
+   - Added atomic credential save with `.tmp` flush and rename.
+4. **Agent 4 — Independent Testing & Failure-Analysis Specialist**:
+   - Added unit tests in `televault-telegram` for credential lifecycle, redaction, and validation.
+   - Added Vitest regression tests in `welcome_gate_and_auth.test.tsx` for phone format validation, code delivery instructions, and error handling.
+   - Ran `npm --prefix apps/desktop/ui test`: 8 test suites, 36 tests passed (100%).
+   - Ran `cargo test -p televault-telegram`: 13 unit tests passed (100%).
+   - Ran `cargo test -p televault-desktop --test auth_gate_tests`: all auth gate tests passed (100%).
+   - Ran full workspace test suite `cargo test --workspace`: all 12 crates and all integration tests passed (100%).
+   - Ran `cargo clippy --workspace -- -D warnings`: 0 warnings.
+   - Ran `cargo fmt --check`: 0 discrepancies.
+5. **Agent 5 — Integration Lead & Architecture Guardian**:
+   - Verified single-process desktop architecture and security invariants.
+   - Verified release build compilation via `scripts/build_release.ps1`: generated `target/release/TELEVAULT.exe` (46.91 MB) with embedded fresh frontend assets.
+   - Verified headless startup with `--check-startup`: exited with code 0.
+   - Synchronized documentation and memory records.
+
+
 

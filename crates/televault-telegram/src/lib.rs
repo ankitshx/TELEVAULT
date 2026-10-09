@@ -12,7 +12,7 @@ pub mod reference;
 pub mod transport;
 
 pub use contracts::{TelegramChunkHeader, TelegramDocumentMessage, TelegramStorageConfig};
-pub use credentials::TelegramCredentials;
+pub use credentials::{TelegramApiCredentials, TelegramCredentials};
 pub use error::{Result, TelegramError};
 pub use http::HttpTelegramTransport;
 pub use mtproto::{

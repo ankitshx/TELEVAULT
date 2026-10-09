@@ -114,3 +114,8 @@
 - Failure Mode: Unauthenticated user sees a momentary flash of the protected dashboard or remains on the dashboard if IPC query fails.
 - Mitigation in Phase 20 P1: Implemented explicit `isAuthInitializing` state rendering a branded `.app-splash` screen, blocking protected routes until authentication status is confirmed. If initialization fails, renders an error screen with retry rather than falling through.
 
+## KF-024: Production Mock Driver & Empty Datacenter Session Preventing Code Delivery
+- Risk: Production `DesktopAppState` initialized with `MtprotoAuthManager::new_mock`, and `GrammersMtprotoDriver` initialized with an empty session lacking datacenter definitions.
+- Failure Mode: Clicking "Send Code" returned success locally without contacting Telegram or, if attempted live, failed immediately with `InvalidDc`.
+- Mitigation: Production initialization defaults to `new_live`, populating standard Telegram datacenters (DC1-5) in `grammers-session`, dynamically delegating to mock only when `TELEVAULT_MOCK_TELEGRAM=1` or test credentials are provided, providing user-configurable API credentials with hash redaction, and accurately guiding users regarding Telegram's in-app vs SMS code delivery.
+

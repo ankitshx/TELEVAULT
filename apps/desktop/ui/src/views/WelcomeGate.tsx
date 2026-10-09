@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   commands,
   TelegramAuthStatusDto,
+  TelegramApiConfigStatusDto,
   StartTelegramAuthDto,
   SubmitAuthCodeDto,
   SubmitAuthPasswordDto,
@@ -22,31 +23,68 @@ export function WelcomeGate({ onAuthenticated, authStatus }: WelcomeGateProps) {
   const [showManualChannel, setShowManualChannel] = useState(false);
   const [apiId, setApiId] = useState("");
   const [apiHash, setApiHash] = useState("");
+  const [apiConfig, setApiConfig] = useState<TelegramApiConfigStatusDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const state = authStatus?.state || "authentication_required";
   const account = authStatus?.account;
 
+  useEffect(() => {
+    commands.getTelegramApiConfig().then((res) => {
+      if (res.status === "ok") {
+        setApiConfig(res.data);
+        if (res.data.is_configured && res.data.api_id) {
+          setApiId(res.data.api_id.toString());
+        } else if (!res.data.is_configured) {
+          setShowAdvanced(true);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
   const handleStartAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phoneNumber.trim()) {
+    if (loading) return;
+
+    const trimmedPhone = phoneNumber.trim();
+    if (!trimmedPhone) {
       setError("Please enter your phone number with country code (e.g. +1 555 123 4567)");
       return;
     }
+    const cleanDigits = trimmedPhone.replace(/[^\d]/g, "");
+    if (!trimmedPhone.startsWith("+") || cleanDigits.length < 8) {
+      setError("Please enter a valid international phone number starting with '+' and your country code (e.g. +1 555 123 4567)");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
+      const parsedApiId = apiId.trim() ? parseInt(apiId.trim(), 10) : null;
+      if (apiId.trim() && (isNaN(parsedApiId!) || parsedApiId! <= 0)) {
+        setError("API ID must be a positive integer.");
+        setLoading(false);
+        return;
+      }
+
       const payload: StartTelegramAuthDto = {
-        phone_number: phoneNumber.trim(),
-        api_id: apiId.trim() ? parseInt(apiId.trim(), 10) : null,
+        phone_number: trimmedPhone,
+        api_id: parsedApiId,
         api_hash: apiHash.trim() ? apiHash.trim() : null,
       };
       const res = await commands.startTelegramAuth(payload);
       if (res.status === "ok") {
-        onAuthenticated();
+        if (res.data.error_message) {
+          setError(res.data.error_message);
+          if (res.data.error_message.includes("API ID and API Hash")) {
+            setShowAdvanced(true);
+          }
+        } else {
+          onAuthenticated();
+        }
       } else {
-        setError(res.error.message || "Failed to start authentication");
+        setError(res.error.message || "Failed to start Telegram authentication");
       }
     } catch (err: unknown) {
       setError(String(err));
@@ -277,14 +315,48 @@ export function WelcomeGate({ onAuthenticated, authStatus }: WelcomeGateProps) {
                   className="link-btn"
                   onClick={() => setShowAdvanced(!showAdvanced)}
                 >
-                  {showAdvanced ? "▼ Hide Advanced API Credentials" : "▶ Custom Telegram API Credentials (Optional)"}
+                  {showAdvanced
+                    ? "▼ Hide Telegram API Credentials"
+                    : apiConfig?.is_configured
+                    ? `✓ Telegram API Credentials Configured (App ID: ${apiConfig.api_id}) • Edit`
+                    : "⚠️ Custom Telegram API Credentials Required (Click to configure)"}
                 </button>
               </div>
 
               {showAdvanced && (
                 <div className="advanced-fields-box">
+                  <div
+                    className="credentials-help-box"
+                    style={{
+                      fontSize: "0.82rem",
+                      color: "#94a3b8",
+                      marginBottom: "0.75rem",
+                      lineHeight: 1.45,
+                      background: "rgba(15, 23, 42, 0.5)",
+                      padding: "0.6rem 0.8rem",
+                      borderRadius: "6px",
+                      border: "1px solid rgba(148, 163, 184, 0.15)",
+                    }}
+                  >
+                    Personal MTProto authentication requires credentials from Telegram:
+                    <br />
+                    1. Sign in to{" "}
+                    <a
+                      href="https://my.telegram.org"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: "#60a5fa", textDecoration: "underline" }}
+                    >
+                      https://my.telegram.org
+                    </a>{" "}
+                    with your phone number.
+                    <br />
+                    2. Go to <strong>&quot;API development tools&quot;</strong> and create an application.
+                    <br />
+                    3. Copy your <strong>App api_id</strong> and <strong>App api_hash</strong> below.
+                  </div>
                   <div className="form-group">
-                    <label htmlFor="gate-api-id">Telegram API ID (Optional):</label>
+                    <label htmlFor="gate-api-id">Telegram API ID:</label>
                     <input
                       id="gate-api-id"
                       type="text"
@@ -296,7 +368,7 @@ export function WelcomeGate({ onAuthenticated, authStatus }: WelcomeGateProps) {
                     />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="gate-api-hash">Telegram API Hash (Optional):</label>
+                    <label htmlFor="gate-api-hash">Telegram API Hash:</label>
                     <input
                       id="gate-api-hash"
                       type="password"
@@ -326,11 +398,35 @@ export function WelcomeGate({ onAuthenticated, authStatus }: WelcomeGateProps) {
               <div className="gate-form-header">
                 <h2>Enter Verification Code</h2>
                 <p>
-                  We sent a login code to your official Telegram app. Check your messages from Telegram.
+                  Telegram has sent an official login code{phoneNumber ? ` for ${phoneNumber}` : ""}.
                 </p>
+                <div
+                  className="delivery-notice-box"
+                  style={{
+                    background: "rgba(59, 130, 246, 0.08)",
+                    border: "1px solid rgba(59, 130, 246, 0.25)",
+                    borderRadius: "8px",
+                    padding: "0.75rem 1rem",
+                    marginTop: "0.75rem",
+                    fontSize: "0.85rem",
+                    lineHeight: 1.45,
+                    color: "#cbd5e1",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "#60a5fa", marginBottom: "0.35rem" }}>
+                    📲 How Telegram delivers your verification code:
+                  </div>
+                  <div>
+                    • <strong>Telegram App (Active Sessions):</strong> If you are logged into Telegram on another phone, computer, or web session, Telegram delivers the code inside the official <em>Telegram</em> service notifications chat.
+                  </div>
+                  <div style={{ marginTop: "0.3rem" }}>
+                    • <strong>SMS text message:</strong> Telegram will only send an SMS if you do not have any active Telegram sessions logged in.
+                  </div>
+                </div>
               </div>
 
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: "1.25rem" }}>
                 <label htmlFor="gate-code-input">Telegram Verification Code:</label>
                 <input
                   id="gate-code-input"
@@ -352,7 +448,7 @@ export function WelcomeGate({ onAuthenticated, authStatus }: WelcomeGateProps) {
                   onClick={handleCancelAuth}
                   disabled={loading}
                 >
-                  ← Change Phone
+                  ← Change Phone / Re-request
                 </button>
                 <button
                   type="submit"

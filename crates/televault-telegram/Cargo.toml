@@ -16,7 +16,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 reqwest = { version = "0.13", features = ["blocking", "multipart", "json", "default-tls"], default-features = false }
 grammers-client = { version = "0.10.0", default-features = false }
-grammers-session = { version = "0.10.0", default-features = false }
+grammers-session = { version = "0.10.0", default-features = false, features = ["serde"] }
 grammers-tl-types = "0.10.0"
 tokio = { version = "1.0", features = ["full"] }
 chrono = { workspace = true }

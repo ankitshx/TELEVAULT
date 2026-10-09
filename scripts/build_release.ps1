@@ -1,10 +1,10 @@
-# TELEVAULT — Canonical Windows Desktop Release Build Script
+# TELEVAULT - Canonical Windows Desktop Release Build Script
 # Usage: powershell -ExecutionPolicy Bypass -File scripts\build_release.ps1
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "  TELEVAULT — Production Windows Release Build Pipeline  " -ForegroundColor Cyan
+Write-Host "  TELEVAULT - Production Windows Release Build Pipeline  " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # Step 1: Build latest React frontend production bundle
@@ -34,5 +34,6 @@ if (-not (Test-Path $exePath)) {
 }
 
 $exeItem = Get-Item $exePath
-Write-Host "Output: $exePath ($([math]::Round($exeItem.Length / 1MB, 2)) MB)" -ForegroundColor Green
+$sizeMb = [math]::Round($exeItem.Length / 1MB, 2)
+Write-Host "Output: $exePath ($sizeMb MB)" -ForegroundColor Green
 Write-Host "`n[SUCCESS] TELEVAULT release build completed successfully!" -ForegroundColor Green

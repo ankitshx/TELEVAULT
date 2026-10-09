@@ -76,6 +76,7 @@ pub fn create_ipc_builder() -> Builder<tauri::Wry> {
         telegram::disconnect_telegram,
         // Telegram Personal MTProto Account & Dedicated Backup Channel (Phase 20)
         telegram_auth::get_telegram_auth_status,
+        telegram_auth::get_telegram_api_config,
         telegram_auth::start_telegram_auth,
         telegram_auth::submit_telegram_auth_code,
         telegram_auth::submit_telegram_auth_password,

@@ -303,6 +303,14 @@
 - Regression Test: `it("renders startup splash screen while authentication check is pending and never flashes dashboard")` in `welcome_gate_and_auth.test.tsx`.
 - Prevention Rule: Never allow protected application views to render when authentication state is pending or unresolved; always guard with explicit initialization states.
 
+## Phase 20 (MTProto Fix) — Production State Initialized with Mock Driver and Unusable MTProto Session
+- Mistake: In `apps/desktop/src/state.rs`, `DesktopAppState::new()` initialized `MtprotoAuthManager::new_mock(session_file)`. When users entered their phone number in `TELEVAULT.exe`, the app executed mock code that returned success locally without contacting Telegram, delivering no verification code. Additionally, `GrammersMtprotoDriver` used `SimpleSession` returning `dc_option: None`, causing immediate `InvalidDc` errors on any live attempt.
+- Root Cause: During Phase 20 initial implementation, offline test mock was hardcoded in production state, and `grammers_session` datacenters were not initialized.
+- Fix: Switched default production initialization to `new_live`, implemented `grammers_session::storages::MemorySession` with standard Telegram DCs 1-5, implemented `PersistedDcSession` serialization, added `TelegramApiCredentials` configuration with redaction, translated Telegram RPC errors to user-friendly messages, and supported offline mock execution via `TELEVAULT_MOCK_TELEGRAM=1`.
+- Regression Test: Unit tests in `televault-telegram` (`test_api_credentials_*`, `test_full_auth_and_channel_flow`), integration tests in `auth_gate_tests.rs`, and Vitest tests in `welcome_gate_and_auth.test.tsx`.
+- Prevention Rule: Production desktop state must never hardcode mock drivers; use environment variables or test fixtures to opt into mock behavior, and initialize all protocol datacenters in client drivers.
+
+
 
 
 

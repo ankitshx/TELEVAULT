@@ -134,6 +134,114 @@ impl TelegramCredentials {
     }
 }
 
+/// Telegram MTProto API application credentials (API ID and API Hash).
+///
+/// Obtained from https://my.telegram.org by creating a Telegram application.
+/// Required for direct, personal MTProto desktop authentication without bots or third-party servers.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelegramApiCredentials {
+    /// Telegram application numeric API ID.
+    pub api_id: i32,
+    /// Telegram application 32-character hex API Hash.
+    pub api_hash: String,
+}
+
+impl std::fmt::Debug for TelegramApiCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TelegramApiCredentials")
+            .field("api_id", &self.api_id)
+            .field("api_hash", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl std::fmt::Display for TelegramApiCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TelegramApiCredentials(api_id: {}, api_hash: [REDACTED])",
+            self.api_id
+        )
+    }
+}
+
+impl TelegramApiCredentials {
+    /// Creates and validates a new [`TelegramApiCredentials`] instance.
+    pub fn new(api_id: i32, api_hash: impl Into<String>) -> Result<Self> {
+        let creds = Self {
+            api_id,
+            api_hash: api_hash.into(),
+        };
+        creds.validate()?;
+        Ok(creds)
+    }
+
+    /// Validates Telegram API credentials format.
+    pub fn validate(&self) -> Result<()> {
+        if self.api_id <= 0 {
+            return Err(TelegramError::AuthError(
+                "Telegram API ID must be a positive integer".into(),
+            ));
+        }
+        let hash = self.api_hash.trim();
+        if hash.is_empty() || hash.len() < 10 {
+            return Err(TelegramError::AuthError(
+                "Telegram API Hash must be a valid hex string of at least 10 characters".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Loads Telegram API credentials from environment variables, or local config file.
+    pub fn load_from_env_or_file(config_dir: &Path) -> Option<Self> {
+        // 1. Environment variables
+        if let (Ok(id_str), Ok(hash)) = (
+            std::env::var("TELEGRAM_API_ID"),
+            std::env::var("TELEGRAM_API_HASH"),
+        ) {
+            if let Ok(id) = id_str.trim().parse::<i32>() {
+                if id > 0 && hash.trim().len() >= 10 {
+                    return Some(Self {
+                        api_id: id,
+                        api_hash: hash.trim().to_string(),
+                    });
+                }
+            }
+        }
+
+        // 2. Local telegram_api.json in config_dir
+        let path = config_dir.join("telegram_api.json");
+        if path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(creds) = serde_json::from_str::<Self>(&content) {
+                    if creds.validate().is_ok() {
+                        return Some(creds);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Securely persists the API credentials to disk atomically.
+    pub fn save_to_file(&self, config_dir: &Path) -> Result<()> {
+        self.validate()?;
+        let path = config_dir.join("telegram_api.json");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let serialized = serde_json::to_string_pretty(self).map_err(|e| {
+            TelegramError::AuthError(format!("Failed to serialize API credentials: {e}"))
+        })?;
+
+        let temp_path = path.with_extension("tmp");
+        std::fs::write(&temp_path, serialized.as_bytes())?;
+        std::fs::rename(&temp_path, &path)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,5 +300,37 @@ mod tests {
 
         TelegramCredentials::remove_file(&path).expect("remove");
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_api_credentials_redaction_and_validation() {
+        let creds = TelegramApiCredentials::new(123456, "abcdef1234567890").unwrap();
+        assert_eq!(creds.api_id, 123456);
+        let debug_str = format!("{:?}", creds);
+        assert!(!debug_str.contains("abcdef1234567890"));
+        assert!(debug_str.contains("[REDACTED]"));
+
+        assert!(TelegramApiCredentials::new(0, "abcdef1234567890").is_err());
+        assert!(TelegramApiCredentials::new(123456, "").is_err());
+        assert!(TelegramApiCredentials::new(123456, "short").is_err());
+    }
+
+    #[test]
+    fn test_api_credentials_file_lifecycle() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "tele_api_creds_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let creds = TelegramApiCredentials::new(987654, "0123456789abcdef").unwrap();
+        creds.save_to_file(&temp_dir).expect("save");
+
+        let loaded = TelegramApiCredentials::load_from_env_or_file(&temp_dir).expect("load");
+        assert_eq!(loaded.api_id, 987654);
+        assert_eq!(loaded.api_hash, "0123456789abcdef");
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

@@ -20,6 +20,7 @@ use televault_desktop::dto::*;
 use televault_desktop::state::DesktopAppState;
 
 fn setup_unauthenticated_test_env(name: &str) -> (tauri::App<tauri::test::MockRuntime>, PathBuf) {
+    std::env::set_var("TELEVAULT_MOCK_TELEGRAM", "1");
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
